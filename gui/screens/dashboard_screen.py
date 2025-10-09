@@ -1,16 +1,20 @@
-#gui/screens/dashboard_screen.py
-
+# gui/screens/dashboard_screen.py
 """
 Dashboard scherm voor Planning Tool
 FIXED: Instance attributes in __init__ + PyCharm type hints
+UPDATED: Teamleden kunnen wachtwoord wijzigen + Feestdagen alleen voor planners
 """
 from typing import Dict, Any
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QTabWidget, QScrollArea, QFrame)
+                             QPushButton, QTabWidget, QScrollArea, QFrame,
+                             QDialog, QLineEdit, QMessageBox, QDialogButtonBox)
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from gui.styles import Styles, Colors, Fonts, Dimensions
 from gui.dialogs.about_dialog import AboutDialog
+import bcrypt
+from database.connection import get_connection
+import sqlite3
 
 
 class DashboardScreen(QWidget):
@@ -26,6 +30,7 @@ class DashboardScreen(QWidget):
     rode_lijnen_clicked = pyqtSignal()
     planning_clicked = pyqtSignal()
     verlof_clicked = pyqtSignal()
+    kalender_test_clicked = pyqtSignal()
     logout_signal = pyqtSignal()
 
     def __init__(self, user_data: Dict[str, Any]):
@@ -95,6 +100,16 @@ class DashboardScreen(QWidget):
         dialog = AboutDialog(self)
         dialog.exec()
 
+    def show_wachtwoord_dialog(self) -> None:
+        """Toon wachtwoord wijzig dialog"""
+        dialog = WachtwoordWijzigenDialog(self, self.user_data)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            QMessageBox.information(
+                self,
+                "Succes",
+                "Je wachtwoord is succesvol gewijzigd!"
+            )
+
     def create_planner_tabs(self) -> None:
         """Maak tabs voor planner rol"""
         self.tabs.setStyleSheet(f"""
@@ -145,8 +160,8 @@ class DashboardScreen(QWidget):
             }}
         """)
 
+        # FIXED: Alleen "Mijn Planning" tab voor teamleden (geen leeg Instellingen tab)
         self.tabs.addTab(self.create_persoonlijk_tab(), "Mijn Planning")
-        self.tabs.addTab(self.create_instellingen_tab(), "Instellingen")
 
     def create_beheer_tab(self) -> QWidget:
         """Maak Beheer tab (alleen voor planner)"""
@@ -188,6 +203,12 @@ class DashboardScreen(QWidget):
         scroll_layout.addWidget(self.create_menu_button(
             "Gebruikersbeheer",
             "Beheer teamleden en hun toegang"
+        ))
+
+        # Kalender Test knop (development only)
+        scroll_layout.addWidget(self.create_menu_button(
+            "Kalender Test",
+            "Test de kalender widgets (development)"
         ))
 
         scroll_layout.addStretch()
@@ -236,6 +257,12 @@ class DashboardScreen(QWidget):
             "Stel je shift voorkeuren in"
         ))
 
+        # NIEUW: Voor iedereen - Wachtwoord wijzigen
+        scroll_layout.addWidget(self.create_menu_button(
+            "Wijzig Wachtwoord",
+            "Wijzig je inlogwachtwoord"
+        ))
+
         scroll_layout.addStretch()
         scroll.setWidget(scroll_widget)
         layout.addWidget(scroll)
@@ -267,6 +294,7 @@ class DashboardScreen(QWidget):
         scroll_layout = QVBoxLayout(scroll_widget)
         scroll_layout.setSpacing(Dimensions.SPACING_MEDIUM)
 
+        # FIXED: Alle instellingen alleen voor planners
         if self.user_data['rol'] == 'planner':
             scroll_layout.addWidget(self.create_menu_button(
                 "HR Regels",
@@ -278,12 +306,11 @@ class DashboardScreen(QWidget):
                 "Beheer shift codes per post"
             ))
 
-        scroll_layout.addWidget(self.create_menu_button(
-            "Feestdagen",
-            "Beheer feestdagen per jaar"
-        ))
+            scroll_layout.addWidget(self.create_menu_button(
+                "Feestdagen",
+                "Beheer feestdagen per jaar"
+            ))
 
-        if self.user_data['rol'] == 'planner':
             scroll_layout.addWidget(self.create_menu_button(
                 "Rode Lijnen",
                 "Bekijk 28-dagen arbeidsduurcycli"
@@ -296,29 +323,26 @@ class DashboardScreen(QWidget):
         return widget
 
     def create_menu_button(self, title: str, description: str) -> QPushButton:
-        """Maak een menu knop met titel en beschrijving"""
-        btn = QPushButton()
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setMinimumHeight(80)
+        """Maak een menu knop met titel en beschrijving - CRASHPROOF zonder nested layout"""
+        # Container widget ipv button met layout
+        container = QWidget()
+        container.setMinimumHeight(80)
+        container.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        # Styling
-        btn.setStyleSheet(f"""
-            QPushButton {{
+        container.setStyleSheet(f"""
+            QWidget {{
                 background-color: {Colors.BG_WHITE};
                 border: 1px solid {Colors.BORDER_LIGHT};
                 border-radius: {Dimensions.RADIUS_LARGE}px;
-                text-align: left;
-                padding: {Dimensions.SPACING_MEDIUM}px;
             }}
-            QPushButton:hover {{
+            QWidget:hover {{
                 background-color: {Colors.PRIMARY};
                 border-color: {Colors.PRIMARY};
             }}
         """)
 
-        # Layout binnen button
-        btn_layout = QVBoxLayout(btn)
-        btn_layout.setContentsMargins(
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(
             Dimensions.SPACING_MEDIUM,
             Dimensions.SPACING_SMALL,
             Dimensions.SPACING_MEDIUM,
@@ -333,25 +357,168 @@ class DashboardScreen(QWidget):
         desc_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
         desc_label.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;")
 
-        btn_layout.addWidget(title_label)
-        btn_layout.addWidget(desc_label)
+        container_layout.addWidget(title_label)
+        container_layout.addWidget(desc_label)
 
-        # Connect signals gebaseerd op titel
+        # Mouse event handler voor click
+        def mousePressEvent(event):
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.handle_menu_click(title)
+
+        container.mousePressEvent = mousePressEvent
+
+        return container
+
+    def handle_menu_click(self, title: str) -> None:
+        """Handle menu button clicks"""
         if title == "Gebruikersbeheer":
-            btn.clicked.connect(self.gebruikers_clicked.emit)  # type: ignore
+            self.gebruikers_clicked.emit()  # type: ignore
         elif title == "Feestdagen":
-            btn.clicked.connect(self.feestdagen_clicked.emit)  # type: ignore
+            self.feestdagen_clicked.emit()  # type: ignore
         elif title == "HR Regels":
-            btn.clicked.connect(self.hr_regels_clicked.emit)  # type: ignore
+            self.hr_regels_clicked.emit()  # type: ignore
         elif title == "Shift Codes & Posten":
-            btn.clicked.connect(self.shift_codes_clicked.emit)  # type: ignore
+            self.shift_codes_clicked.emit()  # type: ignore
         elif title == "Rode Lijnen":
-            btn.clicked.connect(self.rode_lijnen_clicked.emit)  # type: ignore
+            self.rode_lijnen_clicked.emit()  # type: ignore
         elif title == "Planning Editor":
-            btn.clicked.connect(self.planning_clicked.emit)  # type: ignore
+            self.planning_clicked.emit()  # type: ignore
         elif title == "Verlof Aanvragen" or title == "Verlof Goedkeuring":
-            btn.clicked.connect(self.verlof_clicked.emit)  # type: ignore
+            self.verlof_clicked.emit()  # type: ignore
         elif title == "Mijn Voorkeuren":
-            btn.clicked.connect(self.voorkeuren_clicked.emit)  # type: ignore
+            self.voorkeuren_clicked.emit()  # type: ignore
+        elif title == "Mijn Planning":
+            self.planning_clicked.emit()  # type: ignore
+        elif title == "Kalender Test":
+            self.kalender_test_clicked.emit()  # type: ignore
+        elif title == "Wijzig Wachtwoord":
+            self.show_wachtwoord_dialog()
 
-        return btn
+
+class WachtwoordWijzigenDialog(QDialog):
+    """Dialog voor het wijzigen van wachtwoord"""
+
+    def __init__(self, parent: QWidget, user_data: Dict[str, Any]):
+        super().__init__(parent)
+        self.user_data = user_data
+        self.setWindowTitle("Wijzig Wachtwoord")
+        self.setModal(True)
+        self.setMinimumWidth(400)
+
+        # Instance attributes
+        self.huidig_input: QLineEdit = QLineEdit()
+        self.nieuw_input: QLineEdit = QLineEdit()
+        self.bevestig_input: QLineEdit = QLineEdit()
+
+        self.init_ui()
+
+    def init_ui(self) -> None:
+        """Initialiseer UI"""
+        layout = QVBoxLayout(self)
+        layout.setSpacing(Dimensions.SPACING_MEDIUM)
+
+        # Titel
+        titel = QLabel("Wijzig je wachtwoord")
+        titel.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_LARGE, QFont.Weight.Bold))
+        layout.addWidget(titel)
+
+        # Huidig wachtwoord
+        huidig_label = QLabel("Huidig wachtwoord:")
+        layout.addWidget(huidig_label)
+
+        self.huidig_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.huidig_input.setPlaceholderText("Voer je huidige wachtwoord in")
+        self.huidig_input.setStyleSheet(Styles.input_field())
+        self.huidig_input.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
+        layout.addWidget(self.huidig_input)
+
+        # Nieuw wachtwoord
+        nieuw_label = QLabel("Nieuw wachtwoord:")
+        layout.addWidget(nieuw_label)
+
+        self.nieuw_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.nieuw_input.setPlaceholderText("Minimaal 4 karakters")
+        self.nieuw_input.setStyleSheet(Styles.input_field())
+        self.nieuw_input.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
+        layout.addWidget(self.nieuw_input)
+
+        # Bevestig nieuw wachtwoord
+        bevestig_label = QLabel("Bevestig nieuw wachtwoord:")
+        layout.addWidget(bevestig_label)
+
+        self.bevestig_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.bevestig_input.setPlaceholderText("Herhaal je nieuwe wachtwoord")
+        self.bevestig_input.setStyleSheet(Styles.input_field())
+        self.bevestig_input.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
+        layout.addWidget(self.bevestig_input)
+
+        # Info tekst (ZONDER emoji - Windows compatibility)
+        info = QLabel("Je wachtwoord moet minimaal 4 karakters lang zijn.")
+        info.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: {Fonts.SIZE_SMALL}px;")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        # Buttons
+        buttons = QDialogButtonBox()
+        buttons.addButton("Wijzigen", QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton("Annuleren", QDialogButtonBox.ButtonRole.RejectRole)
+        buttons.accepted.connect(self.valideer_en_wijzig)  # type: ignore
+        buttons.rejected.connect(self.reject)  # type: ignore
+        layout.addWidget(buttons)
+
+    def valideer_en_wijzig(self) -> None:
+        """Valideer input en wijzig wachtwoord"""
+        huidig = self.huidig_input.text()
+        nieuw = self.nieuw_input.text()
+        bevestig = self.bevestig_input.text()
+
+        # Validaties
+        if not huidig or not nieuw or not bevestig:
+            QMessageBox.warning(self, "Fout", "Vul alle velden in!")
+            return
+
+        if len(nieuw) < 4:
+            QMessageBox.warning(self, "Fout", "Je nieuwe wachtwoord moet minimaal 4 karakters lang zijn!")
+            return
+
+        if nieuw != bevestig:
+            QMessageBox.warning(self, "Fout", "De nieuwe wachtwoorden komen niet overeen!")
+            return
+
+        try:
+            # Check huidig wachtwoord
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT wachtwoord_hash FROM gebruikers WHERE id = ?",
+                (self.user_data['id'],)
+            )
+            result = cursor.fetchone()
+
+            if not result:
+                conn.close()
+                QMessageBox.critical(self, "Fout", "Gebruiker niet gevonden!")
+                return
+
+            # Verifieer huidig wachtwoord
+            if not bcrypt.checkpw(huidig.encode('utf-8'), result['wachtwoord_hash']):
+                conn.close()
+                QMessageBox.warning(self, "Fout", "Het huidige wachtwoord is onjuist!")
+                return
+
+            # Update naar nieuw wachtwoord
+            nieuw_hash = bcrypt.hashpw(nieuw.encode('utf-8'), bcrypt.gensalt())
+            cursor.execute(
+                "UPDATE gebruikers SET wachtwoord_hash = ? WHERE id = ?",
+                (nieuw_hash, self.user_data['id'])
+            )
+            conn.commit()
+            conn.close()
+
+            # Succes!
+            self.accept()
+
+        except sqlite3.Error as e:
+            QMessageBox.critical(self, "Database Fout", f"Er is een fout opgetreden: {str(e)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Fout", f"Er is een onverwachte fout opgetreden: {str(e)}")

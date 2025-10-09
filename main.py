@@ -11,6 +11,8 @@ from gui.screens.login_screen import LoginScreen
 from gui.screens.dashboard_screen import DashboardScreen
 from gui.screens.feestdagen_screen import FeestdagenScherm
 from gui.screens.gebruikersbeheer_screen import GebruikersbeheerScreen
+from gui.screens.kalender_test_screen import KalenderTestScreen
+from gui.screens.mijn_planning_screen import MijnPlanningScreen
 
 
 class MainWindow(QMainWindow):
@@ -67,6 +69,7 @@ class MainWindow(QMainWindow):
         dashboard.shift_codes_clicked.connect(self.on_shift_codes_clicked)  # type: ignore
         dashboard.feestdagen_clicked.connect(self.on_feestdagen_clicked)  # type: ignore
         dashboard.rode_lijnen_clicked.connect(self.on_rode_lijnen_clicked)  # type: ignore
+        dashboard.kalender_test_clicked.connect(self.on_kalender_test_clicked)  # type: ignore
 
         self.stack.addWidget(dashboard)
         self.stack.setCurrentWidget(dashboard)
@@ -115,6 +118,17 @@ class MainWindow(QMainWindow):
         # TODO: Implementeer
         print("Rode Lijnen clicked")
 
+    def on_kalender_test_clicked(self) -> None:
+        """Open kalender test scherm"""
+        if not self.current_user:
+            return
+
+        from types import SimpleNamespace
+        router = SimpleNamespace(terug=self.terug)
+        kalender_test = KalenderTestScreen(router, self.current_user['id'])  # type: ignore[arg-type]
+        self.stack.addWidget(kalender_test)
+        self.stack.setCurrentWidget(kalender_test)
+
     def on_logout(self) -> None:
         """Uitloggen"""
         self.current_user = None
@@ -129,10 +143,15 @@ class MainWindow(QMainWindow):
             self.stack.setCurrentWidget(self.login_screen)
 
     def on_planning_clicked(self) -> None:
-        """Planning scherm openen (nog niet gebouwd)"""
-        if self.current_user:
-            print(f"Planning clicked - Rol: {self.current_user['rol']}")
-        # TODO: Implementeer planning scherm
+        """Planning scherm openen - Mijn Planning voor teamleden"""
+        if not self.current_user:
+            return
+
+        from types import SimpleNamespace
+        router = SimpleNamespace(terug=self.terug)
+        scherm = MijnPlanningScreen(router, self.current_user['id'])  # type: ignore[arg-type]
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
 
     def on_verlof_clicked(self) -> None:
         """Verlof scherm openen (nog niet gebouwd)"""

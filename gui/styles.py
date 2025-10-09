@@ -61,7 +61,7 @@ class Fonts:
     SIZE_HEADING = 16
     SIZE_NORMAL = 14
     SIZE_SMALL = 12
-    SIZE_TINY = 11
+    SIZE_TINY = 9
     SIZE_BUTTON = 12  # Uniforme button font size
 
     WEIGHT_NORMAL = "normal"

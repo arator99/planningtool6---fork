@@ -2,7 +2,7 @@
 """
 Feestdagen beheer scherm - Verbeterde versie
 Automatische generatie met Paasberekening
-FIXED: Instance attributes + QDialogButtonBox type hints
+FIXED: Aangepast aan werkelijk database schema (datum, naam, is_zondagsrust)
 """
 from typing import Tuple, Optional, Callable
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -88,8 +88,7 @@ class FeestdagenScherm(QWidget):
         self.tabel.setHorizontalHeaderLabels(['Datum', 'Naam', 'Type', 'Acties'])
 
         # Tabel configuratie met centrale styling
-        # Row height: 45px geeft goede balans met 26px buttons + stretch centrering
-        TableConfig.setup_table_widget(self.tabel, row_height=45)
+        TableConfig.setup_table_widget(self.tabel, row_height=50)
 
         # Kolom breedtes
         header_view = self.tabel.horizontalHeader()
@@ -98,9 +97,6 @@ class FeestdagenScherm(QWidget):
         header_view.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header_view.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         self.tabel.setColumnWidth(3, 200)
-
-        # Verticale centrering van cell inhoud
-        self.tabel.verticalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         layout.addWidget(self.tabel)
 
@@ -130,53 +126,75 @@ class FeestdagenScherm(QWidget):
 
     def laad_initieel(self) -> None:
         """Laad initiële data - zorg dat huidig jaar bestaat en laad het"""
-        # Zorg dat data bestaat voor huidig jaar
-        ensure_jaar_data(self.huidig_jaar)
+        try:
+            # Zorg dat data bestaat voor huidig jaar (database operatie VOOR GUI update)
+            ensure_jaar_data(self.huidig_jaar)
 
-        # Update info label
-        self.info_label.setText("(huidig jaar)")
+            # Update info label
+            self.info_label.setText("(huidig jaar)")
 
-        # Laad feestdagen
-        self.laad_feestdagen()
+            # Laad feestdagen
+            self.laad_feestdagen()
+        except Exception as e:
+            print(f"FOUT in laad_initieel: {e}")
+            import traceback
+            traceback.print_exc()
 
     def jaar_gewijzigd(self, jaar_str: str) -> None:
         """Jaar selectie gewijzigd - genereert automatisch feestdagen indien nodig"""
-        jaar = int(jaar_str)
+        try:
+            jaar = int(jaar_str)
 
-        # Zorg automatisch dat data bestaat
-        ensure_jaar_data(jaar)
+            # Zorg automatisch dat data bestaat
+            ensure_jaar_data(jaar)
 
-        # Update info label
-        if jaar == self.huidig_jaar:
-            self.info_label.setText("(huidig jaar)")
-        elif jaar < self.huidig_jaar:
-            self.info_label.setText("(historisch)")
-        else:
-            self.info_label.setText("(toekomstig)")
+            # Update info label
+            if jaar == self.huidig_jaar:
+                self.info_label.setText("(huidig jaar)")
+            elif jaar < self.huidig_jaar:
+                self.info_label.setText("(historisch)")
+            else:
+                self.info_label.setText("(toekomstig)")
 
-        # Laad feestdagen
-        self.laad_feestdagen()
+            # Laad feestdagen
+            self.laad_feestdagen()
+        except Exception as e:
+            print(f"FOUT in jaar_gewijzigd: {e}")
+            import traceback
+            traceback.print_exc()
 
     def laad_feestdagen(self) -> None:
         """Laad feestdagen voor geselecteerd jaar met visueel gecentreerde actieknoppen"""
         jaar = int(self.jaar_combo.currentText())
 
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT datum, naam, type, is_ingevuld
-            FROM feestdagen
-            WHERE jaar = ?
-            ORDER BY datum
-        """, (jaar,))
-        feestdagen = cursor.fetchall()
-        conn.close()
+        conn = None
+        feestdagen = []
 
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            # Schema: datum, naam, is_zondagsrust, is_variabel
+            cursor.execute("""
+                SELECT datum, naam, is_zondagsrust, is_variabel
+                FROM feestdagen
+                WHERE datum LIKE ?
+                ORDER BY datum
+            """, (f"{jaar}-%",))
+
+            feestdagen = cursor.fetchall()
+        except Exception as e:
+            print(f"Database fout in laad_feestdagen: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            if conn:
+                conn.close()
+
+        # GUI updates BUITEN database context
         self.tabel.setRowCount(len(feestdagen))
-        self.tabel.verticalHeader().setDefaultSectionSize(Dimensions.TABLE_ROW_HEIGHT)
 
-        for row, (datum, naam, type_fd, is_ingevuld) in enumerate(feestdagen):
-            # Datum
+        for row, (datum, naam, is_zondagsrust, is_variabel) in enumerate(feestdagen):
+            # Datum - formatteer naar dd-mm-yyyy
             datum_obj = datetime.strptime(datum, '%Y-%m-%d')
             datum_formatted = datum_obj.strftime('%d-%m-%Y')
             datum_item = QTableWidgetItem(datum_formatted)
@@ -187,47 +205,66 @@ class FeestdagenScherm(QWidget):
             naam_item = QTableWidgetItem(naam)
             self.tabel.setItem(row, 1, naam_item)
 
-            # Type
-            type_text = "Vast" if type_fd == 'vast' else "Variabel" if type_fd == 'variabel' else "Extra"
+            # Type - nu uit database
+            if is_variabel:
+                # Check of het een automatisch gegenereerde variabele is
+                if naam in ['Paasmaandag', 'O.H. Hemelvaart', 'Pinkstermaandag']:
+                    type_text = "Variabel"
+                else:
+                    type_text = "Extra"
+            else:
+                type_text = "Vast"
+
             type_item = QTableWidgetItem(type_text)
             type_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.tabel.setItem(row, 2, type_item)
 
-            # Acties
+            # Acties - simpele HBox met AlignCenter
             actie_widget = QWidget()
             actie_layout = QHBoxLayout()
             actie_layout.setContentsMargins(0, 0, 0, 0)
             actie_layout.setSpacing(Dimensions.SPACING_SMALL)
             actie_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            # Bewerk knop
-            if type_fd in ['variabel', 'extra']:
+            # Bewerk knop (alleen voor variabele en extra feestdagen)
+            if is_variabel:
                 bewerk_btn = QPushButton("Bewerk")
                 bewerk_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_TINY)
                 bewerk_btn.setFixedWidth(80)
+                bewerk_btn.clicked.connect(self.genereer_bewerk_callback(datum, naam))  # type: ignore
                 bewerk_btn.setStyleSheet(Styles.button_warning(Dimensions.BUTTON_HEIGHT_TINY))
-                bewerk_btn.clicked.connect(self.genereer_bewerk_callback(datum, naam))
                 actie_layout.addWidget(bewerk_btn)
 
-            # Verwijder knop
-            if type_fd == 'extra':
+            # Verwijder knop (alleen voor extra feestdagen)
+            if is_variabel and naam not in ['Paasmaandag', 'O.H. Hemelvaart', 'Pinkstermaandag']:
                 verwijder_btn = QPushButton("Verwijder")
                 verwijder_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_TINY)
                 verwijder_btn.setFixedWidth(80)
+                verwijder_btn.clicked.connect(self.genereer_verwijder_callback(datum))  # type: ignore
                 verwijder_btn.setStyleSheet(Styles.button_danger(Dimensions.BUTTON_HEIGHT_TINY))
-                verwijder_btn.clicked.connect(self.genereer_verwijder_callback(datum))
                 actie_layout.addWidget(verwijder_btn)
+
+            # Als geen buttons, toon "-"
+            if actie_layout.count() == 0:
+                geen_actie = QLabel("-")
+                geen_actie.setStyleSheet(f"color: {Colors.TEXT_SECONDARY};")
+                geen_actie.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                actie_layout.addWidget(geen_actie)
 
             actie_widget.setLayout(actie_layout)
             self.tabel.setCellWidget(row, 3, actie_widget)
 
-    def genereer_bewerk_callback(self, datum, naam):
+    def genereer_bewerk_callback(self, datum: str, naam: str):
+        """Genereer callback voor bewerk knop (voorkomt lambda closure problemen)"""
+
         def callback():
             self.bewerk_datum(naam, datum)
 
         return callback
 
-    def genereer_verwijder_callback(self, datum):
+    def genereer_verwijder_callback(self, datum: str):
+        """Genereer callback voor verwijder knop (voorkomt lambda closure problemen)"""
+
         def callback():
             self.verwijder(datum)
 
@@ -283,10 +320,11 @@ class FeestdagenScherm(QWidget):
                 )
                 return
 
+            # Schema: datum, naam, is_zondagsrust, is_variabel (extra = variabel)
             cursor.execute("""
-                INSERT INTO feestdagen (datum, naam, jaar, type, is_ingevuld)
-                VALUES (?, ?, ?, 'extra', 1)
-            """, (datum, naam, jaar))
+                INSERT OR IGNORE INTO feestdagen (datum, naam, is_zondagsrust, is_variabel)
+                VALUES (?, ?, 1, 1)
+            """, (datum, naam))
             conn.commit()
             conn.close()
 

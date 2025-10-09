@@ -153,7 +153,7 @@ class AboutDialog(QDialog):
 
         beschrijving = QLabel(
             "Planning Tool is een applicatie voor het beheren van shift planning "
-            "voor interventiediensten. De tool ondersteunt roterend rooster planning, "
+            "voor diensten die aan self-rostering doen. De tool ondersteunt roterend rooster planning, "
             "verlofbeheer, HR regels validatie en automatische feestdagen berekening."
         )
         beschrijving.setWordWrap(True)

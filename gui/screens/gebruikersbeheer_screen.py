@@ -90,7 +90,7 @@ class GebruikersbeheerScreen(QWidget):
         ])
 
         # Tabel configuratie met centrale styling
-        TableConfig.setup_table_widget(self.tabel)
+        TableConfig.setup_table_widget(self.tabel, row_height=50)
 
         # Kolom breedtes
         header = self.tabel.horizontalHeader()
@@ -126,39 +126,28 @@ class GebruikersbeheerScreen(QWidget):
         self.toon_gebruikers(self.alle_gebruikers)
 
     def toon_gebruikers(self, gebruikers: List[Dict[str, Any]]) -> None:
-        """Toon gebruikers in tabel"""
+        """Toon gebruikers in tabel met gestileerde actieknoppen"""
         self.tabel.setRowCount(len(gebruikers))
 
         for row, gebruiker in enumerate(gebruikers):
-            # Gebruikersnaam
             self.tabel.setItem(row, 0, QTableWidgetItem(gebruiker['gebruikersnaam']))
-
-            # Naam
             self.tabel.setItem(row, 1, QTableWidgetItem(gebruiker['volledige_naam']))
 
-            # Rol
             rol_text = "Planner" if gebruiker['rol'] == 'planner' else "Teamlid"
             self.tabel.setItem(row, 2, QTableWidgetItem(rol_text))
 
-            # Reserve
             reserve_text = "Ja" if gebruiker['is_reserve'] else "Nee"
             self.tabel.setItem(row, 3, QTableWidgetItem(reserve_text))
 
-            # Startweek
-            if gebruiker['startweek_typedienst']:
-                startweek_text = f"Week {gebruiker['startweek_typedienst']}"
-            else:
-                startweek_text = "N/A"
+            startweek_text = f"Week {gebruiker['startweek_typedienst']}" if gebruiker['startweek_typedienst'] else "N/A"
             self.tabel.setItem(row, 4, QTableWidgetItem(startweek_text))
 
-            # Actief
             actief_text = "Ja" if gebruiker['is_actief'] else "Nee"
             actief_item = QTableWidgetItem(actief_text)
             if not gebruiker['is_actief']:
                 actief_item.setForeground(Qt.GlobalColor.red)
             self.tabel.setItem(row, 5, actief_item)
 
-            # Aangemaakt op
             if gebruiker['aangemaakt_op']:
                 try:
                     datum = datetime.fromisoformat(gebruiker['aangemaakt_op'])
@@ -172,33 +161,43 @@ class GebruikersbeheerScreen(QWidget):
             # Acties
             acties_widget = QWidget()
             acties_layout = QHBoxLayout()
-            acties_layout.setContentsMargins(Dimensions.MARGIN_SMALL, 0, Dimensions.MARGIN_SMALL, 0)
-            acties_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+            acties_layout.setContentsMargins(0, 0, 0, 0)
             acties_layout.setSpacing(Dimensions.SPACING_SMALL)
+            acties_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+            # Bewerken
             bewerk_btn = QPushButton("Bewerken")
-            bewerk_btn.setFixedHeight(Dimensions.BUTTON_HEIGHT_TINY)
-            # Fix mutable default: gebruik functools.partial of maak closure
-            bewerk_btn.clicked.connect(
-                lambda checked=False, u=dict(gebruiker): self.bewerk_gebruiker(u))  # type: ignore
+            bewerk_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_TINY)
+            bewerk_btn.setFixedWidth(80)
             bewerk_btn.setStyleSheet(Styles.button_primary(Dimensions.BUTTON_HEIGHT_TINY))
+            bewerk_btn.clicked.connect(self.genereer_bewerk_callback(dict(gebruiker)))
             acties_layout.addWidget(bewerk_btn)
 
-            # Toggle actief/inactief knop
-            if gebruiker['is_actief']:
-                toggle_btn = QPushButton("Deactiveren")
-                toggle_btn.setStyleSheet(Styles.button_warning(Dimensions.BUTTON_HEIGHT_TINY))
-            else:
-                toggle_btn = QPushButton("Activeren")
-                toggle_btn.setStyleSheet(Styles.button_success(Dimensions.BUTTON_HEIGHT_TINY))
-
-            toggle_btn.setFixedHeight(Dimensions.BUTTON_HEIGHT_TINY)
-            # Fix mutable default: gebruik functools.partial of maak closure
-            toggle_btn.clicked.connect(lambda checked=False, u=dict(gebruiker): self.toggle_actief(u))  # type: ignore
+            # Activeren/Deactiveren
+            toggle_btn = QPushButton("Deactiveren" if gebruiker['is_actief'] else "Activeren")
+            toggle_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_TINY)
+            toggle_btn.setFixedWidth(96)
+            toggle_btn.setStyleSheet(
+                Styles.button_warning(Dimensions.BUTTON_HEIGHT_TINY) if gebruiker['is_actief']
+                else Styles.button_success(Dimensions.BUTTON_HEIGHT_TINY)
+            )
+            toggle_btn.clicked.connect(self.genereer_toggle_callback(dict(gebruiker)))
             acties_layout.addWidget(toggle_btn)
 
             acties_widget.setLayout(acties_layout)
             self.tabel.setCellWidget(row, 7, acties_widget)
+
+    def genereer_bewerk_callback(self, gebruiker: Dict[str, Any]):
+        def callback():
+            self.bewerk_gebruiker(gebruiker)
+
+        return callback
+
+    def genereer_toggle_callback(self, gebruiker: Dict[str, Any]):
+        def callback():
+            self.toggle_actief(gebruiker)
+
+        return callback
 
     def filter_gebruikers(self) -> None:
         """Filter gebruikers op basis van zoekterm"""

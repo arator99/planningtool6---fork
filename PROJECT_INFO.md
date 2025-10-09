@@ -1,281 +1,433 @@
-PROJECT STATUS & ROADMAP
-========================
+# PLANNING TOOL
+Roostersysteem voor Self-Rostering Teams
 
-VOLTOOID:
----------
-✅ Project structuur opgezet (MVC patroon)
-✅ Database volledig ontworpen en geïmplementeerd
-   - Alle tabellen: gebruikers, posten, shifts, verlof, HR regels, etc.
-   - Seed functie met initiële data (admin, interventie post, typetabel)
-   - UUID systeem voor gebruikers (unieke permanente identificatie)
-   - Timestamps: aangemaakt_op, gedeactiveerd_op, laatste_login
-   - Planning maanden tabel voor publicatie tracking
-   - Speciale codes: VV, VD, DA, RX, CX, Z, RDS, TCR, T
-   - HR regels: 12u rust, 50u/week, 19 dagen/28d, 7 dagen tussen RX
-   - Typediensttabel: 6-weken patroon voor roterend rooster
-   - Rode lijnen: 28-dagen cycli voor arbeidsduur validatie (100 periodes)
-   - Database migratie systeem opgezet
+## VERSIE INFORMATIE
+**Huidige versie:** 0.6.3 (Beta)  
+**Release datum:** Oktober 2025  
+**Status:** In actieve ontwikkeling
 
-✅ Centrale styling systeem (gui/styles.py)
-   - Colors, Fonts, Dimensions classes
-   - Pre-built Styles voor alle widget types
-   - TableConfig helper voor consistente tabellen
-   - Alle schermen gebruiken centrale styling
-   - Makkelijk aanpasbaar vanaf 1 locatie
+---
 
-✅ Login systeem
-   - Wachtwoord hashing (bcrypt)
-   - Rol-gebaseerde toegang (planner/teamlid)
-   - Gecentreerde interface met centrale styling
-   - Laatste login timestamp tracking
-   - Actief/inactief account validatie
-   - Admin credentials: gebruikersnaam 'admin', wachtwoord 'admin'
+## WAT IS NIEUW
 
-✅ Dashboard
-   - 3 tabs: Beheer, Persoonlijk, Instellingen
-   - Verschillende menu voor planner vs teamlid
-   - Signal/slot navigatie systeem
-   - Centrale styling toegepast
+### Versie 0.6.3 (Oktober 2025)
+- ✅ Feestdagen beheer verbeterd met onderscheid vast/variabel/extra
+- ✅ Automatische Paasberekening voor variabele feestdagen
+- ✅ Vaste feestdagen beveiligd tegen ongewenste wijzigingen
+- ✅ Database migratie systeem voor soepele updates
+- ✅ Herbruikbare Grid Kalender widgets (planner & teamlid views)
+- ✅ Kalender met verlof/DA/VD overlays en feestdagen markering
 
-✅ Gebruikersbeheer scherm (gui/screens/gebruikersbeheer_screen.py)
-   - Teamleden toevoegen/bewerken met UUID generatie
-   - Gebruikersnaam formaat: ABC1234 (3 letters + 4 cijfers, auto-uppercase)
-   - Startweek typedienst instellen (week 1-6)
-   - Reserve checkbox (disable automatisch startweek)
-   - Wachtwoord beheer (optioneel bij bewerken)
-   - Actief/inactief toggle met timestamps
-   - Zoekfunctionaliteit op naam/gebruikersnaam
-   - Validatie: unieke gebruikersnaam, min 4 chars wachtwoord
-   - Aanmaakdatum tracking
+### Versie 0.6.2
+- ✅ Centrale styling systeem geïmplementeerd
+- ✅ Gebruikersbeheer stabiliteit verbeterd
+- ✅ Table layouts crashproof gemaakt
 
-✅ Feestdagen beheer scherm (Instellingen)
-   - Overzicht per jaar met dd-mm-yyyy formaat
-   - Automatische Paasberekening (Computus algoritme)
-   - Variabele feestdagen automatisch gegenereerd
-   - Extra feestdagen toevoegen/bewerken/verwijderen
-   - Auto-generatie bij jaar selectie
-   - Geen handmatige invoer meer nodig
-   - Centrale styling toegepast
+### Versie 0.6.1
+- ✅ Gebruikersbeheer met reserve-functionaliteit
+- ✅ UUID systeem voor permanente gebruikers-ID's
+- ✅ Timestamp tracking (aangemaakt, gedeactiveerd, laatste login)
 
-✅ Auto-generatie service (services/data_ensure_service.py)
-   - Automatische feestdagen genereren bij nieuw jaar
-   - Paasberekening voor variabele datums
-   - Automatisch rode lijnen uitbreiden wanneer nodig
-   - "Lazy initialization" patroon
+### Versie 0.6.0
+- ✅ Login systeem met rol-gebaseerde toegang
+- ✅ Dashboard met planner/teamlid weergave
+- ✅ Auto-generatie van feestdagen en rode lijnen
+- ✅ Database volledig herontworpen
 
-TODO - PRIORITEIT HOOG:
------------------------
-📋 HR Regels scherm (gui/screens/hr_regels_screen.py)
-   - Configureerbare waardes (12u rust, 50u/week, etc.)
-   - Historisch bijhouden van wijzigingen met timestamps
-   - Actieve regel per type tracken
+### Eerdere versies (0.1 - 0.5)
+- Verschillende iteraties en leerprocessen
+- Fundamentele architectuur beslissingen
+- Proof of concepts en prototypes
 
-📋 Shift Codes & Posten scherm (gui/screens/shift_codes_screen.py)
-   - Posten toevoegen/beheren
-   - Shift codes per post configureren
-   - Voor uitbreiding naar andere teams
-   - Start/eind tijden, duur uren
-   - Weekdag/zaterdag/zondag flags
+---
 
-📋 Rode Lijnen scherm (gui/screens/rode_lijnen_screen.py)
-   - Overzicht komende periodes (28-dagen cycli)
-   - Readonly weergave (automatisch gegenereerd)
-   - Visuele timeline van periodes
-   - Huidige periode highlighten
+## HUIDIGE FUNCTIONALITEIT
 
-📋 Jaarovergang & Cleanup scherm (gui/screens/jaarovergang_screen.py)
-   - Handmatige cleanup knop in Instellingen
-   - Toon gebruikers inactief > huidige datum - 2 maanden
-   - Preview wat verwijderd wordt
-   - Archiveer planning ouder dan N-2 jaar naar Excel/PDF
-   - Hard delete functie voor oude data
-   - Bevestigingsdialoog met overzicht
+### ✅ VOLLEDIG OPERATIONEEL
 
-TODO - PRIORITEIT MIDDEL:
--------------------------
-📋 Planning Editor (gui/screens/planning_editor_screen.py)
-   - Kalender grid per maand
-   - Multi-maand view (vorige/huidige/volgende)
-   - Shift codes invoeren per persoon/dag
-   - Rode lijnen visualisatie in kalender
-   - Genereer uit typetabel functionaliteit
-   - T (reserve) vervangen door echte shifts
-   - Concept vs Gepubliceerd status
-   - Bewerkbaar check: max 2 maanden terug
-   - Read-only voor oudere maanden
+**Inloggen & Beveiliging**
+- Veilig login systeem met wachtwoord encryptie
+- Rol-gebaseerde toegang (Planner vs Teamlid)
+- Laatste login tracking
+- Actief/inactief account beheer
 
-📋 Validatie Service (services/validation_service.py)
-   - 12u rust check (met reset voor VV/DA/VD)
-   - 50u/week limiet
-   - 19 gewerkte dagen/28d (rode lijn)
-   - Max 7 dagen tussen RX
-   - Max 7 werkdagen achter elkaar
-   - Realtime validatie feedback in grid
-   - Visuele indicatoren (rood/geel/groen)
+**Dashboard**
+- Overzichtelijk menu met 3 tabs: Beheer, Persoonlijk, Instellingen
+- Verschillende menu opties voor planner en teamleden
+- Snelle navigatie naar alle functionaliteiten
+- About dialog met roadmap informatie
 
-📋 Planning Service (services/planning_service.py)
-   - Genereer planning uit typetabel
-   - Vertaal V/L/N naar juiste shift codes (7101-7901)
-   - Datum → shift code logika (weekdag/zaterdag/RX detectie)
-   - RX/CX detectie via feestdagen tabel
-   - Startweek offset berekening per gebruiker
+**Gebruikersbeheer** (Planners)
+- Teamleden toevoegen en bewerken
+- Gebruikersnaam systeem (ABC1234 formaat)
+- Reserve medewerkers markeren
+- Startweek typedienst instellen
+- Accounts activeren/deactiveren
+- Zoeken op naam of gebruikersnaam
 
-📋 Export Service (services/export_service.py)
-   - Publiceer naar HR: Excel export per maand
-   - Status change: concept → gepubliceerd
-   - Archief functie: Excel/PDF per jaar
-   - Template-based exports
-   - Opslaan in /exports/ folder
+**Feestdagen Beheer** (Planners)
+- Automatische generatie Belgische feestdagen per jaar
+- Slimme Paasberekening voor variabele datums
+- Vaste feestdagen beschermd tegen wijzigingen
+- Variabele feestdagen aanpasbaar voor correcties
+- Extra feestdagen toevoegen (bijv. lokale feestdagen)
+- Overzicht per jaar met type indicatie
 
-📋 Verlof Aanvraag scherm (gui/screens/verlof_aanvraag_screen.py)
-   - Teamlid: verlof aanvragen/intrekken
-   - Overzicht eigen verlof (status: pending/goedgekeurd/geweigerd)
-   - Kalender interface voor datum selectie
-   - Aantal dagen berekening
+**Automatische Data Generatie**
+- Feestdagen automatisch aangemaakt bij jaar selectie
+- Rode lijnen cycli automatisch uitgebreid wanneer nodig
+- "Lazy loading" principe: genereer alleen wat nodig is
 
-📋 Verlof Goedkeuring scherm (gui/screens/verlof_goedkeuring_screen.py)
-   - Planner: overzicht alle aanvragen
-   - Goedkeuren/weigeren functionaliteit
-   - Impact op planning zichtbaar
-   - Filter per status/gebruiker
+**Grid Kalender Widgets** (Development)
+- Herbruikbare kalender componenten voor planner en teamlid views
+- Filter functionaliteit per gebruiker
+- Verlof/DA/VD status overlays (gekleurde achtergronden)
+- Feestdagen markering (gele achtergrond)
+- Shift codes weergave (7101, 7201, VV, RX, etc.)
+- Test scherm beschikbaar voor ontwikkeling
 
-📋 Voorkeuren scherm (gui/screens/voorkeuren_screen.py)
-   - Shift voorkeuren (1e/2e/3e keuze: vroeg/laat/nacht/mix)
-   - Medische beperkingen (geen nachten, geen weekends)
-   - Opmerkingen veld
-   - Per gebruiker opslaan
+---
 
-TODO - PRIORITEIT LAAG:
------------------------
-📋 Team Planning Overzicht (read-only voor teamleden)
-📋 Typediensttabel beheer scherm (voor wijzigingen aan 6-weken patroon)
-📋 Rapportage/Statistieken (aantal nachten, weekends, verdeling)
-📋 AI Planning Suggesties (toekomst)
+## IN ONTWIKKELING
 
-OPTIMALISATIE BIJ CONVERSIE NAAR .EXE:
---------------------------------------
-Bij de finale oplevering van dit project voorzien we een conversie van de Python-code 
-naar een uitvoerbaar .exe-bestand. Gezien het feit dat deze .exe zal worden uitgevoerd 
-vanaf een netwerkschijf, streven we ernaar om de bestandsgrootte zo klein mogelijk te 
-houden om latency en laadtijden te minimaliseren.
+### 🔨 VOOR RELEASE 1.0 (December 2025)
 
-Om dit te bereiken zullen we:
-- PyInstaller gebruiken met optimale settings (--onefile, --windowed)
-- Overbodige modules en packages excluden via exclude-list
-- UPX compressie toepassen voor kleinere executable
-- Alleen essentiële PyQt6 modules bundelen
-- Virtual environment met minimale dependencies
-- Database en exports folder relatief aan .exe locatie
-- Mogelijk werken met externe .dll-bestanden om functionaliteit modulair te laden
-- De build configureren met focus op minimale footprint en maximale efficiëntie
-- Testing op netwerkschijf voor latency en performance validatie
+**HR Regels Beheer**
+- Configureerbare waardes (12u rust, 50u/week, etc.)
+- Historisch bijhouden van wijzigingen
+- Actieve regel per type tracken
 
-Deze optimalisatie is essentieel om de performantie van het programma te garanderen 
-in een netwerkomgeving.
+**Shift Codes & Speciale Codes Beheer**
+- Posten toevoegen en beheren
+- Shift codes per post configureren
+- Speciale codes beheren (VV, RX, TCR/SCR, etc.)
+- Nieuwe speciale codes toevoegen
+- Code eigenschappen instellen (telt als werkdag, reset 12u rust, breekt reeks)
+- Uitbreidbaar naar meerdere teams
 
-TECHNISCHE ARCHITECTUUR:
-------------------------
-Database: SQLite
-   - Locatie: data/planning.db
-   - Foreign keys enabled
-   - Row factory voor dict access
-   - UUID voor gebruikers als permanente ID
-   - Timestamps voor audit trails
-   - Migratie systeem voor schema updates
+**Rode Lijnen Overzicht**
+- Visuele weergave 28-dagen cycli
+- Timeline van komende periodes
+- Huidige periode gemarkeerd
 
-GUI Framework: PyQt6
-   - Signal/Slot voor navigatie
-   - QStackedWidget voor scherm wisseling
-   - Centrale styling via gui/styles.py (Colors, Fonts, Dimensions, Styles)
-   - Consistente UI across alle schermen
-   - Unicode emoji's vermeden (Windows compatibility)
-   - TableConfig helper voor tabellen
+**Planning Editor** ⭐ (Kern functionaliteit)
+- Kalender weergave per maand
+- Shift codes invoeren per persoon/dag
+- Automatisch genereren uit typetabel
+- Concept vs Gepubliceerd status
+- Validatie met visuele feedback
 
-Services Laag:
-   - Scheiding business logic van GUI
-   - Herbruikbare validatie/planning functies
-   - Database abstractie
-   - Auto-generatie services voor feestdagen en rode lijnen
-   - Export/archivering services
+**Validatie & Controles**
+- Realtime HR regels checking
+- Visuele indicatoren (rood/geel/groen)
+- 12u rust tussen shifts
+- 50u per week maximum
+- 19 dagen per 28-dagen cyclus
+- Maximum dagen tussen rustdagen
 
-Models:
-   - Dataclasses voor entities (toekomstig)
-   - Type safety
+**Verlof Beheer**
+- Teamleden: verlof aanvragen
+- Planners: goedkeuren/weigeren
+- Overzicht eigen verlof
+- Impact op planning zichtbaar
 
-Styling Systeem:
-   - Centrale kleuren palette (Colors class)
-   - Font configuratie (Fonts class)
-   - Dimensies en spacing (Dimensions class)
-   - Pre-built styles (Styles class met methods)
-   - Herbruikbare componenten (TableConfig)
+**Export Functionaliteit**
+- Publiceren naar HR (Excel)
+- Archief exports (Excel/PDF)
+- Maandelijkse overzichten
 
-SHIFT CODES SYSTEEM:
--------------------
-Interventie Post:
-- Weekdag: 7101 (V), 7201 (L), 7301 (N)
-- Zaterdag: 7401 (V), 7501 (L), 7601 (N)
-- RX: 7701 (V), 7801 (L), 7901 (N)
+**Voorkeuren**
+- Shift voorkeuren per medewerker
+- Medische beperkingen
+- Opmerkingen veld
 
-Speciale Codes:
-- VV: Verlof (telt als gewerkte dag, reset 12u)
-- VD: Vrij van dienst (telt als gewerkte dag, reset 12u)
-- DA: Arbeidsduurverkorting (telt als gewerkte dag, reset 12u)
-- RX: Zondagsrust (telt NIET als gewerkte dag, breekt reeks)
-- CX: Zaterdagsrust (telt NIET als gewerkte dag, breekt reeks)
-- Z: Ziek (telt NIET als gewerkte dag, reset 12u, breekt reeks)
-- RDS: Roadshow/Meeting (10:00-18:00, telt als gewerkte dag)
-- TCR: Postkennis opleiding (variabele tijden, telt als gewerkte dag)
-- T: Reserve/Thuis (in typetabel, vervangen bij planning)
+**Jaarovergang & Cleanup**
+- Preview van te verwijderen data
+- Archivering planning naar Excel/PDF
+- Opruimen oude gedeactiveerde gebruikers
 
-TYPEDIENSTTABEL:
----------------
-- 6-weken roterend patroon
-- Medewerkers starten bij verschillende weken (verschoven via startweek_typedienst)
-- Bevat V/L/N/RX/CX/T codes
-- Dient als template voor planning generatie
-- Reserves volgen GEEN typetabel (handmatig plannen)
+---
 
-HR REGELS:
----------
-1. Min 12u rust tussen shifts (VV/DA/VD reset deze regel)
-2. Max 50u per week (zondag 00:00 - zondag 23:59)
-3. Max 19 gewerkte dagen per 28-dagen cyclus (rode lijn)
-4. Max 7 kalenderdagen tussen RX/CX
-5. Max 7 werkdagen achter elkaar (RX/CX breken reeks)
+## SYSTEEM VEREISTEN
 
-RESERVES SYSTEEM:
-----------------
-- is_reserve flag in gebruikers tabel
-- Volgen GEEN typetabel (handmatig plannen)
-- startweek_typedienst = NULL voor reserves
-- Wel HR regels van toepassing
-- Kunnen inloggen en verlof vragen
-- Planner ziet hun verlof voor beschikbaarheid
+**Besturingssysteem:**
+- Windows 10 of nieuwer
+- Netwerkschijf toegang (voor multi-user gebruik)
 
-DATA RETENTIE & CLEANUP:
-------------------------
-- Bewerkbaar: Huidige maand + 2 maanden terug
-- Read-only: Oudere maanden (kunnen wel bekeken worden)
-- Cleanup: Per jaar, handmatig via Jaarovergang scherm
-- Archivering: N-2 jaar (bijv. in 2026: archiveer 2024)
-- Export: Excel/PDF voor gearchiveerde jaren
-- Gebruikers: Hard delete als > 2 maanden inactief bij cleanup
+**Schermresolutie:**
+- Minimaal 1366x768
+- Aanbevolen 1920x1080 of hoger
 
-TEAM SETUP:
------------
-Huidige config: 1 team (Interventie)
-Toekomst: Uitbreidbaar naar meerdere teams met eigen shift codes
+**Geheugen:**
+- Minimaal 4GB RAM
+- Aanbevolen 8GB RAM
 
-BEKENDE ISSUES & OPLOSSINGEN:
------------------------------
-- PyQt6 6.9.1 op Windows: Unicode arrows/emoji's in QPushButton veroorzaken crashes
-  Oplossing: Gebruik gewone tekst in buttons (gedaan in centrale styling)
-- Database connecties: Gebruik context managers voor proper cleanup
-- Router pattern: Geef method door (self.terug) niet object (self)
-- Schema mismatches: Altijd migratie scripts maken bij database wijzigingen
-- SQLite crashes: Memory violation bij ontbrekende kolommen → graceful error handling toevoegen
+**Opslag:**
+- Minimaal 100MB vrije ruimte
+- Database groeit geleidelijk (±1MB per jaar data)
 
-BELANGRIJKE CREDENTIALS:
-------------------------
-- Admin login: gebruikersnaam 'admin', wachtwoord 'admin'
-- Eerste keer inloggen: database wordt automatisch aangemaakt met seed data
+---
+
+## BEKENDE ISSUES
+
+### ✅ OPGELOST
+- **Unicode karakters**: Probleem met speciale tekens in buttons is opgelost
+- **Table layout crashes**: Stabiliteit van tabel weergaves verbeterd
+- **Button weergave**: Tekst in buttons wordt nu correct getoond
+- **Feestdagen bewerken**: Vaste feestdagen nu beschermd tegen wijzigingen
+- **Database migraties**: Soepel upgrade systeem geïmplementeerd
+
+### ⚠️ BEKEND
+- **Netwerklatency**: Bij gebruik vanaf netwerkschijf kan er lichte vertraging zijn bij opstarten
+- **Grote datasets**: Planning overzichten met veel data kunnen traag laden (optimalisatie gepland)
+
+### 🔍 IN ONDERZOEK
+- **Gebruikers kunnen aan het tabblad instellingen**: Zij kunnen daar de feestdagen aanpassen.
+
+**Probleem melden?** Neem contact op met je planner of leidinggevende.
+
+---
+
+## GEBRUIKERSINSTRUCTIES
+
+### Eerste Keer Inloggen
+1. Start de applicatie
+2. Log in met:
+   - **Gebruikersnaam:** `admin`
+   - **Wachtwoord:** `admin`
+3. ⚠️ **Belangrijk:** Wijzig het admin wachtwoord direct na eerste login!
+
+### Voor Planners
+1. **Teamleden beheren:** Dashboard → Beheer → Gebruikersbeheer
+2. **Feestdagen instellen:** Dashboard → Instellingen → Feestdagen
+3. **Planning maken:** (In ontwikkeling)
+
+### Voor Teamleden
+1. **Eigen rooster bekijken:** (In ontwikkeling)
+2. **Verlof aanvragen:** (In ontwikkeling)
+3. **Voorkeuren instellen:** (In ontwikkeling)
+
+---
+
+## SHIFT CODES
+
+### Interventie Post (Voorbeeld)
+
+**Weekdag Diensten:**
+- 7101 - Vroege dienst (V): 06:00-14:00
+- 7201 - Late dienst (L): 14:00-22:00
+- 7301 - Nachtdienst (N): 22:00-06:00
+
+**Zaterdag Diensten:**
+- 7401 - Vroege dienst (V): 06:00-14:00
+- 7501 - Late dienst (L): 14:00-22:00
+- 7601 - Nachtdienst (N): 22:00-06:00
+
+**Zondag/Feestdag Diensten:**
+- 7701 - Vroege dienst (V): 06:00-14:00
+- 7801 - Late dienst (L): 14:00-22:00
+- 7901 - Nachtdienst (N): 22:00-06:00
+
+*Deze codes zijn configureerbaar per team via Shift Codes beheer*
+
+### Speciale Codes
+
+- **VV** - Verlof (Betaald verlof)
+- **VD** - Vrij van dienst (ADV/compensatieverlof)
+- **DA** - Arbeidsduurverkorting
+- **RX** - Zondagsrust
+- **CX** - Zaterdagsrust
+- **Z** - Ziek
+- **RDS** - Roadshow/Meeting
+- **TCR/SCR** - Opleiding (Postkennis/Servicecentrum)
+- **T** - Reserve/Thuis (wordt vervangen bij definitieve planning)
+
+*Speciale codes zijn configureerbaar per organisatie via Speciale Codes beheer*
+
+---
+
+## HR REGELS
+
+Het systeem controleert automatisch op:
+
+1. **Minimale rust:** 12 uur tussen diensten
+2. **Maximum werkuren:** 50 uur per week
+3. **Maximum werkdagen:** 19 dagen per 28-dagen cyclus
+4. **Rustdagen:** Maximum 7 dagen tussen RX/CX
+5. **Werkdagen reeks:** Maximum 7 werkdagen achter elkaar
+
+⚠️ Planningen die deze regels schenden worden gemarkeerd en kunnen niet gepubliceerd worden.
+
+---
+
+## TYPEDIENSTTABEL
+
+Het systeem werkt met een **6-weken roterend patroon**:
+
+- Elke medewerker heeft een startweek (1-6)
+- Het patroon herhaalt zich elke 6 weken
+- Automatische generatie van basis planning mogelijk
+- Reserves volgen GEEN typetabel (handmatig in te plannen)
+
+**Voorbeeld Week 1:**
+- Ma: Vroeg, Di: Vroeg, Wo: Rust, Do: Laat, Vr: Laat, Za: Rust, Zo: Rust
+
+---
+
+## RODE LIJNEN
+
+**Wat zijn rode lijnen?**
+Rode lijnen zijn 28-dagen cycli voor het bijhouden van de arbeidsduur. Het systeem controleert automatisch dat medewerkers niet meer dan 19 gewerkte dagen per cyclus hebben.
+
+**Werking:**
+- Eerste cyclus start: 28 juli 2024
+- Elke periode duurt 28 dagen
+- Automatisch uitgebreid naar de toekomst
+- Zichtbaar in planning overzicht (in ontwikkeling)
+
+---
+
+## DATA & PRIVACY
+
+**Data opslag:**
+- Alle data wordt lokaal opgeslagen in SQLite database
+- Locatie: `data/planning.db`
+- Automatische backup aanbevolen
+
+**Beveiliging:**
+- Wachtwoorden zijn versleuteld (bcrypt)
+- Geen wachtwoorden in plain text opgeslagen
+- Toegang via rol-gebaseerd systeem
+
+**Data retentie:**
+- Planning: Minimaal 2 jaar bewaren
+- Oude planning: Archiveren naar Excel/PDF
+- Gedeactiveerde gebruikers: Cleanup na 2 maanden inactiviteit
+
+---
+
+## SUPPORT & CONTACT
+
+**Bugs of problemen melden:**
+- Neem contact op met je planner of de ontwikkelaar
+- Vermeld versienummer en beschrijving probleem
+- Screenshots zijn welkom
+
+**Feature requests:**
+- Suggesties zijn welkom
+- Bespreek met de ontwikkelaar of planner
+- Roadmap wordt regelmatig bijgewerkt
+
+**Technische documentatie:**
+- Voor ontwikkelaars: zie DEVELOPMENT_GUIDE.md
+- Voor eindgebruikers: dit document volstaat
+
+---
+
+## ROADMAP
+
+### Release 1.0 - December 2025
+**🎯 Productie-klare versie**
+- ✅ Gebruikersbeheer (voltooid)
+- ✅ Feestdagen beheer (voltooid)
+- ✅ Grid Kalender widgets (voltooid)
+- 🔨 HR Regels scherm
+- 🔨 Shift Codes beheer
+- 🔨 Rode Lijnen overzicht
+- 🔨 Planning Editor (kern!)
+- 🔨 Validatie systeem
+- 🔨 Auto-generatie planning
+- 🔨 Verlof aanvragen & goedkeuring
+- 🔨 Voorkeuren systeem
+- 🔨 Export functionaliteit
+- 🔨 Jaarovergang & cleanup
+- 🔨 .EXE build voor netwerkschijf
+
+### Q1 2026 - Test & Refinement
+**🧪 Beta testing met eindgebruikers**
+- Uitgebreide testing met planners
+- Uitgebreide testing met teamleden
+- Bug fixes en stabiliteit
+- Performance optimalisatie
+- Gebruikersfeedback verwerken
+- Training materiaal ontwikkelen
+- Documentatie finaliseren
+
+### Q2 2026 - Roll-out
+**🚀 Productie release**
+- Officiële release versie 1.0
+- Training voor planners
+- Introductie voor teamleden
+- Monitoring & support
+- Kleine bug fixes indien nodig
+
+### Toekomst (Post 1.0)
+**🔮 Mogelijke uitbreidingen**
+- Multi-team ondersteuning uitbreiden
+- Rapportages & statistieken
+- AI planning suggesties (onderzoek fase)
+- Notificaties systeem
+- Verbeterde export opties
+- Dashboard uitbreidingen
+
+**❌ Niet gepland**
+- Mobile app (zou hosting vereisen)
+- Cloud-based oplossing (blijft lokaal/netwerkschijf)
+- Integratie met externe HR systemen (voorlopig)
+
+---
+
+## CREDITS
+
+**Ontwikkeling:**
+- Project architectuur & ontwerp
+- Database implementatie
+- GUI ontwikkeling
+- Paasberekening algoritme (Computus)
+- Validatie logica
+
+**Testing:**
+- Beta testers (Q1 2026)
+- Gebruikers feedback (Q1 2026)
+
+**Gebruikte technologieën:**
+- Python 3.11+
+- PyQt6 (GUI framework)
+- SQLite (Database)
+- bcrypt (Wachtwoord encryptie)
+
+---
+
+## LICENTIE & COPYRIGHT
+
+**Copyright © 2024-2025**
+
+Dit is een tool ontwikkeld voor self-rostering teams.
+
+**Gebruiksvoorwaarden:**
+- Alleen voor intern gebruik binnen organisatie
+- Geen distributie buiten organisatie
+- Wijzigingen alleen door geautoriseerd personeel
+- Geen garantie op functionaliteit (gebruik op eigen risico)
+
+---
+
+## TOEPASSINGSGEBIED
+
+Deze tool is ontwikkeld voor **alle teams die aan self-rostering doen**, niet enkel interventie teams. Het shift codes systeem is volledig configureerbaar zodat elk team zijn eigen roostersysteem kan opzetten volgens de specifieke noden.
+
+**Geschikt voor:**
+- Elk team met self-rostering principes
+
+**Vereisten:**
+- Roterend rooster systeem (bijv. 6-weken patroon)
+- HR regels voor arbeidsduur
+- Shift-based werkomgeving
+- Need voor verlof beheer
+
+---
+
+*Voor technische details en ontwikkelaar informatie, zie DEVELOPMENT_GUIDE.md*
+
+*Laatste update: Oktober 2025*  
+*Versie: 0.6.3*

@@ -153,13 +153,14 @@ def create_tables(cursor):
         )
     """)
 
-    # Feestdagen tabel
+    python  # Feestdagen tabel
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS feestdagen (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             datum DATE NOT NULL UNIQUE,
             naam TEXT NOT NULL,
-            is_zondagsrust BOOLEAN DEFAULT 1
+            is_zondagsrust BOOLEAN DEFAULT 1,
+            is_variabel BOOLEAN DEFAULT 0
         )
     """)
 
@@ -235,6 +236,7 @@ def create_tables(cursor):
 
 def seed_data(conn, cursor):
     """Seed initiële data in database"""
+    print("\nSeeding data...")
     seed_admin_user(cursor)
     seed_interventie_post(cursor)
     seed_speciale_codes(cursor)
@@ -242,20 +244,37 @@ def seed_data(conn, cursor):
     seed_typetabel(cursor)
     seed_rode_lijnen(cursor)
     conn.commit()
+    print("✓ Seed data compleet\n")
 
 
 def seed_admin_user(cursor):
-    """Maak admin gebruiker aan (UPDATED met UUID)"""
+    """Seed admin gebruiker"""
+    cursor.execute("SELECT COUNT(*) FROM gebruikers WHERE gebruikersnaam = 'admin'")
+    if cursor.fetchone()[0] > 0:
+        print("  ↳ Admin user al aanwezig")
+        return
+
+    # Hash wachtwoord 'admin'
     wachtwoord_hash = bcrypt.hashpw('admin'.encode('utf-8'), bcrypt.gensalt())
     admin_uuid = str(uuid.uuid4())
 
     cursor.execute("""
         INSERT INTO gebruikers 
-        (gebruiker_uuid, gebruikersnaam, wachtwoord_hash, volledige_naam, 
-         rol, is_reserve, is_actief)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (admin_uuid, 'admin', wachtwoord_hash, 'Administrator',
-          'planner', 0, 1))
+        (gebruiker_uuid, gebruikersnaam, wachtwoord_hash, volledige_naam, rol, 
+         is_reserve, startweek_typedienst, is_actief, aangemaakt_op)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    """, (
+        admin_uuid,
+        'admin',
+        wachtwoord_hash,
+        'Administrator',
+        'planner',
+        0,
+        None,
+        1
+    ))
+
+    print("  ✓ Admin user aangemaakt (gebruikersnaam: 'admin', wachtwoord: 'admin')")
 
 
 def seed_interventie_post(cursor):
@@ -370,17 +389,33 @@ def seed_typetabel(cursor):
 
 
 def seed_rode_lijnen(cursor):
-    """Genereer 100 periodes rode lijnen (28-dagen cycli)"""
-    start_datum = datetime(2024, 1, 1)
+    """
+    Seed minimale rode lijnen (12 maanden vooruit)
+    Verdere periodes worden on-demand gegenereerd via ensure_jaar_data()
+    """
+    # Check of er al rode lijnen zijn
+    cursor.execute("SELECT COUNT(*) FROM rode_lijnen")
+    if cursor.fetchone()[0] > 0:
+        print("  ↳ Rode lijnen al aanwezig")
+        return
 
-    for periode in range(1, 101):
-        eind_datum = start_datum + timedelta(days=27)
+    # Start datum: 28 juli 2024 (bekende start rode lijn cyclus)
+    start = datetime(2024, 7, 28)
+
+    # Genereer 12 maanden (≈13 periodes van 28 dagen)
+    aantal_periodes = 13
+
+    for i in range(aantal_periodes):
+        start_datum = start + timedelta(days=28 * i)
+        eind_datum = start_datum + timedelta(days=27)  # 28 dagen cyclus (dag 1 t/m dag 28)
+        periode_nummer = i + 1  # Start bij 1
 
         cursor.execute("""
-            INSERT INTO rode_lijnen (start_datum, eind_datum, periode_nummer)
+            INSERT INTO rode_lijnen (periode_nummer, start_datum, eind_datum)
             VALUES (?, ?, ?)
-        """, (start_datum.strftime('%Y-%m-%d'),
-              eind_datum.strftime('%Y-%m-%d'),
-              periode))
+        """, (periode_nummer, start_datum.isoformat(), eind_datum.isoformat()))
 
-        start_datum = eind_datum + timedelta(days=1)
+    print(f"  ✓ {aantal_periodes} rode lijnen periodes aangemaakt (12 maanden)")
+    print(f"    Vanaf: {start.strftime('%d-%m-%Y')}")
+    print(f"    Tot: {(start + timedelta(days=28 * aantal_periodes)).strftime('%d-%m-%Y')}")
+    print(f"    Verdere periodes worden on-demand gegenereerd")
