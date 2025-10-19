@@ -1,17 +1,152 @@
-#gui/widgets/planner_grid_kalender.py
+# gui/widgets/planner_grid_kalender.py
 """
 Planner Grid Kalender
 Editable kalender voor planners met buffer dagen en scroll functionaliteit
+UPDATED: Editable cellen met keyboard navigatie en save functionaliteit
 """
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, Set
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                              QComboBox, QScrollArea, QWidget, QGridLayout,
-                             QCheckBox, QDialog, QDialogButtonBox, QSizePolicy)
+                             QCheckBox, QDialog, QDialogButtonBox, QSizePolicy,
+                             QLineEdit, QMessageBox, QMenu)
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QCursor
 from gui.widgets.grid_kalender_base import GridKalenderBase
 from gui.styles import Styles, Colors, Fonts, Dimensions
-from datetime import datetime
+from datetime import datetime, timedelta
+from database.connection import get_connection
+import sqlite3
+
+
+class EditableLabel(QLabel):
+    """
+    Label die editable wordt bij klik
+    """
+    edit_started: pyqtSignal = pyqtSignal()
+    edit_finished: pyqtSignal = pyqtSignal(str)  # nieuwe waarde
+
+    def __init__(self, text: str, datum_str: str, gebruiker_id: int, parent_grid):
+        super().__init__(text)
+        self.datum_str = datum_str
+        self.gebruiker_id = gebruiker_id
+        self.parent_grid = parent_grid
+        self.editor: Optional[QLineEdit] = None
+        self.is_editing = False
+
+    def mousePressEvent(self, event):
+        """Start edit mode bij klik"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.start_edit()
+        super().mousePressEvent(event)
+
+    def start_edit(self):
+        """Start edit mode"""
+        if self.is_editing:
+            return
+
+        self.is_editing = True
+        self.edit_started.emit()  # type: ignore
+
+        # Maak editor
+        self.editor = QLineEdit(self)
+        self.editor.setText(self.text())
+        self.editor.setMaxLength(5)
+        self.editor.setGeometry(self.rect())
+        self.editor.setStyleSheet("""
+            QLineEdit {
+                background-color: white;
+                border: 2px solid #2196F3;
+                padding: 2px;
+                font-weight: bold;
+            }
+        """)
+
+        # Uppercase automatisch
+        def to_upper():
+            pos = self.editor.cursorPosition()
+            self.editor.setText(self.editor.text().upper())
+            self.editor.setCursorPosition(pos)
+
+        self.editor.textChanged.connect(to_upper)  # type: ignore
+        self.editor.editingFinished.connect(self.finish_edit)  # type: ignore
+
+        # Focus en selecteer alles
+        self.editor.show()
+        self.editor.setFocus()
+        self.editor.selectAll()
+
+        # Install event filter voor keyboard
+        self.editor.installEventFilter(self)
+
+    def finish_edit(self):
+        """Beëindig edit mode"""
+        if not self.is_editing or not self.editor:
+            return
+
+        nieuwe_waarde = self.editor.text().strip().upper()
+        self.editor.deleteLater()
+        self.editor = None
+        self.is_editing = False
+
+        # Emit signal met nieuwe waarde
+        self.edit_finished.emit(nieuwe_waarde)  # type: ignore
+
+    def eventFilter(self, obj, event):
+        """Handle keyboard events in editor"""
+        if obj == self.editor and event.type() == event.Type.KeyPress:
+            key = event.key()
+
+            if key == Qt.Key.Key_Return or key == Qt.Key.Key_Enter:
+                # ENTER = finish en ga naar cel eronder
+                self.finish_edit()
+                self.parent_grid.navigate_to_cell(self.datum_str, self.gebruiker_id, 'down')
+                return True
+
+            elif key == Qt.Key.Key_Tab:
+                # TAB = finish en ga naar volgende cel
+                self.finish_edit()
+                self.parent_grid.navigate_to_cell(self.datum_str, self.gebruiker_id, 'next')
+                return True
+
+            elif key == Qt.Key.Key_Backtab:  # SHIFT+TAB
+                # SHIFT+TAB = finish en ga naar vorige cel
+                self.finish_edit()
+                self.parent_grid.navigate_to_cell(self.datum_str, self.gebruiker_id, 'prev')
+                return True
+
+            elif key == Qt.Key.Key_Escape:
+                # ESC = cancel
+                if self.editor:
+                    self.editor.setText(self.text())  # Reset to original
+                self.finish_edit()
+                return True
+
+            # NIEUW: Arrow keys
+            elif key == Qt.Key.Key_Up:
+                # Arrow UP = finish en ga naar cel erboven
+                self.finish_edit()
+                self.parent_grid.navigate_to_cell(self.datum_str, self.gebruiker_id, 'up')
+                return True
+
+            elif key == Qt.Key.Key_Down:
+                # Arrow DOWN = finish en ga naar cel eronder
+                self.finish_edit()
+                self.parent_grid.navigate_to_cell(self.datum_str, self.gebruiker_id, 'down')
+                return True
+
+            elif key == Qt.Key.Key_Left:
+                # Arrow LEFT = finish en ga naar vorige cel (links)
+                self.finish_edit()
+                self.parent_grid.navigate_to_cell(self.datum_str, self.gebruiker_id, 'left')
+                return True
+
+            elif key == Qt.Key.Key_Right:
+                # Arrow RIGHT = finish en ga naar volgende cel (rechts)
+                self.finish_edit()
+                self.parent_grid.navigate_to_cell(self.datum_str, self.gebruiker_id, 'right')
+                return True
+
+        return super().eventFilter(obj, event)
 
 
 class PlannerGridKalender(GridKalenderBase):
@@ -20,17 +155,35 @@ class PlannerGridKalender(GridKalenderBase):
     - Volledige maand + 8 dagen buffer voor/na
     - Horizontaal scrollable
     - Alle teamleden (met filter)
-    - Editable cellen
+    - Editable cellen met keyboard navigatie
     - Verlof status overlays
     """
 
-    # Signal voor cel click
+    # Signals
     cel_clicked: pyqtSignal = pyqtSignal(str, int)  # (datum_str, gebruiker_id)
+    data_changed: pyqtSignal = pyqtSignal()  # Planning gewijzigd
 
     def __init__(self, jaar: int, maand: int):
         super().__init__(jaar, maand)
+
+        # Editable state
+        self.valid_codes: Set[str] = set()  # Alle codes (voor algemene check)
+        self.valid_codes_per_dag: Dict[str, Set[str]] = {
+            'weekdag': set(),
+            'zaterdag': set(),
+            'zondag': set()
+        }  # Codes per dag_type
+        self.speciale_codes: Set[str] = set()  # Speciale codes (altijd geldig)
+        self.cel_widgets: Dict[str, Dict[int, EditableLabel]] = {}  # {datum: {user_id: widget}}
+
         self.init_ui()
         self.load_initial_data()
+
+    def set_valid_codes(self, codes: Set[str], codes_per_dag: Dict[str, Set[str]], speciale: Set[str]):
+        """Set valid codes voor validatie (called by parent screen)"""
+        self.valid_codes = codes
+        self.valid_codes_per_dag = codes_per_dag
+        self.speciale_codes = speciale
 
     def init_ui(self) -> None:
         """Bouw UI"""
@@ -136,7 +289,8 @@ class PlannerGridKalender(GridKalenderBase):
     def update_info_label(self) -> None:
         """Update info label met buffer info"""
         self.info_label.setText(
-            "Toont 8 dagen voor en 8 dagen na de geselecteerde maand voor betere planning continuïteit"
+            "Klik op cel om shift te bewerken • TAB=volgende • ENTER=eronder • ESC=annuleer • "
+            "Rechtsklik voor opties"
         )
 
     def load_initial_data(self) -> None:
@@ -144,8 +298,11 @@ class PlannerGridKalender(GridKalenderBase):
         # Laad gebruikers
         self.load_gebruikers(alleen_actief=True)
 
-        # Standaard: iedereen zichtbaar (planner view)
-        self.set_alle_gebruikers_filter(True)
+        # Alleen bij eerste keer: iedereen zichtbaar (planner view)
+        # Bij refresh: behoud huidige filter
+        if not hasattr(self, '_filter_initialized'):
+            self.set_alle_gebruikers_filter(True)
+            self._filter_initialized = True
 
         # Laad feestdagen
         self.load_feestdagen()
@@ -168,6 +325,9 @@ class PlannerGridKalender(GridKalenderBase):
         # Clear bestaande layout
         if self.grid_container.layout():
             QWidget().setLayout(self.grid_container.layout())
+
+        # Reset cel widgets
+        self.cel_widgets.clear()
 
         grid_layout = QGridLayout()
         grid_layout.setSpacing(0)
@@ -246,75 +406,277 @@ class PlannerGridKalender(GridKalenderBase):
             naam_label.setFixedWidth(200)
             grid_layout.addWidget(naam_label, row, 0)
 
-            # Shift cellen
+            # Shift cellen (editable)
             for col, (datum_str, _) in enumerate(datum_lijst, start=1):
-                cel = self.create_shift_cel(datum_str, gebruiker_id, mode='planner')
+                cel = self.create_editable_cel(datum_str, gebruiker_id)
                 cel.setFixedWidth(60)
-
-                # Maak cel klikbaar
-                cel.mousePressEvent = self.create_cel_click_handler(datum_str, gebruiker_id)
-                cel.setCursor(Qt.CursorShape.PointingHandCursor)
-
                 grid_layout.addWidget(cel, row, col)
-        #for row in range(grid_layout.rowCount()):
-        #    grid_layout.setRowMinimumHeight(row, Dimensions.TABLE_ROW_HEIGHT)
-        #    grid_layout.setRowStretch(row, 0)
-        self.grid_container.setMaximumHeight(grid_layout.rowCount() * Dimensions.TABLE_ROW_HEIGHT)
 
+                # Track widget
+                if datum_str not in self.cel_widgets:
+                    self.cel_widgets[datum_str] = {}
+                self.cel_widgets[datum_str][gebruiker_id] = cel
+
+        self.grid_container.setMaximumHeight(grid_layout.rowCount() * Dimensions.TABLE_ROW_HEIGHT)
         self.grid_container.setLayout(grid_layout)
 
-    def create_shift_cel(self, datum_str: str, gebruiker_id: int, mode: str) -> QLabel:
-        """
-        Maak cel voor shift weergave
-        Editable voor planner view
-        """
-
+    def create_editable_cel(self, datum_str: str, gebruiker_id: int) -> EditableLabel:
+        """Maak editable cel voor shift weergave"""
         # Haal shift code op
         shift_code = self.get_display_code(datum_str, gebruiker_id)
 
         # Bepaal achtergrond en overlay
         achtergrond = self.get_datum_achtergrond(datum_str)
-        overlay = self.get_verlof_overlay(datum_str, gebruiker_id, mode)
+        overlay = self.get_verlof_overlay(datum_str, gebruiker_id, 'planner')
 
-        # Check of dit een buffer dag is (andere maand)
+        # Check of dit een buffer dag is
         datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
         is_buffer = datum_obj.month != self.maand
 
-        # Maak label
-        cel = QLabel(shift_code)
+        # Maak editable label
+        cel = EditableLabel(shift_code, datum_str, gebruiker_id, self)
         cel.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL, QFont.Weight.Bold))
 
-        # Stylesheet met optionele grijze tint voor buffer dagen
+        # Stylesheet
         if is_buffer:
-            # Buffer dag: iets transparanter
             base_style = self.create_cel_stylesheet(achtergrond, overlay)
-            cel.setStyleSheet(base_style + f" QLabel {{ opacity: 0.7; }}")
+            cel.setStyleSheet(base_style + " QLabel { opacity: 0.7; }")
         else:
             cel.setStyleSheet(self.create_cel_stylesheet(achtergrond, overlay))
 
         # Tooltip
-        tooltip = self.get_cel_tooltip(datum_str, gebruiker_id, mode)
+        tooltip = self.get_cel_tooltip(datum_str, gebruiker_id, 'planner')
         if tooltip:
             cel.setToolTip(tooltip)
 
-        # hoogte beperken van de cel
-        #cel.setFixedHeight(32)  # of zelfs 28
-        #cel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        #cel.setStyleSheet("background-color: #ffeecc; border: 1px solid #ccc;")  # tijdelijk
+        # Connect signals
+        cel.edit_finished.connect(lambda code: self.on_cel_edited(datum_str, gebruiker_id, code))  # type: ignore
+
+        # Context menu
+        cel.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        cel.customContextMenuRequested.connect(  # type: ignore
+            lambda pos: self.show_context_menu(cel, datum_str, gebruiker_id)
+        )
+
+        # Cursor
+        cel.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         return cel
 
-    def create_cel_click_handler(self, datum_str: str, gebruiker_id: int):
-        """Factory voor cel click handler (voorkomt closure problemen)"""
+    def on_cel_edited(self, datum_str: str, gebruiker_id: int, code: str):
+        """Handle cel edit"""
+        if not code:
+            # Lege cel = delete
+            self.delete_shift(datum_str, gebruiker_id)
+            return
 
-        def handler(event):
-            self.on_cel_clicked(datum_str, gebruiker_id)
+        # Check of code überhaupt bestaat
+        if code not in self.valid_codes:
+            QMessageBox.warning(
+                self,
+                "Ongeldige Code",
+                f"'{code}' is geen geldige shift code.\n\n"
+                f"Check de codes lijst in het scherm."
+            )
+            # Reset cel
+            if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
+                oude_code = self.get_display_code(datum_str, gebruiker_id)
+                self.cel_widgets[datum_str][gebruiker_id].setText(oude_code)
+            return
 
-        return handler
+        # Check of het een speciale code is (altijd geldig)
+        if code in self.speciale_codes:
+            self.save_shift(datum_str, gebruiker_id, code)
+            return
 
-    def on_cel_clicked(self, datum_str: str, gebruiker_id: int) -> None:
-        """Handle cel click - emit signal voor parent"""
-        self.cel_clicked.emit(datum_str, gebruiker_id)  # type: ignore
+        # Voor shift codes: check dag_type
+        dag_type = self.bepaal_dag_type(datum_str)
+
+        if code not in self.valid_codes_per_dag[dag_type]:
+            # Bepaal welke dag_types deze code WEL heeft
+            gevonden_types = [dt for dt, codes in self.valid_codes_per_dag.items() if code in codes]
+
+            if gevonden_types:
+                types_str = ', '.join(gevonden_types)
+                QMessageBox.warning(
+                    self,
+                    "Verkeerde Dag Type",
+                    f"'{code}' is een {types_str} shift.\n\n"
+                    f"Deze datum is een {dag_type}.\n"
+                    f"Gebruik een shift code voor {dag_type}."
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Ongeldige Code",
+                    f"'{code}' is geen geldige shift code."
+                )
+
+            # Reset cel
+            if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
+                oude_code = self.get_display_code(datum_str, gebruiker_id)
+                self.cel_widgets[datum_str][gebruiker_id].setText(oude_code)
+            return
+
+        # Alles OK - save
+        self.save_shift(datum_str, gebruiker_id, code)
+
+    def bepaal_dag_type(self, datum_str: str) -> str:
+        """
+        Bepaal dag_type voor een datum
+        Returns: 'weekdag', 'zaterdag', of 'zondag'
+        """
+        datum = datetime.strptime(datum_str, '%Y-%m-%d')
+        weekdag = datum.weekday()  # 0=Ma, 6=Zo
+
+        # Zondag of feestdag
+        if weekdag == 6 or datum_str in self.feestdagen:
+            return 'zondag'
+        # Zaterdag
+        elif weekdag == 5:
+            return 'zaterdag'
+        # Weekdag (ma-vr)
+        else:
+            return 'weekdag'
+
+    def save_shift(self, datum_str: str, gebruiker_id: int, shift_code: str):
+        """Sla shift op in database"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                INSERT INTO planning (gebruiker_id, datum, shift_code, status)
+                VALUES (?, ?, ?, 'concept')
+                ON CONFLICT(gebruiker_id, datum) 
+                DO UPDATE SET shift_code = ?
+                WHERE status = 'concept'
+            """, (gebruiker_id, datum_str, shift_code, shift_code))
+
+            conn.commit()
+            conn.close()
+
+            # Update cel display
+            if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
+                self.cel_widgets[datum_str][gebruiker_id].setText(shift_code)
+
+            # Emit signal
+            self.data_changed.emit()  # type: ignore
+
+        except sqlite3.Error as e:
+            QMessageBox.critical(self, "Database Fout", f"Kon shift niet opslaan:\n{e}")
+
+    def delete_shift(self, datum_str: str, gebruiker_id: int):
+        """Verwijder shift uit database"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                DELETE FROM planning
+                WHERE gebruiker_id = ? AND datum = ?
+                  AND status = 'concept'
+            """, (gebruiker_id, datum_str))
+
+            conn.commit()
+            conn.close()
+
+            # Update cel display
+            if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
+                self.cel_widgets[datum_str][gebruiker_id].setText("")
+
+            # Emit signal
+            self.data_changed.emit()  # type: ignore
+
+        except sqlite3.Error as e:
+            QMessageBox.critical(self, "Database Fout", f"Kon shift niet verwijderen:\n{e}")
+
+    def navigate_to_cell(self, huidige_datum: str, huidige_gebruiker_id: int, richting: str):
+        """Navigeer naar andere cel"""
+        datum_lijst = self.get_datum_lijst(start_offset=8, eind_offset=8)
+        gebruikers = self.get_zichtbare_gebruikers()
+
+        # Vind huidige positie
+        datum_index = next((i for i, (d, _) in enumerate(datum_lijst) if d == huidige_datum), None)
+        gebruiker_index = next((i for i, u in enumerate(gebruikers) if u['id'] == huidige_gebruiker_id), None)
+
+        if datum_index is None or gebruiker_index is None:
+            return
+
+        # Bepaal nieuwe positie
+        nieuwe_datum_index = datum_index
+        nieuwe_gebruiker_index = gebruiker_index
+
+        if richting == 'next' or richting == 'right':
+            # TAB of Arrow Right - volgende kolom, wrap to next row
+            nieuwe_datum_index += 1
+            if nieuwe_datum_index >= len(datum_lijst):
+                nieuwe_datum_index = 0
+                nieuwe_gebruiker_index += 1
+
+        elif richting == 'prev' or richting == 'left':
+            # SHIFT+TAB of Arrow Left - vorige kolom
+            nieuwe_datum_index -= 1
+            if nieuwe_datum_index < 0:
+                nieuwe_datum_index = len(datum_lijst) - 1
+                nieuwe_gebruiker_index -= 1
+
+        elif richting == 'down':
+            # ENTER of Arrow Down - volgende rij
+            nieuwe_gebruiker_index += 1
+
+        elif richting == 'up':
+            # Arrow Up - vorige rij
+            nieuwe_gebruiker_index -= 1
+
+        # Check bounds
+        if nieuwe_datum_index < 0 or nieuwe_datum_index >= len(datum_lijst):
+            return
+        if nieuwe_gebruiker_index < 0 or nieuwe_gebruiker_index >= len(gebruikers):
+            return
+
+        # Activeer nieuwe cel
+        nieuwe_datum = datum_lijst[nieuwe_datum_index][0]
+        nieuwe_gebruiker_id = gebruikers[nieuwe_gebruiker_index]['id']
+
+        if nieuwe_datum in self.cel_widgets and nieuwe_gebruiker_id in self.cel_widgets[nieuwe_datum]:
+            self.cel_widgets[nieuwe_datum][nieuwe_gebruiker_id].start_edit()
+
+    def show_context_menu(self, cel: EditableLabel, datum_str: str, gebruiker_id: int):
+        """Toon context menu bij rechtsklik"""
+        menu = QMenu(self)
+
+        # Verwijder
+        delete_action = menu.addAction("Verwijder shift")
+        delete_action.triggered.connect(lambda: self.delete_shift(datum_str, gebruiker_id))  # type: ignore
+
+        # Vul week (als cel niet leeg)
+        if cel.text():
+            menu.addSeparator()
+            vul_week_action = menu.addAction(f"Vul hele week met '{cel.text()}'")
+            vul_week_action.triggered.connect(  # type: ignore
+                lambda: self.vul_week(datum_str, gebruiker_id, cel.text())
+            )
+
+        menu.exec(QCursor.pos())
+
+    def vul_week(self, start_datum: str, gebruiker_id: int, code: str):
+        """Vul 7 dagen met zelfde code"""
+        reply = QMessageBox.question(
+            self,
+            "Vul Week",
+            f"7 dagen vullen met '{code}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Vul 7 dagen
+        datum = datetime.strptime(start_datum, '%Y-%m-%d')
+        for i in range(7):
+            nieuwe_datum = (datum + timedelta(days=i)).strftime('%Y-%m-%d')
+            self.save_shift(nieuwe_datum, gebruiker_id, code)
 
     def open_filter_dialog(self) -> None:
         """Open dialog om gebruikers te filteren"""

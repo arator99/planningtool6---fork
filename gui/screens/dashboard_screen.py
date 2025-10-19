@@ -30,8 +30,11 @@ class DashboardScreen(QWidget):
     rode_lijnen_clicked = pyqtSignal()
     planning_clicked = pyqtSignal()
     verlof_clicked = pyqtSignal()
-    kalender_test_clicked = pyqtSignal()
     logout_signal = pyqtSignal()
+    planning_editor_clicked: pyqtSignal = pyqtSignal()  # NIEUW
+    verlof_aanvragen_clicked: pyqtSignal = pyqtSignal()  # Voor teamleden
+    verlof_goedkeuring_clicked: pyqtSignal = pyqtSignal()  # Voor planners
+
 
     def __init__(self, user_data: Dict[str, Any]):
         super().__init__()
@@ -81,6 +84,13 @@ class DashboardScreen(QWidget):
 
         header_layout.addStretch()
 
+        # Handleiding knop
+        handleiding_btn = QPushButton("Handleiding (F1)")
+        handleiding_btn.setStyleSheet(Styles.button_secondary())
+        handleiding_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        handleiding_btn.clicked.connect(self.show_handleiding)  # type: ignore
+        header_layout.addWidget(handleiding_btn)
+
         # About knop
         about_btn = QPushButton("Over")
         about_btn.setStyleSheet(Styles.button_secondary())
@@ -98,6 +108,12 @@ class DashboardScreen(QWidget):
     def show_about_dialog(self) -> None:
         """Toon About dialog"""
         dialog = AboutDialog(self)
+        dialog.exec()
+
+    def show_handleiding(self) -> None:
+        """Toon handleiding dialog"""
+        from gui.dialogs.handleiding_dialog import HandleidingDialog
+        dialog = HandleidingDialog(self)
         dialog.exec()
 
     def show_wachtwoord_dialog(self) -> None:
@@ -205,12 +221,6 @@ class DashboardScreen(QWidget):
             "Beheer teamleden en hun toegang"
         ))
 
-        # Kalender Test knop (development only)
-        scroll_layout.addWidget(self.create_menu_button(
-            "Kalender Test",
-            "Test de kalender widgets (development)"
-        ))
-
         scroll_layout.addStretch()
         scroll.setWidget(scroll_widget)
         layout.addWidget(scroll)
@@ -312,6 +322,11 @@ class DashboardScreen(QWidget):
             ))
 
             scroll_layout.addWidget(self.create_menu_button(
+                "Typetabel",
+                "Beheer het roterend typedienstpatroon"
+            ))
+
+            scroll_layout.addWidget(self.create_menu_button(
                 "Rode Lijnen",
                 "Bekijk 28-dagen arbeidsduurcycli"
             ))
@@ -379,20 +394,24 @@ class DashboardScreen(QWidget):
             self.hr_regels_clicked.emit()  # type: ignore
         elif title == "Shift Codes & Posten":
             self.shift_codes_clicked.emit()  # type: ignore
+        elif title == "Typetabel":
+            self.typedienst_clicked.emit()  # type: ignore
         elif title == "Rode Lijnen":
             self.rode_lijnen_clicked.emit()  # type: ignore
         elif title == "Planning Editor":
-            self.planning_clicked.emit()  # type: ignore
-        elif title == "Verlof Aanvragen" or title == "Verlof Goedkeuring":
-            self.verlof_clicked.emit()  # type: ignore
+            self.planning_editor_clicked.emit()  # type: ignore
+        #elif title == "Verlof Aanvragen" or title == "Verlof Goedkeuring":
+        #    self.verlof_clicked.emit()  # type: ignore
         elif title == "Mijn Voorkeuren":
             self.voorkeuren_clicked.emit()  # type: ignore
         elif title == "Mijn Planning":
             self.planning_clicked.emit()  # type: ignore
-        elif title == "Kalender Test":
-            self.kalender_test_clicked.emit()  # type: ignore
         elif title == "Wijzig Wachtwoord":
             self.show_wachtwoord_dialog()
+        elif title == "Verlof Aanvragen":
+            self.verlof_aanvragen_clicked.emit()  # type: ignore
+        elif title == "Verlof Goedkeuring":
+            self.verlof_goedkeuring_clicked.emit()  # type: ignore
 
 
 class WachtwoordWijzigenDialog(QDialog):

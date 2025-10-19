@@ -137,6 +137,17 @@ def rode_lijnen_bestaan_tot(datum):
     """Check of rode lijnen bestaan tot gegeven datum"""
     conn = get_connection()
     cursor = conn.cursor()
+
+    # Haal actieve config op voor interval
+    cursor.execute("""
+        SELECT interval_dagen FROM rode_lijnen_config
+        WHERE is_actief = 1
+        ORDER BY actief_vanaf DESC
+        LIMIT 1
+    """)
+    config = cursor.fetchone()
+    interval = config[0] if config else 28  # Fallback naar 28
+
     cursor.execute("""
         SELECT MAX(start_datum) FROM rode_lijnen
     """)
@@ -147,8 +158,8 @@ def rode_lijnen_bestaan_tot(datum):
         return False
 
     laatste = datetime.fromisoformat(result)
-    # Rode lijn periode duurt 28 dagen, dus check of laatste + 28 >= doel
-    return (laatste + timedelta(days=28)) >= datum
+    # Rode lijn periode duurt X dagen (volgens config), dus check of laatste + interval >= doel
+    return (laatste + timedelta(days=interval)) >= datum
 
 
 def extend_rode_lijnen_tot(doel_datum):
@@ -159,6 +170,23 @@ def extend_rode_lijnen_tot(doel_datum):
     conn = get_connection()
     cursor = conn.cursor()
 
+    # Haal actieve config op voor start en interval
+    cursor.execute("""
+        SELECT start_datum, interval_dagen FROM rode_lijnen_config
+        WHERE is_actief = 1
+        ORDER BY actief_vanaf DESC
+        LIMIT 1
+    """)
+    config = cursor.fetchone()
+
+    if not config:
+        # Fallback naar oude defaults
+        config_start_datum = datetime(2024, 7, 28)
+        interval = 28
+    else:
+        config_start_datum = datetime.fromisoformat(config[0])
+        interval = config[1]
+
     # Haal laatste rode lijn en hoogste periode nummer
     cursor.execute("SELECT MAX(start_datum), MAX(periode_nummer) FROM rode_lijnen")
     result = cursor.fetchone()
@@ -166,12 +194,12 @@ def extend_rode_lijnen_tot(doel_datum):
     laatste_nummer = result[1] or 0  # Start bij 0 als er geen periodes zijn
 
     if not laatste_datum:
-        # Geen rode lijnen, start vanaf bekende datum (eerste cyclus na go-live)
-        start = datetime(2024, 7, 28)
+        # Geen rode lijnen, start vanaf config start datum
+        start = config_start_datum
         periode_nummer = 1
     else:
-        # Start na de laatste periode
-        start = datetime.fromisoformat(laatste_datum) + timedelta(days=28)
+        # Start na de laatste periode (gebruik interval uit config)
+        start = datetime.fromisoformat(laatste_datum) + timedelta(days=interval)
         periode_nummer = laatste_nummer + 1
 
     # Genereer tot doel
@@ -179,12 +207,12 @@ def extend_rode_lijnen_tot(doel_datum):
     huidige = start
 
     while huidige <= doel_datum:
-        eind_datum = huidige + timedelta(days=27)  # 28 dagen cyclus
+        eind_datum = huidige + timedelta(days=interval - 1)  # X dagen cyclus (eind is inclusief)
         cursor.execute("""
             INSERT INTO rode_lijnen (periode_nummer, start_datum, eind_datum)
             VALUES (?, ?, ?)
         """, (periode_nummer, huidige.isoformat(), eind_datum.isoformat()))
-        huidige += timedelta(days=28)
+        huidige += timedelta(days=interval)
         periode_nummer += 1
         toegevoegd += 1
 

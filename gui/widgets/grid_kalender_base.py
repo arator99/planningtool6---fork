@@ -1,7 +1,8 @@
-#gui/widgets/grid_kalender_base.py
+# gui/widgets/grid_kalender_base.py
 """
 Grid Kalender Base Class
 Gemeenschappelijke functionaliteit voor planner en teamlid kalenders
+UPDATED: Database compatibiliteit met nieuwe planning tabel structuur
 """
 from typing import Dict, Any, List, Optional, Tuple
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea
@@ -10,6 +11,7 @@ from PyQt6.QtGui import QFont
 from datetime import datetime, timedelta
 from database.connection import get_connection
 from gui.styles import Styles, Colors, Fonts, Dimensions
+from services.term_code_service import TermCodeService
 import calendar
 
 
@@ -52,7 +54,9 @@ class GridKalenderBase(QWidget):
 
         query = "SELECT id, volledige_naam, gebruikersnaam, is_reserve FROM gebruikers"
         if alleen_actief:
-            query += " WHERE is_actief = 1"
+            query += " WHERE is_actief = 1 AND gebruikersnaam != 'admin'"
+        else:
+            query += " WHERE gebruikersnaam != 'admin'"
         query += " ORDER BY volledige_naam"
 
         cursor.execute(query)
@@ -72,23 +76,25 @@ class GridKalenderBase(QWidget):
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Haal planning shifts op
+        # Haal planning op met details van shift_codes en speciale_codes
         cursor.execute("""
             SELECT 
-                ps.gebruiker_id,
-                ps.datum,
-                ps.shift_code_id,
-                ps.speciale_code_id,
-                sc.code as shift_code,
-                sc.naam as shift_naam,
-                sc.start_tijd,
-                sc.eind_tijd,
-                spc.code as speciale_code,
+                p.gebruiker_id,
+                p.datum,
+                p.shift_code,
+                p.status,
+                -- Details van shift_codes (indien match)
+                sc.shift_type as shift_naam,
+                sc.start_uur,
+                sc.eind_uur,
+                w.naam as werkpost_naam,
+                -- Details van speciale_codes (indien match)
                 spc.naam as speciale_naam
-            FROM planning_shifts ps
-            LEFT JOIN shift_codes sc ON ps.shift_code_id = sc.id
-            LEFT JOIN speciale_codes spc ON ps.speciale_code_id = spc.id
-            WHERE ps.datum BETWEEN ? AND ?
+            FROM planning p
+            LEFT JOIN shift_codes sc ON p.shift_code = sc.code
+            LEFT JOIN werkposten w ON sc.werkpost_id = w.id
+            LEFT JOIN speciale_codes spc ON p.shift_code = spc.code
+            WHERE p.datum BETWEEN ? AND ?
         """, (start_datum, eind_datum))
 
         # Organiseer per datum per gebruiker
@@ -100,15 +106,21 @@ class GridKalenderBase(QWidget):
             if datum not in self.planning_data:
                 self.planning_data[datum] = {}
 
+            # Bepaal of het een shift of speciale code is
+            is_speciale_code = row['speciale_naam'] is not None
+
             self.planning_data[datum][gebruiker_id] = {
-                'shift_code_id': row['shift_code_id'],
-                'speciale_code_id': row['speciale_code_id'],
                 'shift_code': row['shift_code'],
+                'status': row['status'],
+                # Shift details (None als speciale code)
                 'shift_naam': row['shift_naam'],
-                'start_tijd': row['start_tijd'],
-                'eind_tijd': row['eind_tijd'],
-                'speciale_code': row['speciale_code'],
-                'speciale_naam': row['speciale_naam']
+                'start_tijd': row['start_uur'],
+                'eind_tijd': row['eind_uur'],
+                'werkpost_naam': row['werkpost_naam'],
+                # Speciale code details (None als shift)
+                'speciale_code': row['shift_code'] if is_speciale_code else None,
+                'speciale_naam': row['speciale_naam'],
+                'is_speciale_code': is_speciale_code
             }
 
         conn.close()
@@ -194,7 +206,7 @@ class GridKalenderBase(QWidget):
         if datum_str in self.verlof_data and gebruiker_id in self.verlof_data[datum_str]:
             verlof_info = self.verlof_data[datum_str][gebruiker_id]
 
-        # Check shift data voor DA/VD
+        # Check shift data voor VV/DA/VD
         shift_info = None
         if datum_str in self.planning_data and gebruiker_id in self.planning_data[datum_str]:
             shift_info = self.planning_data[datum_str][gebruiker_id]
@@ -210,13 +222,19 @@ class GridKalenderBase(QWidget):
                     return 'rgba(173, 216, 230, 0.4)'  # Lichtblauw
 
         elif mode == 'teamlid':
-            # Teamlid ziet eigen verlof/DA/VD
-            if shift_info and shift_info['speciale_code']:
-                if shift_info['speciale_code'] == 'VV':
+            # Teamlid ziet eigen verlof/DA/VD via shift_code
+            if shift_info:
+                code = shift_info.get('shift_code', '')
+
+                # Gebruik term-based checks voor systeem codes
+                verlof_code = TermCodeService.get_code_for_term('verlof')
+                adv_code = TermCodeService.get_code_for_term('arbeidsduurverkorting')
+
+                if code == verlof_code:
                     return 'rgba(144, 238, 144, 0.4)'  # Lichtgroen (verlof)
-                elif shift_info['speciale_code'] == 'DA':
+                elif code == adv_code:
                     return 'rgba(173, 216, 230, 0.4)'  # Lichtblauw (ADV)
-                elif shift_info['speciale_code'] == 'VD':
+                elif code == 'VD':
                     return 'rgba(216, 191, 216, 0.4)'  # Lichtpaars (Vrij van dienst)
 
         return None
@@ -234,15 +252,8 @@ class GridKalenderBase(QWidget):
 
         shift_info = self.planning_data[datum_str][gebruiker_id]
 
-        # Speciale codes hebben voorrang
-        if shift_info['speciale_code']:
-            return shift_info['speciale_code']
-
-        # Reguliere shift codes
-        elif shift_info['shift_code']:
-            return shift_info['shift_code']
-
-        return ""
+        # Return gewoon de shift_code
+        return shift_info.get('shift_code', '')
 
     def get_cel_tooltip(self, datum_str: str, gebruiker_id: int, mode: str) -> str:
         """
@@ -258,11 +269,25 @@ class GridKalenderBase(QWidget):
         if datum_str in self.planning_data and gebruiker_id in self.planning_data[datum_str]:
             shift_info = self.planning_data[datum_str][gebruiker_id]
 
-            if shift_info['speciale_code']:
-                tooltip_lines.append(f"{shift_info['speciale_code']}: {shift_info['speciale_naam']}")
-            elif shift_info['shift_code']:
-                tooltip_lines.append(f"Shift: {shift_info['shift_naam']}")
-                tooltip_lines.append(f"Tijden: {shift_info['start_tijd']} - {shift_info['eind_tijd']}")
+            code = shift_info.get('shift_code', '')
+
+            if shift_info.get('is_speciale_code'):
+                # Speciale code
+                tooltip_lines.append(f"{code}: {shift_info.get('speciale_naam', '')}")
+            elif code:
+                # Reguliere shift
+                shift_naam = shift_info.get('shift_naam', '')
+                start = shift_info.get('start_tijd', '')
+                eind = shift_info.get('eind_tijd', '')
+                werkpost = shift_info.get('werkpost_naam', '')
+
+                tooltip_lines.append(f"Shift: {code}")
+                if shift_naam:
+                    tooltip_lines.append(f"Type: {shift_naam}")
+                if werkpost:
+                    tooltip_lines.append(f"Werkpost: {werkpost}")
+                if start and eind:
+                    tooltip_lines.append(f"Tijden: {start} - {eind}")
 
         # Verlof info (alleen voor planner mode)
         if mode == 'planner' and datum_str in self.verlof_data and gebruiker_id in self.verlof_data[datum_str]:

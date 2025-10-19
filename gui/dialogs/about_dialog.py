@@ -14,7 +14,7 @@ from gui.styles import Styles, Colors, Fonts, Dimensions
 from pathlib import Path
 import re
 
-VERSION = "0.6.0"
+VERSION = "0.6.4"
 BUILD_DATE = "oktober 2025"
 DEVELOPERS = "Ontwikkeld door:\n• Aerts Bob (Lead Developer - I-O.112)\n• Claude (AI Assistant - Anthropic)"
 

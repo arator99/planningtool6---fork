@@ -5,25 +5,35 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="865b7ef9-30d1-4a5b-a980-0e0653fcd9d2" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/DEVELOPMENT_GUIDE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/DEV_NOTES.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gui/screens/kalender_test_screen.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gui/screens/mijn_planning_screen.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gui/widgets/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gui/widgets/grid_kalender_base.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gui/widgets/planner_grid_kalender.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/gui/widgets/teamlid_grid_kalender.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/build.spec" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/create_planning_table.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/database_shift_codes_migration.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui/dialogs/shift_codes_grid_dialog.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui/dialogs/speciale_code_dialog.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui/dialogs/typetabel_dialogs.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui/dialogs/typetabel_editor_dialog.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui/dialogs/werkpost_naam_dialog.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui/screens/planning_editor_screen.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui/screens/shift_codes_screen.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui/screens/typetabel_beheer_screen.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui/screens/verlof_aanvragen_screen.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui/screens/verlof_goedkeuring_screen.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/migratie_typetabel_versioned.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/test_migratie.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/verify_planning_editor_readiness.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Feestdagen_migration.py" beforeDir="false" afterPath="$PROJECT_DIR$/Feestdagen_migration.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DEVELOPMENT_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEVELOPMENT_GUIDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/DEV_NOTES.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEV_NOTES.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/PROJECT_INFO.md" beforeDir="false" afterPath="$PROJECT_DIR$/PROJECT_INFO.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/architectuur.py" beforeDir="false" afterPath="$PROJECT_DIR$/architectuur.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data/planning.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/planning.db" beforeDir="false" afterPath="$PROJECT_DIR$/data/planning.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/database/connection.py" beforeDir="false" afterPath="$PROJECT_DIR$/database/connection.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui/dialogs/about_dialog.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/dialogs/about_dialog.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui/screens/dashboard_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/dashboard_screen.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gui/screens/feestdagen_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/feestdagen_screen.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gui/screens/gebruikersbeheer_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/gebruikersbeheer_screen.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gui/styles.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/styles.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/screens/mijn_planning_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/mijn_planning_screen.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/widgets/grid_kalender_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/widgets/grid_kalender_base.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/widgets/planner_grid_kalender.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/widgets/planner_grid_kalender.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/widgets/teamlid_grid_kalender.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/widgets/teamlid_grid_kalender.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/services/data_ensure_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/services/data_ensure_service.py" afterDir="false" />
     </list>
@@ -55,6 +65,7 @@
   }
 }</component>
   <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/.venv/requirements.txt" root0="SKIP_INSPECTION" />
     <setting file="file://$PROJECT_DIR$/gui/screens/gebruikersbeheer_screen.py" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="ProblemsViewState">
@@ -68,25 +79,31 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python.Feestdagen_migration.executor&quot;: &quot;Run&quot;,
-    &quot;Python.connection.executor&quot;: &quot;Run&quot;,
-    &quot;Python.database_migration.executor&quot;: &quot;Run&quot;,
-    &quot;Python.feestdagen_screen.executor&quot;: &quot;Run&quot;,
-    &quot;Python.gebruikersbeheer_screen.executor&quot;: &quot;Run&quot;,
-    &quot;Python.genereer_architectuur.executor&quot;: &quot;Run&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.styles.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.Feestdagen_migration.executor": "Run",
+    "Python.connection.executor": "Run",
+    "Python.database_migration.executor": "Run",
+    "Python.database_shift_codes_migration.executor": "Run",
+    "Python.feestdagen_screen.executor": "Run",
+    "Python.gebruikersbeheer_screen.executor": "Run",
+    "Python.genereer_architectuur.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.migratie_systeem_termen.executor": "Run",
+    "Python.migratie_typetabel_versioned.executor": "Run",
+    "Python.planner_grid_kalender.executor": "Run",
+    "Python.styles.executor": "Run",
+    "Python.verify_planning_editor_readiness.executor": "Run",
+    "Python.verlof_aanvragen_screen.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "settings.editor.selected.configurable": "preferences.pluginManager"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\arato\PycharmProjects\planningstool 6 - claude" />
@@ -95,7 +112,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-9f8e2b94138c-36ea0e71a18c-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.26094.141" />
+        <option value="bundled-python-sdk-14d54ed193d7-64d779b69b7a-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.28774.16" />
       </set>
     </attachedChunks>
   </component>

@@ -6,12 +6,12 @@ FIXED: Signal namen + type hints + instance attributes
 import sys
 from typing import Dict, Any, Optional
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget
+from PyQt6.QtGui import QKeySequence, QShortcut
 from database.connection import init_database
 from gui.screens.login_screen import LoginScreen
 from gui.screens.dashboard_screen import DashboardScreen
 from gui.screens.feestdagen_screen import FeestdagenScherm
 from gui.screens.gebruikersbeheer_screen import GebruikersbeheerScreen
-from gui.screens.kalender_test_screen import KalenderTestScreen
 from gui.screens.mijn_planning_screen import MijnPlanningScreen
 
 
@@ -28,6 +28,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Planning Tool")
         self.resize(1000, 700)
 
+        # Globale F1 shortcut voor handleiding
+        self.help_shortcut = QShortcut(QKeySequence("F1"), self)
+        self.help_shortcut.activated.connect(self.show_handleiding)  # type: ignore
+
         self.show_login()
 
     def show_login(self) -> None:
@@ -40,6 +44,7 @@ class MainWindow(QMainWindow):
     def on_login_success(self, user_data: Dict[str, Any]) -> None:
         """Na succesvolle login"""
         self.current_user = user_data
+        self.showMaximized()  # Maximaliseer window na login
         self.show_dashboard()
 
     def terug(self) -> None:
@@ -69,7 +74,9 @@ class MainWindow(QMainWindow):
         dashboard.shift_codes_clicked.connect(self.on_shift_codes_clicked)  # type: ignore
         dashboard.feestdagen_clicked.connect(self.on_feestdagen_clicked)  # type: ignore
         dashboard.rode_lijnen_clicked.connect(self.on_rode_lijnen_clicked)  # type: ignore
-        dashboard.kalender_test_clicked.connect(self.on_kalender_test_clicked)  # type: ignore
+        dashboard.planning_editor_clicked.connect(self.on_planning_editor_clicked)  # type: ignore
+        dashboard.verlof_aanvragen_clicked.connect(self.on_verlof_aanvragen_clicked)  # type: ignore
+        dashboard.verlof_goedkeuring_clicked.connect(self.on_verlof_goedkeuring_clicked)  # type: ignore
 
         self.stack.addWidget(dashboard)
         self.stack.setCurrentWidget(dashboard)
@@ -82,9 +89,14 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(scherm)
 
     def on_typedienst_clicked(self) -> None:
-        """Open typediensttabel scherm (TODO)"""
-        print("Typediensttabel clicked")
-        # TODO: Implementeer
+        """Open typetabel beheer scherm"""
+        if not self.current_user:
+            return
+
+        from gui.screens.typetabel_beheer_screen import TypetabelBeheerScreen
+        scherm = TypetabelBeheerScreen(self.terug)
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
 
     def on_voorkeuren_clicked(self) -> None:
         """Open voorkeuren scherm (TODO)"""
@@ -94,14 +106,21 @@ class MainWindow(QMainWindow):
 
     # Handlers voor Instellingen tab
     def on_hr_regels_clicked(self) -> None:
-        """Open HR regels scherm (TODO)"""
-        print("HR Regels clicked")
-        # TODO: Implementeer
+        """Open HR regels beheer scherm"""
+        from gui.screens.hr_regels_beheer_screen import HRRegelsBeheerScreen
+        scherm = HRRegelsBeheerScreen(self.terug)
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
 
     def on_shift_codes_clicked(self) -> None:
-        """Open shift codes & posten scherm (TODO)"""
-        print("Shift Codes & Posten clicked")
-        # TODO: Implementeer
+        """Open shift codes & posten scherm"""
+        if not self.current_user:
+            return
+
+        from gui.screens.shift_codes_screen import ShiftCodesScreen
+        scherm = ShiftCodesScreen(self.terug)
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
 
     def on_feestdagen_clicked(self) -> None:
         """Feestdagen scherm openen"""
@@ -114,20 +133,14 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(feestdagen_scherm)
 
     def on_rode_lijnen_clicked(self) -> None:
-        """Open rode lijnen scherm (TODO)"""
-        # TODO: Implementeer
-        print("Rode Lijnen clicked")
-
-    def on_kalender_test_clicked(self) -> None:
-        """Open kalender test scherm"""
+        """Open rode lijnen beheer scherm"""
         if not self.current_user:
             return
 
-        from types import SimpleNamespace
-        router = SimpleNamespace(terug=self.terug)
-        kalender_test = KalenderTestScreen(router, self.current_user['id'])  # type: ignore[arg-type]
-        self.stack.addWidget(kalender_test)
-        self.stack.setCurrentWidget(kalender_test)
+        from gui.screens.rode_lijnen_beheer_screen import RodeLijnenBeheerScreen
+        scherm = RodeLijnenBeheerScreen(self.terug)
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
 
     def on_logout(self) -> None:
         """Uitloggen"""
@@ -141,6 +154,14 @@ class MainWindow(QMainWindow):
 
         if self.login_screen:
             self.stack.setCurrentWidget(self.login_screen)
+            self.showNormal()  # Haal uit maximized state
+            self.resize(1000, 700)  # Terug naar normale grootte bij logout
+
+            # Centreer het window
+            screen = self.screen().geometry()
+            x = (screen.width() - self.width()) // 2
+            y = (screen.height() - self.height()) // 2
+            self.move(x, y)
 
     def on_planning_clicked(self) -> None:
         """Planning scherm openen - Mijn Planning voor teamleden"""
@@ -158,6 +179,42 @@ class MainWindow(QMainWindow):
         if self.current_user:
             print(f"Verlof clicked - Rol: {self.current_user['rol']}")
         # TODO: Implementeer verlof scherm
+
+    def on_planning_editor_clicked(self) -> None:
+        """Open planning editor scherm"""
+        if not self.current_user:
+            return
+
+        from gui.screens.planning_editor_screen import PlanningEditorScreen
+        scherm = PlanningEditorScreen(self.terug)
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
+
+    def on_verlof_aanvragen_clicked(self) -> None:
+        """Open verlof aanvragen scherm"""
+        if not self.current_user:
+            return
+
+        from gui.screens.verlof_aanvragen_screen import VerlofAanvragenScreen
+        scherm = VerlofAanvragenScreen(self.terug, self.current_user['id'])
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
+
+    def on_verlof_goedkeuring_clicked(self) -> None:
+        """Open verlof goedkeuring scherm"""
+        if not self.current_user:
+            return
+
+        from gui.screens.verlof_goedkeuring_screen import VerlofGoedkeuringScreen
+        scherm = VerlofGoedkeuringScreen(self.terug, self.current_user['id'])
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
+
+    def show_handleiding(self) -> None:
+        """Toon handleiding dialog (F1)"""
+        from gui.dialogs.handleiding_dialog import HandleidingDialog
+        dialog = HandleidingDialog(self)
+        dialog.exec()
 
 
 def main() -> None:

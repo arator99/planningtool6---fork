@@ -1,17 +1,105 @@
 # DEVELOPMENT GUIDE
 Planning Tool - Technische Documentatie voor Ontwikkelaars
 
+## VERSIE INFORMATIE
+**Huidige versie:** 0.6.8 (Beta)
+**Laatste update:** 19 Oktober 2025
+
+---
+
+## NIEUWE FEATURES IN 0.6.8
+
+### Rode Lijnen Config Beheer
+Implementatie van versioned configuratie systeem voor HR cyclus (rode lijnen) met UI voor beheer.
+
+**Nieuwe Bestanden:**
+- `migratie_rode_lijnen_config.py` - Database migratie script
+- `gui/screens/rode_lijnen_beheer_screen.py` - Beheer scherm
+- `gui/dialogs/rode_lijnen_config_dialog.py` - Configuratie dialog
+
+**Database Wijzigingen:**
+- `rode_lijnen_config` tabel toegevoegd (start_datum, interval_dagen, actief_vanaf, actief_tot, is_actief)
+- Versioned systeem zoals HR regels
+
+**Code Wijzigingen:**
+- `services/data_ensure_service.py` - Gebruikt nu config tabel ipv hardcoded waarden
+- `database/connection.py` - Seed functie voor rode_lijnen_config
+
+### UX Verbeteringen
+**Window Management:**
+- Auto-maximize na login (main.py:147)
+- Centreren bij logout (main.py:174)
+
+**Handleiding Systeem:**
+- Tab-based handleiding met 3 tabs (gui/dialogs/handleiding_dialog.py)
+- Globaal F1 shortcut (main.py:92)
+- Handleiding knop op dashboard (gui/screens/dashboard_screen.py)
+
+**Filter State Preservation:**
+- Filter blijft behouden bij maand navigatie (gui/widgets/planner_grid_kalender.py:107, teamlid_grid_kalender.py:114)
+- `_filter_initialized` flag pattern
+
+**Layout Fixes:**
+- Mijn Planning scherm HBoxLayout met codes sidebar (gui/screens/mijn_planning_screen.py:47)
+- Grid stretching opgelost met stretch factors (3:1 ratio)
+
+**Keyboard Shortcuts:**
+- F1: Globale handleiding
+- F2: Shift codes helper in Planning Editor (was F1)
+
+---
+
+## NIEUWE FEATURES IN 0.6.7
+
+### Term-based Systeem voor Speciale Codes
+Implementatie van flexibel systeem waarbij codes aangepast kunnen worden maar systeemfuncties beschermd blijven via termen.
+
+**Nieuwe Bestanden:**
+- `migratie_systeem_termen.py` - Database migratie script
+- `services/term_code_service.py` - Term-to-code mapping met cache
+
+**Database Wijzigingen:**
+- `speciale_codes.term` kolom toegevoegd (nullable, unique index)
+- 5 verplichte termen: verlof, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting
+- Codes kunnen wijzigen (VV→VL) maar termen blijven behouden
+
+**Code Wijzigingen:**
+- `shift_codes_screen.py` - Verwijder-knop disabled voor systeemcodes
+- `verlof_goedkeuring_screen.py` - Gebruikt TermCodeService.get_code_for_term()
+- `grid_kalender_base.py` - Dynamische kleuren op basis van termen
+- `speciale_code_dialog.py` - Waarschuwing voor systeemcodes
+
+**Bugfix:** Verlofcode (VV) kan niet meer per ongeluk verwijderd worden, waardoor verlofgoedkeuring altijd blijft werken.
+
+---
+
+## NIEUWE FEATURES IN 0.6.6
+
+### Typetabel Beheer Systeem
+Complete implementatie van versioned typetabel systeem met status lifecycle (Concept/Actief/Archief), flexibel aantal weken (1-52), en multi-post support via shift codes met post nummers (V1, V2, L1, L2, etc.).
+
+**Nieuwe Bestanden:**
+- `migrate_typetabel_versioned.py` - Database migratie script
+- `gui/screens/typetabel_beheer_screen.py` - Hoofdscherm
+- `gui/dialogs/typetabel_dialogs.py` - NieuweTypetabelDialog
+- `gui/dialogs/typetabel_editor_dialog.py` - Grid editor
+
+**Database Wijzigingen:**
+- Nieuwe tabellen: `typetabel_versies`, `typetabel_data`
+- Oude tabel wordt `typetabel_old_backup` na migratie
+- `connection.py` seed functie aangepast
+
+---
+
 ## INHOUDSOPGAVE
 1. [Technische Architectuur](#technische-architectuur)
 2. [Database Schema](#database-schema)
-3. [PyQt6 & PyCharm Best Practices](#pyqt6--pycharm-best-practices)
-4. [Known Issues & Oplossingen](#known-issues--oplossingen)
+3. [PyQt6 Best Practices](#pyqt6-best-practices)
+4. [Typetabel Systeem](#typetabel-systeem)
 5. [Shift Codes Systeem](#shift-codes-systeem)
-6. [HR Regels](#hr-regels)
+6. [Known Issues](#known-issues)
 7. [Code Templates](#code-templates)
-8. [Optimalisatie voor .EXE](#optimalisatie-voor-exe)
-9. [Dashboard & main.py – Menu Systeem](#dashboard--mainpy---menu-systeem)
-
+8. [Dashboard & Main.py](#dashboard--mainpy)
 
 ---
 
@@ -21,68 +109,47 @@ Planning Tool - Technische Documentatie voor Ontwikkelaars
 - **Database**: SQLite (data/planning.db)
   - Foreign keys enabled
   - Row factory voor dict access
-  - UUID voor gebruikers als permanente ID
+  - UUID voor gebruikers
   - Timestamps voor audit trails
-  - Migratie systeem voor schema updates
+  - CASCADE delete voor relaties
 
 - **GUI Framework**: PyQt6
   - Signal/Slot voor navigatie
   - QStackedWidget voor scherm wisseling
-  - Centrale styling via gui/styles.py
+  - Centrale styling via `gui/styles.py`
   - Unicode emoji's vermeden (Windows compatibility)
 
-- **Services Laag**:
-  - Scheiding business logic van GUI
-  - Herbruikbare validatie/planning functies
-  - Database abstractie
-  - Auto-generatie services
+- **Services**: Business logic gescheiden van GUI
 
 ### Project Structuur
 ```
 root/
 ├── database/
-│   ├── connection.py          # DB init & seed data
+│   ├── connection.py          # DB init & seed
 │   └── __init__.py
 ├── gui/
 │   ├── styles.py              # Centrale styling
-│   ├── dialogs/
-│   │   └── about_dialog.py
-│   ├── screens/
-│   │   ├── login_screen.py
-│   │   ├── dashboard_screen.py
-│   │   ├── feestdagen_screen.py
-│   │   └── gebruikersbeheer_screen.py
-│   └── __init__.py
-├── models/                     # Dataclasses (toekomstig)
+│   ├── dialogs/               # Alle dialogs
+│   ├── screens/               # Alle schermen
+│   └── widgets/               # Herbruikbare widgets
 ├── services/
-│   ├── data_ensure_service.py # Auto-generatie
-│   └── __init__.py
+│   ├── data_ensure_service.py     # Auto-generatie
+│   └── term_code_service.py       # Term-code mapping (v0.6.7)
 ├── data/
-│   └── planning.db            # SQLite database
-├── main.py                    # Entry point
-└── config.py                  # Configuratie
+│   └── planning.db
+├── migratie_systeem_termen.py      # v0.6.7
+├── migrate_typetabel_versioned.py  # v0.6.6
+├── main.py
+└── config.py
 ```
 
 ### Styling Systeem
-Centrale styling in `gui/styles.py`:
-- **Colors class**: Kleuren palette
-- **Fonts class**: Font configuratie
-- **Dimensions class**: Spacing en afmetingen
-- **Styles class**: Pre-built stylesheet methods
-- **TableConfig class**: Helper voor tabellen
-
-Gebruik altijd de centrale styling:
+Gebruik ALTIJD centrale styling:
 ```python
 from gui.styles import Styles, Colors, Fonts, Dimensions, TableConfig
 
-# Buttons
 btn.setStyleSheet(Styles.button_primary())
-btn.setStyleSheet(Styles.button_danger(Dimensions.BUTTON_HEIGHT_TINY))
-
-# Tables
 TableConfig.setup_table_widget(self.tabel, row_height=50)
-
-# Input fields
 input.setStyleSheet(Styles.input_field())
 ```
 
@@ -90,1228 +157,855 @@ input.setStyleSheet(Styles.input_field())
 
 ## DATABASE SCHEMA
 
-### Belangrijke Tabellen
+### Typetabel Systeem (v0.6.6)
 
-#### gebruikers
+#### typetabel_versies
 ```sql
-- id (PK)
-- gebruiker_uuid (UNIQUE, permanent ID)
-- gebruikersnaam (UNIQUE, format: ABC1234)
-- wachtwoord_hash (bcrypt)
-- volledige_naam
-- rol (planner/teamlid)
-- is_reserve (BOOLEAN)
-- startweek_typedienst (1-6, NULL voor reserves)
-- is_actief (BOOLEAN)
-- aangemaakt_op (TIMESTAMP)
-- gedeactiveerd_op (TIMESTAMP)
-- laatste_login (TIMESTAMP)
+CREATE TABLE typetabel_versies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    versie_naam TEXT NOT NULL,
+    aantal_weken INTEGER NOT NULL,
+    status TEXT CHECK (status IN ('actief', 'concept', 'archief')),
+    actief_vanaf DATE,
+    actief_tot DATE,
+    aangemaakt_op TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    laatste_wijziging TIMESTAMP,
+    opmerking TEXT
+)
 ```
+
+**Status Lifecycle:**
+- **concept**: Voor trial & error, meerdere mogelijk
+- **actief**: Huidig in gebruik, altijd exact 1
+- **archief**: Oude versies, geschiedenis
+
+#### typetabel_data
+```sql
+CREATE TABLE typetabel_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    versie_id INTEGER NOT NULL,
+    week_nummer INTEGER NOT NULL,      -- 1 tot aantal_weken
+    dag_nummer INTEGER NOT NULL,       -- 1-7 (Ma-Zo)
+    shift_type TEXT,                   -- V1, L2, N, RX, etc.
+    UNIQUE(versie_id, week_nummer, dag_nummer),
+    FOREIGN KEY (versie_id) REFERENCES typetabel_versies(id) ON DELETE CASCADE
+)
+```
+
+### Gebruikers
+```sql
+CREATE TABLE gebruikers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gebruiker_uuid TEXT UNIQUE NOT NULL,
+    gebruikersnaam TEXT UNIQUE NOT NULL,
+    wachtwoord_hash BLOB NOT NULL,
+    volledige_naam TEXT NOT NULL,
+    rol TEXT CHECK(rol IN ('planner', 'teamlid')),
+    is_reserve BOOLEAN DEFAULT 0,
+    startweek_typedienst INTEGER,      -- 1 tot aantal_weken actieve typetabel
+    is_actief BOOLEAN DEFAULT 1,
+    aangemaakt_op TIMESTAMP,
+    gedeactiveerd_op TIMESTAMP,
+    laatste_login TIMESTAMP
+)
+```
+
+### Werkposten & Shift Codes (v0.6.4)
+
+#### werkposten
+```sql
+CREATE TABLE werkposten (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    naam TEXT UNIQUE NOT NULL,
+    beschrijving TEXT,
+    telt_als_werkdag BOOLEAN DEFAULT 1,
+    reset_12u_rust BOOLEAN DEFAULT 1,
+    breekt_werk_reeks BOOLEAN DEFAULT 0,
+    is_actief BOOLEAN DEFAULT 1,
+    aangemaakt_op TIMESTAMP,
+    gedeactiveerd_op TIMESTAMP
+)
+```
+
+#### shift_codes
+```sql
+CREATE TABLE shift_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    werkpost_id INTEGER NOT NULL,
+    dag_type TEXT CHECK(dag_type IN ('weekdag', 'zaterdag', 'zondag')),
+    shift_type TEXT CHECK(shift_type IN ('vroeg', 'laat', 'nacht', 'dag')),
+    code TEXT NOT NULL,
+    start_uur TEXT NOT NULL,           -- HH:MM
+    eind_uur TEXT NOT NULL,            -- HH:MM
+    FOREIGN KEY (werkpost_id) REFERENCES werkposten(id),
+    UNIQUE(werkpost_id, dag_type, shift_type)
+)
+```
+
+#### speciale_codes
+```sql
+CREATE TABLE speciale_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,         -- VV, RX, DA, etc.
+    naam TEXT NOT NULL,
+    telt_als_werkdag BOOLEAN DEFAULT 1,
+    reset_12u_rust BOOLEAN DEFAULT 1,
+    breekt_werk_reeks BOOLEAN DEFAULT 0
+)
+```
+
+### Planning & Verlof
+
+#### planning
+```sql
+CREATE TABLE planning (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gebruiker_id INTEGER NOT NULL,
+    datum TEXT NOT NULL,
+    shift_code TEXT,
+    status TEXT DEFAULT 'concept' CHECK(status IN ('concept', 'gepubliceerd')),
+    aangemaakt_op TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (gebruiker_id) REFERENCES gebruikers(id),
+    UNIQUE(gebruiker_id, datum)
+)
+```
+
+#### verlof_aanvragen
+```sql
+CREATE TABLE verlof_aanvragen (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gebruiker_id INTEGER NOT NULL,
+    start_datum DATE NOT NULL,
+    eind_datum DATE NOT NULL,
+    aantal_dagen INTEGER NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'goedgekeurd', 'geweigerd')),
+    opmerking TEXT,
+    aangevraagd_op TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    behandeld_door INTEGER,
+    behandeld_op TIMESTAMP,
+    reden_weigering TEXT,
+    FOREIGN KEY (gebruiker_id) REFERENCES gebruikers(id),
+    FOREIGN KEY (behandeld_door) REFERENCES gebruikers(id)
+)
+```
+
+### HR Regels & Rode Lijnen (v0.6.8)
+
+#### hr_regels
+```sql
+CREATE TABLE hr_regels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    naam TEXT UNIQUE NOT NULL,
+    waarde REAL NOT NULL,
+    eenheid TEXT NOT NULL,
+    beschrijving TEXT,
+    actief_vanaf TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actief_tot TIMESTAMP,
+    is_actief BOOLEAN DEFAULT 1
+)
+```
+
+**Versioning Pattern:**
+- `actief_vanaf`: Wanneer regel actief wordt
+- `actief_tot`: Wanneer regel niet meer actief is (nullable)
+- `is_actief`: Huidige status (1=actief, 0=archief)
+
+#### rode_lijnen_config
+```sql
+CREATE TABLE rode_lijnen_config (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_datum DATE NOT NULL,
+    interval_dagen INTEGER NOT NULL,
+    actief_vanaf TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actief_tot TIMESTAMP,
+    is_actief BOOLEAN DEFAULT 1
+)
+```
+
+**Data Ensure Service:**
+- `data_ensure_service.py` haalt actieve config uit tabel
+- Genereert rode_lijnen tabel op basis van config
+- Uitbreidbaar naar toekomst met `extend_rode_lijnen_tot()`
+
+### Overige Tabellen
 
 #### feestdagen
 ```sql
-- id (PK)
-- datum (UNIQUE, YYYY-MM-DD)
-- naam
-- is_zondagsrust (BOOLEAN)
-- is_variabel (BOOLEAN, 0=vast, 1=variabel/extra)
+CREATE TABLE feestdagen (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    datum DATE NOT NULL UNIQUE,
+    naam TEXT NOT NULL,
+    is_zondagsrust BOOLEAN DEFAULT 1,
+    is_variabel BOOLEAN DEFAULT 0       -- 0=vast, 1=variabel/extra
+)
 ```
 
 #### rode_lijnen
 ```sql
-- id (PK)
-- periode_nummer
-- start_datum (UNIQUE, 28-dagen cyclus)
-- eind_datum
+CREATE TABLE rode_lijnen (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_datum DATE NOT NULL UNIQUE,
+    eind_datum DATE NOT NULL,
+    periode_nummer INTEGER NOT NULL
+)
 ```
 
-#### typetabel
-```sql
-- id (PK)
-- week_nummer (1-6)
-- dag_nummer (1-7)
-- shift_type (V/L/N/RX/CX/T)
-```
+**Generatie:**
+- Automatisch gegenereerd via `data_ensure_service.py`
+- Gebruikt config uit `rode_lijnen_config` tabel
+- Uitbreidbaar naar toekomst met configurable interval
 
 ### Database Migraties
-Bij schema wijzigingen altijd een migratie script maken:
-```python
-# example_migration.py
-import sqlite3
-from pathlib import Path
 
-def migrate():
-    db_path = Path("data/planning.db")
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Check of migratie nodig is
-    cursor.execute("PRAGMA table_info(table_name)")
-    columns = [col[1] for col in cursor.fetchall()]
-    
-    if 'new_column' in columns:
-        print("✓ Migratie al uitgevoerd")
-        conn.close()
-        return
-    
-    # Voer migratie uit
-    cursor.execute("ALTER TABLE table_name ADD COLUMN new_column TEXT")
-    conn.commit()
-    conn.close()
-    print("✓ Migratie succesvol")
-
-if __name__ == '__main__':
-    migrate()
+**v0.6.8 - Rode Lijnen Config:**
+```bash
+python migratie_rode_lijnen_config.py
 ```
+
+**Wat doet het:**
+1. Check of rode_lijnen_config tabel al bestaat
+2. Maak tabel met versioning columns
+3. Seed default config (2024-07-28, interval 28 dagen)
+4. Safe & idempotent
+
+**v0.6.7 - Term-based Systeem:**
+```bash
+python migratie_systeem_termen.py
+```
+
+**v0.6.6 - Typetabel Versioned:**
+```bash
+python migrate_typetabel_versioned.py
+```
+
+**Wat doet het:**
+1. Check of nieuwe tabellen al bestaan
+2. Maak `typetabel_versies` en `typetabel_data`
+3. Migreer oude `typetabel` data
+4. Hernoem oude naar `typetabel_old_backup`
+5. Safe & idempotent (kan meerdere keren)
+
+**Voor schone database:**
+- `connection.py` seed is bijgewerkt
+- Maakt automatisch versioned structuur aan
 
 ---
 
-## PYQT6 & PYCHARM BEST PRACTICES
+## PYQT6 BEST PRACTICES
 
-### 1. PYQT6 SIGNALS
+### 1. Signals als Class Attributes
 
-❌ **FOUT** - Signal in `__init__`:
+✅ **CORRECT:**
+```python
+class MyWidget(QWidget):
+    my_signal: pyqtSignal = pyqtSignal()
+    data_signal: pyqtSignal = pyqtSignal(dict)
+    
+    def __init__(self):
+        super().__init__()
+```
+
+❌ **FOUT:**
 ```python
 class MyWidget(QWidget):
     def __init__(self):
         self.my_signal = pyqtSignal()  # WERKT NIET!
 ```
 
-✅ **CORRECT** - Signal als class attribute:
-```python
-class MyWidget(QWidget):
-    my_signal: pyqtSignal = pyqtSignal()
-    my_data_signal: pyqtSignal = pyqtSignal(dict)
-    
-    def __init__(self):
-        super().__init__()
-```
-
-Type ignore gebruiken bij connect/emit:
+**Type ignore bij connect/emit:**
 ```python
 self.my_signal.connect(self.handler)  # type: ignore
 self.my_signal.emit()  # type: ignore
 ```
 
-### 2. INSTANCE ATTRIBUTES
+### 2. Instance Attributes in `__init__`
 
-❌ **FOUT** - Attributes buiten `__init__`:
+✅ **CORRECT:**
 ```python
 class MyScreen(QWidget):
     def __init__(self):
         super().__init__()
-        self.init_ui()
-    
-    def init_ui(self):
-        self.tabel = QTableWidget()  # PyCharm warning!
-```
-
-✅ **CORRECT** - Alle attributes in `__init__`:
-```python
-class MyScreen(QWidget):
-    def __init__(self):
-        super().__init__()
-        # Declareer ALLE instance attributes hier
+        # Declareer ALLE attributes hier
         self.tabel: QTableWidget = QTableWidget()
-        self.input: QLineEdit = QLineEdit()
         self.data: List[Dict[str, Any]] = []
         self.init_ui()
 ```
 
-### 3. EXCEPTION HANDLING
+### 3. Unicode/Emoji's VERMIJDEN
 
-❌ **FOUT** - Te breed:
+❌ **VERMIJD:**
 ```python
-try:
-    database_operatie()
-except Exception as e:  # Te breed!
-    print(f"Error: {e}")
+btn.setText("✅ Opslaan")  # Crasht op Windows!
 ```
 
-✅ **CORRECT** - Specifieke exceptions:
+✅ **GEBRUIK:**
 ```python
-import sqlite3
-
-try:
-    database_operatie()
-except sqlite3.Error as e:
-    QMessageBox.critical(self, "Database Fout", str(e))
-except ValueError as e:
-    QMessageBox.warning(self, "Validatie Fout", str(e))
-except Exception as e:
-    QMessageBox.critical(self, "Onverwachte Fout", str(e))
+btn.setText("Opslaan")
+lbl.setText("Status: Actief")
 ```
 
-### 4. LAMBDA'S IN LOOPS
+### 4. Button Widths in Tabellen
 
-❌ **FOUT** - Lambda met mutable default:
+✅ **CORRECT:**
 ```python
-for item in items:
-    btn.clicked.connect(lambda: self.handle(item))  # BUG!
-    btn.clicked.connect(lambda checked, i=item: self.handle(i))  # Warning
+# Toggle button ALTIJD zelfde width
+if actief:
+    toggle_btn = QPushButton("Deactiveren")
+else:
+    toggle_btn = QPushButton("Activeren")
+
+toggle_btn.setFixedWidth(96)  # ALTIJD 96px!
+toggle_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_TINY)
+toggle_btn.setStyleSheet(Styles.button_warning(Dimensions.BUTTON_HEIGHT_TINY))
 ```
 
-✅ **CORRECT** - Callback factory method:
+### 5. Router Pattern voor Navigatie
+
 ```python
-for item in items:
-    btn.clicked.connect(self.create_callback(item))  # type: ignore
-
-def create_callback(self, item):
-    """Factory method voorkomt closure problemen"""
-    def callback():
-        self.handle(item)
-    return callback
-```
-
-### 5. BUTTONS IN TABELLEN
-
-✅ **Crashproof pattern**:
-```python
-def laad_data(self):
-    for row, item in enumerate(data):
-        # Simpele HBox zonder nested layouts
-        actie_widget = QWidget()
-        actie_layout = QHBoxLayout()
-        actie_layout.setContentsMargins(0, 0, 0, 0)
-        actie_layout.setSpacing(Dimensions.SPACING_SMALL)
-        actie_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        # Buttons met expliciete afmetingen
-        btn = QPushButton("Actie")
-        btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_TINY)
-        btn.setFixedWidth(80)
-        btn.setStyleSheet(Styles.button_primary(Dimensions.BUTTON_HEIGHT_TINY))
-        btn.clicked.connect(self.create_callback(item))  # type: ignore
-        actie_layout.addWidget(btn)
-        
-        # Expliciet setLayout aanroepen
-        actie_widget.setLayout(actie_layout)
-        self.tabel.setCellWidget(row, col, actie_widget)
-```
-
-**Key points:**
-- Geen VBox nested layouts (crashes!)
-- `setLayout()` expliciet aanroepen
-- Margins op 0
-- `AlignCenter` op layout
-- `setMinimumHeight` + `setFixedWidth`
-- Callback factory methods
-
-### 6. TABLE ROW HEIGHT
-
-Voor buttons van 26px (TINY):
-```python
-TableConfig.setup_table_widget(self.tabel, row_height=50)
-```
-
-**Wiskunde:**
-- Button height: 26px
-- Row height: 50px
-- Ruimte over: 24px (~12px boven + ~12px onder)
-
-### 7. BUTTON STYLING - HEIGHT-AWARE
-
-Automatische font-size in `styles.py`:
-```python
-@staticmethod
-def button_primary(height=None):
-    h = height or Dimensions.BUTTON_HEIGHT_NORMAL
-    font_size = Fonts.SIZE_TINY if h <= 26 else Fonts.SIZE_BUTTON
-    return f"""
-        QPushButton {{
-            font-size: {font_size}px;
-            padding: 0px 12px;
-            min-height: {h}px;
-            max-height: {h}px;
-            ...
-        }}
-    """
-```
-
-**Result:**
-- TINY buttons (≤26px): 11px font
-- Normal buttons (>26px): 12px font
-
-### 8. QDIALOGBUTTONBOX
-
-❌ **Type error met bitwise OR:**
-```python
-buttons = QDialogButtonBox(
-    QDialogButtonBox.StandardButton.Ok | 
-    QDialogButtonBox.StandardButton.Cancel
-)  # PyCharm type error
-```
-
-✅ **Gebruik addButton:**
-```python
-buttons = QDialogButtonBox()
-buttons.addButton(QDialogButtonBox.StandardButton.Ok)
-buttons.addButton(QDialogButtonBox.StandardButton.Cancel)
-buttons.accepted.connect(self.accept)  # type: ignore
-buttons.rejected.connect(self.reject)  # type: ignore
-```
-
-### 9. TYPE HINTS
-
-Gebruik type hints voor betere code quality:
-```python
-from typing import Dict, Any, List, Optional, Callable
-
 class MyScreen(QWidget):
     def __init__(self, router: Callable):
+        super().__init__()
         self.router = router
-        self.data: List[Dict[str, Any]] = []
+        
+        terug_btn = QPushButton("Terug")
+        terug_btn.clicked.connect(self.router)  # type: ignore
+```
+
+### 6. Exception Handling
+
+✅ **SPECIFIEK:**
+```python
+try:
+    database_operatie()
+except sqlite3.IntegrityError:
+    QMessageBox.warning(self, "Fout", "Deze waarde bestaat al!")
+except sqlite3.Error as e:
+    QMessageBox.critical(self, "Database Fout", str(e))
+```
+
+❌ **TE BREED:**
+```python
+except Exception as e:  # Te algemeen!
+```
+
+---
+
+## TYPETABEL SYSTEEM
+
+### Concept & Gebruik
+
+**Typetabel = Herhalend patroon:**
+- X weken lang (1-52 configureerbaar)
+- Personen krijgen startweek 1-X
+- Patroon herhaalt automatisch
+- Multi-post via codes (V1, V2, L1, etc.)
+
+**Voorbeeld 6-weken:**
+```
+Week 1: V, V, RX, L, L, CX, RX
+Week 2: L, L, RX, N, N, CX, RX
+Week 3: N, N, RX, V, V, CX, RX
+...
+Week 7 = Week 1 (herhaalt)
+```
+
+**Multi-Post Voorbeeld (Officieren):**
+```
+Week 1: V1, V1, RX, L2, L2, CX, RX
+Week 2: L1, L1, RX, N1, N1, CX, RX
+
+Waarbij:
+V1 = Vroeg Post 1
+V2 = Vroeg Post 2
+L1 = Laat Post 1
+L2 = Laat Post 2
+N1 = Nacht Post 1
+```
+
+### Database Operations
+
+**Nieuwe typetabel maken:**
+```python
+cursor.execute("""
+    INSERT INTO typetabel_versies 
+    (versie_naam, aantal_weken, status, laatste_wijziging)
+    VALUES (?, ?, 'concept', ?)
+""", (naam, aantal_weken, datetime.now().isoformat()))
+
+versie_id = cursor.lastrowid
+
+# Initialiseer lege data
+for week in range(1, aantal_weken + 1):
+    for dag in range(1, 8):
+        cursor.execute("""
+            INSERT INTO typetabel_data 
+            (versie_id, week_nummer, dag_nummer, shift_type)
+            VALUES (?, ?, ?, NULL)
+        """, (versie_id, week, dag))
+```
+
+**Kopiëren:**
+```python
+# Maak nieuwe versie
+cursor.execute("""
+    INSERT INTO typetabel_versies (versie_naam, aantal_weken, status, ...)
+    VALUES (?, ?, 'concept', ...)
+""", (...))
+
+nieuwe_id = cursor.lastrowid
+
+# Kopieer data
+cursor.execute("""
+    INSERT INTO typetabel_data (versie_id, week_nummer, dag_nummer, shift_type)
+    SELECT ?, week_nummer, dag_nummer, shift_type
+    FROM typetabel_data
+    WHERE versie_id = ?
+""", (nieuwe_id, oude_versie_id))
+```
+
+**Activeren (TODO - Volgende sessie):**
+```python
+# Transactie voor atomaire operatie
+cursor.execute("BEGIN TRANSACTION")
+try:
+    # Oud actief → archief
+    cursor.execute("""
+        UPDATE typetabel_versies
+        SET status = 'archief', actief_tot = ?
+        WHERE status = 'actief'
+    """, (startdatum,))
     
-    def load_data(self) -> None:
-        ...
+    # Nieuw → actief
+    cursor.execute("""
+        UPDATE typetabel_versies
+        SET status = 'actief', actief_vanaf = ?
+        WHERE id = ?
+    """, (startdatum, versie_id))
     
-    def process(self, item: Dict[str, Any]) -> Optional[str]:
-        ...
+    cursor.execute("COMMIT")
+except:
+    cursor.execute("ROLLBACK")
+    raise
 ```
-## STYLES.PY REFERENTIE
 
-### Overzicht
-Alle styling wordt centraal beheerd in `gui/styles.py`. Gebruik ALTIJD deze centrale styling voor consistentie en onderhoudbaarheid.
+### Auto-Generatie uit Typetabel (TODO)
 
 ```python
-from gui.styles import Styles, Colors, Fonts, Dimensions, TableConfig
+def genereer_shift_voor_datum(gebruiker_id: int, datum: str) -> Optional[str]:
+    """Genereer shift code o.b.v. actieve typetabel"""
+    
+    # Haal gebruiker startweek op
+    cursor.execute("""
+        SELECT startweek_typedienst FROM gebruikers WHERE id = ?
+    """, (gebruiker_id,))
+    startweek = cursor.fetchone()['startweek_typedienst']
+    
+    # Haal actieve typetabel op
+    cursor.execute("""
+        SELECT id, aantal_weken, actief_vanaf
+        FROM typetabel_versies WHERE status = 'actief'
+    """)
+    typetabel = cursor.fetchone()
+    
+    # Bereken week in cyclus
+    datum_obj = datetime.fromisoformat(datum)
+    actief_vanaf = datetime.fromisoformat(typetabel['actief_vanaf'])
+    dagen_verschil = (datum_obj - actief_vanaf).days
+    
+    # Met startweek offset
+    week_in_cyclus = ((dagen_verschil // 7 + startweek - 1) % typetabel['aantal_weken']) + 1
+    dag_nummer = datum_obj.isoweekday()
+    
+    # Haal shift code op
+    cursor.execute("""
+        SELECT shift_type FROM typetabel_data
+        WHERE versie_id = ? AND week_nummer = ? AND dag_nummer = ?
+    """, (typetabel['id'], week_in_cyclus, dag_nummer))
+    
+    result = cursor.fetchone()
+    return result['shift_type'] if result else None
 ```
 
----
-
-### Colors Class
-
-**Primary & State Colors:**
-```python
-Colors.PRIMARY          # "#007bff" - Hoofdkleur
-Colors.PRIMARY_HOVER    # "#0056b3" - Hover state
-Colors.SUCCESS          # "#28a745" - Groen (succes)
-Colors.SUCCESS_HOVER    # "#218838"
-Colors.WARNING          # "#ffc107" - Geel/Oranje (waarschuwing)
-Colors.WARNING_HOVER    # "#e0a800"
-Colors.DANGER           # "#dc3545" - Rood (gevaar)
-Colors.DANGER_HOVER     # "#c82333"
-Colors.INFO             # "#17a2b8" - Blauw (info)
-Colors.INFO_HOVER       # "#117a8b"
-```
-
-**Neutral Colors:**
-```python
-Colors.SECONDARY        # "#6c757d" - Grijs
-Colors.SECONDARY_HOVER  # "#5a6268"
-Colors.LIGHT            # "#f8f9fa"
-Colors.DARK             # "#343a40"
-```
-
-**Backgrounds:**
-```python
-Colors.BG_WHITE         # "#ffffff"
-Colors.BG_LIGHT         # "#f8f9fa"
-Colors.BG_DARK          # "#343a40"
-```
-
-**Borders:**
-```python
-Colors.BORDER_LIGHT     # "#dee2e6"
-Colors.BORDER_MEDIUM    # "#ced4da"
-Colors.BORDER_DARK      # "#6c757d"
-```
-
-**Text:**
-```python
-Colors.TEXT_PRIMARY     # "#212529" - Hoofdtekst
-Colors.TEXT_SECONDARY   # "#6c757d" - Subtekst
-Colors.TEXT_MUTED       # "#999999" - Gedempte tekst
-Colors.TEXT_WHITE       # "#ffffff"
-Colors.TEXT_BLACK       # "#000000"
-```
-
-**Table:**
-```python
-Colors.TABLE_GRID       # "#dee2e6" - Grid lijnen
-Colors.TABLE_HEADER_BG  # "#f8f9fa" - Header achtergrond
-Colors.TABLE_HOVER      # "#e9ecef" - Hover state
-```
-
----
-
-### Fonts Class
-
-**Font Families:**
-```python
-Fonts.FAMILY            # "Arial" - Standaard font
-Fonts.FAMILY_ALT        # "Segoe UI" - Alternatief
-```
-
-**Font Sizes:**
-```python
-Fonts.SIZE_LARGE        # 24px - Grote titels
-Fonts.SIZE_TITLE        # 18px - Hoofdtitels
-Fonts.SIZE_HEADING      # 16px - Subkoppen
-Fonts.SIZE_NORMAL       # 14px - Normale tekst
-Fonts.SIZE_SMALL        # 12px - Kleine tekst
-Fonts.SIZE_TINY         # 9px - Zeer klein
-Fonts.SIZE_BUTTON       # 12px - Uniforme button tekst
-```
-
-**Font Weights:**
-```python
-Fonts.WEIGHT_NORMAL     # "normal"
-Fonts.WEIGHT_BOLD       # "bold"
-```
-
----
-
-### Dimensions Class
-
-**Button Heights:**
-```python
-Dimensions.BUTTON_HEIGHT_LARGE    # 40px
-Dimensions.BUTTON_HEIGHT_NORMAL   # 32px - Standaard
-Dimensions.BUTTON_HEIGHT_SMALL    # 28px
-Dimensions.BUTTON_HEIGHT_TINY     # 20px
-```
-
-**Table Heights:**
-```python
-Dimensions.TABLE_ROW_HEIGHT         # 50px - Standaard rij hoogte
-Dimensions.TABLE_ROW_HEIGHT_COMPACT # 45px - Compacte rijen
-```
-
-**Spacing:**
-```python
-Dimensions.SPACING_SMALL    # 5px
-Dimensions.SPACING_MEDIUM   # 10px
-Dimensions.SPACING_LARGE    # 20px
-```
-
-**Margins:**
-```python
-Dimensions.MARGIN_SMALL     # 5px
-Dimensions.MARGIN_MEDIUM    # 20px
-Dimensions.MARGIN_LARGE     # 40px
-```
-
-**Border Radius:**
-```python
-Dimensions.RADIUS_SMALL     # 3px
-Dimensions.RADIUS_MEDIUM    # 4px
-Dimensions.RADIUS_LARGE     # 5px
-Dimensions.RADIUS_XL        # 8px
-```
-
----
-
-### Styles Class - Methods
-
-**Button Styling:**
+### Integratie met GebruikersBeheer (TODO)
 
 ```python
-# Primary button (blauw)
-btn.setStyleSheet(Styles.button_primary())
-btn.setStyleSheet(Styles.button_primary(height=Dimensions.BUTTON_HEIGHT_TINY))
+def get_max_startweek() -> int:
+    """Haal max startweek uit actieve typetabel"""
+    cursor.execute("""
+        SELECT aantal_weken FROM typetabel_versies WHERE status = 'actief'
+    """)
+    result = cursor.fetchone()
+    return result['aantal_weken'] if result else 6
 
-# Success button (groen) - Opslaan, Activeren
-btn.setStyleSheet(Styles.button_success())
-
-# Warning button (geel/oranje) - Bewerken, Deactiveren
-btn.setStyleSheet(Styles.button_warning())
-
-# Danger button (rood) - Verwijderen, Uitloggen
-btn.setStyleSheet(Styles.button_danger())
-
-# Secondary button (grijs) - Terug, Annuleren
-btn.setStyleSheet(Styles.button_secondary())
-
-# Custom large action button
-btn.setStyleSheet(Styles.button_large_action(Colors.INFO, Colors.INFO_HOVER))
+# Bij gebruiker bewerken
+max_week = get_max_startweek()
+startweek_spin.setMaximum(max_week)
+startweek_label.setText(f"Startweek (1-{max_week}):")
 ```
-
-**Input Fields:**
-
-```python
-# Werkt voor QLineEdit, QComboBox, QDateEdit
-input_field.setStyleSheet(Styles.input_field())
-```
-
-**Tables:**
-
-```python
-table.setStyleSheet(Styles.table_widget())
-```
-
-**Info Boxes:**
-
-```python
-# Default info box (blauw)
-label.setStyleSheet(Styles.info_box())
-
-# Custom kleuren
-label.setStyleSheet(Styles.info_box(
-    bg_color="#fff3cd",
-    border_color="#ffc107", 
-    text_color="#856404"
-))
-```
-
-**Menu Buttons:**
-
-```python
-btn.setStyleSheet(Styles.menu_button())
-```
-
----
-
-### TableConfig Class
-
-**Setup Helper:**
-
-```python
-# Standaard setup (50px rows)
-TableConfig.setup_table_widget(self.tabel)
-
-# Custom row height
-TableConfig.setup_table_widget(self.tabel, row_height=45)
-```
-
-Deze methode configureert automatisch:
-- Table styling
-- Alternating row colors
-- Selection behavior (hele rijen)
-- Edit triggers (read-only)
-- Row height
-
----
-
-### BELANGRIJKE OPMERKINGEN
-
-**❌ WAT BESTAAT NIET:**
-```python
-# Deze bestaan NIET - gebruik alternatieven hieronder
-Dimensions.INPUT_HEIGHT              # ❌ Gebruik BUTTON_HEIGHT_NORMAL
-Dimensions.ROW_HEIGHT                # ❌ Gebruik TABLE_ROW_HEIGHT
-Fonts.SIZE_MEDIUM                    # ❌ Gebruik SIZE_NORMAL
-Colors.PRIMARY_LIGHT                 # ❌ Gebruik BG_LIGHT of TABLE_HOVER
-```
-
-**✅ JUISTE ALTERNATIEVEN:**
-```python
-# Voor input field heights
-input.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)  # 32px
-
-# Voor table row heights
-TableConfig.setup_table_widget(table, row_height=Dimensions.TABLE_ROW_HEIGHT)
-
-# Voor medium text
-label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL))
-```
-
-**💡 BEST PRACTICES:**
-
-1. **Gebruik ALTIJD de centrale constanten:**
-   ```python
-   # ❌ Fout
-   btn.setStyleSheet("background-color: #007bff;")
-   
-   # ✅ Correct
-   btn.setStyleSheet(Styles.button_primary())
-   ```
-
-2. **Button heights in tables:**
-   ```python
-   # Voor buttons in 50px table rows
-   btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_TINY)  # 20px
-   TableConfig.setup_table_widget(table, row_height=50)
-   ```
-
-3. **Consistent spacing:**
-   ```python
-   layout.setSpacing(Dimensions.SPACING_MEDIUM)
-   layout.setContentsMargins(
-       Dimensions.SPACING_LARGE,
-       Dimensions.SPACING_LARGE,
-       Dimensions.SPACING_LARGE,
-       Dimensions.SPACING_LARGE
-   )
-   ```
-
-4. **Height-aware button styling:**
-   ```python
-   # Automatic font-size adjustment gebaseerd op height
-   btn.setStyleSheet(Styles.button_primary(Dimensions.BUTTON_HEIGHT_TINY))
-   # Font wordt automatisch 11px voor tiny buttons
-   ```
-
----
-
-### VOORBEELDEN
-
-**Complete Button Setup:**
-```python
-btn = QPushButton("Opslaan")
-btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
-btn.setFixedWidth(100)
-btn.setStyleSheet(Styles.button_success())
-btn.setCursor(Qt.CursorShape.PointingHandCursor)
-btn.clicked.connect(self.save_data)  # type: ignore
-```
-
-**Complete Input Field Setup:**
-```python
-input = QLineEdit()
-input.setPlaceholderText("Voer waarde in")
-input.setStyleSheet(Styles.input_field())
-input.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
-```
-
-**Complete Table Setup:**
-```python
-self.tabel = QTableWidget()
-self.tabel.setColumnCount(3)
-self.tabel.setHorizontalHeaderLabels(['Kolom 1', 'Kolom 2', 'Acties'])
-TableConfig.setup_table_widget(self.tabel, row_height=50)
-```
-
-**Buttons in Table Cells:**
-```python
-# Crashproof pattern voor buttons in tables
-actie_widget = QWidget()
-actie_layout = QHBoxLayout()
-actie_layout.setContentsMargins(0, 0, 0, 0)
-actie_layout.setSpacing(Dimensions.SPACING_SMALL)
-actie_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-btn = QPushButton("Bewerken")
-btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_TINY)
-btn.setFixedWidth(80)
-btn.setStyleSheet(Styles.button_warning(Dimensions.BUTTON_HEIGHT_TINY))
-btn.clicked.connect(self.create_callback(item))  # type: ignore
-
-actie_layout.addWidget(btn)
-actie_widget.setLayout(actie_layout)
-self.tabel.setCellWidget(row, col, actie_widget)
-```
-
----
-
-### WIJZIGINGEN AAN STYLES.PY
-
-Als je nieuwe kleuren, fonts of dimensies nodig hebt:
-
-1. **Voeg toe aan de juiste class** in `styles.py`
-2. **Update deze documentatie sectie**
-3. **Test grondig** in bestaande schermen
-4. **Commit met duidelijke message**
-
-Voorkom "magic numbers" - voeg altijd een constante toe in plaats van hard-coded waardes te gebruiken!
-
----
-
-*Laatste update: Oktober 2025*
----
-
-## KNOWN ISSUES & OPLOSSINGEN
-
-### ✅ OPGELOST: PyQt6 Unicode Crashes
-**Probleem**: Unicode arrows/emoji's in buttons crashen de app  
-**Oplossing**: Gebruik gewone tekst in buttons
-```python
-# ❌ btn.setText("← Terug")  # Crash!
-# ✅ btn.setText("Terug")     # OK
-```
-
-### ✅ OPGELOST: Nested Layout Crashes (0xC0000409)
-**Probleem**: Nested VBox/HBox in table cells crashen  
-**Oplossing**: Simpele HBox met AlignCenter, geen VBox
-```python
-# ❌ VBox met stretch nested in HBox - CRASH
-# ✅ Simpele HBox met AlignCenter - OK
-```
-
-### ✅ OPGELOST: Lambda Closure Problemen
-**Probleem**: Lambda in loop gebruikt altijd laatste waarde  
-**Oplossing**: Callback factory methods
-
-### ✅ OPGELOST: PyCharm Type Errors
-**Probleem**: PyCharm klaagt over pyqtSignal types  
-**Oplossing**: Type hints + `# type: ignore` comments
-
-### ✅ OPGELOST: Buttons Niet Gecentreerd
-**Probleem**: Buttons in table rows niet gecentreerd  
-**Oplossing**: HBoxLayout met AlignCenter + row_height=50
-
-### ✅ OPGELOST: Grid Layout Row Height Issues
-**Probleem**: Planner kalender had te hoge rijen (3-4x hoger dan teamlid kalender)  
-**Oorzaak**: QGridLayout probeert uniform row heights te maken, header rij met 3-regelige labels (buffer dagen) maakte alle rijen hoger  
-**Oplossing**: Container height begrenzen op basis van aantal rijen
-```python
-self.grid_container.setMaximumHeight(grid_layout.rowCount() * Dimensions.TABLE_ROW_HEIGHT)
-```
-Dit forceert de grid om binnen 50px per rij te blijven, ongeacht header label hoogte.
-**Probleem**: Lange labels passen niet op buttons  
-**Oplossing**: Height-aware font sizing (11px voor TINY, 12px voor normal)
-
-### Database Connecties
-- Gebruik altijd proper cleanup (conn.close())
-- Best practice: context managers
-- Gescheiden database/GUI operaties
-
-### Router Pattern
-- Geef method door (`self.terug`), niet object (`self`)
-
-### Schema Mismatches
-- Altijd migratie scripts bij DB wijzigingen
-- Check kolommen met `PRAGMA table_info()`
 
 ---
 
 ## SHIFT CODES SYSTEEM
 
-### Interventie Post Codes
+### Architectuur (v0.6.4, updated v0.6.7)
 
-**Weekdag:**
-- 7101 (V): 06:00-14:00 (8u)
-- 7201 (L): 14:00-22:00 (8u)
-- 7301 (N): 22:00-06:00 (8u)
+Twee-laags systeem:
+1. **Werkposten**: Team-specifieke shift codes
+2. **Speciale Codes**: Globale codes met term-based systeem (v0.6.7)
 
-**Zaterdag:**
-- 7401 (V): 06:00-14:00 (8u)
-- 7501 (L): 14:00-22:00 (8u)
-- 7601 (N): 22:00-06:00 (8u)
+### Term-based Systeem (v0.6.7)
 
-**Zondag/RX:**
-- 7701 (V): 06:00-14:00 (8u)
-- 7801 (L): 14:00-22:00 (8u)
-- 7901 (N): 22:00-06:00 (8u)
+Speciale codes hebben nu een optioneel `term` veld voor systeemfuncties:
 
-### Speciale Codes
+**Database structuur:**
+```sql
+CREATE TABLE speciale_codes (
+    id INTEGER PRIMARY KEY,
+    code TEXT UNIQUE NOT NULL,     -- Kan wijzigen (VV → VL)
+    naam TEXT NOT NULL,
+    term TEXT UNIQUE,               -- Fixed (verlof, zondagrust, etc.)
+    telt_als_werkdag BOOLEAN,
+    reset_12u_rust BOOLEAN,
+    breekt_werk_reeks BOOLEAN
+);
+```
 
-| Code | Naam | Werkdag | Reset 12u | Breekt Reeks | Configureerbaar |
-|------|------|---------|-----------|--------------|-----------------|
-| VV | Verlof | ✓ | ✓ | ✗ | Eigenschappen |
-| VD | Vrij van dienst | ✓ | ✓ | ✗ | Eigenschappen |
-| DA | Arbeidsduurverkorting | ✓ | ✓ | ✗ | Eigenschappen |
-| RX | Zondagsrust | ✗ | ✗ | ✓ | Eigenschappen |
-| CX | Zaterdagsrust | ✗ | ✗ | ✓ | Eigenschappen |
-| Z | Ziek | ✗ | ✓ | ✓ | Eigenschappen |
-| RDS | Roadshow/Meeting | ✓ | ✗ | ✗ | Volledig |
-| TCR/SCR | Opleiding | ✓ | ✗ | ✗ | Volledig |
-| T | Reserve/Thuis | ✗ | ✗ | ✗ | Eigenschappen |
+**Verplichte termen (beschermd):**
+- `verlof` - Gebruikt bij verlof goedkeuring
+- `zondagrust` - Gebruikt voor RX regels
+- `zaterdagrust` - Gebruikt voor CX regels
+- `ziek` - Gebruikt voor ziekteregistratie
+- `arbeidsduurverkorting` - Gebruikt voor ADV
 
-**Configuratie:**
-- Alle speciale codes worden via seed data aangemaakt
-- Planners kunnen via Speciale Codes scherm:
-  - Nieuwe codes toevoegen (bijv. SCR als alternatief voor TCR)
-  - Bestaande codes bewerken (naam, eigenschappen)
-  - Codes verwijderen (alleen als niet in gebruik)
-  - Eigenschappen instellen per code:
-    * `telt_als_werkdag`: Telt mee voor 19 dagen/28d regel
-    * `reset_12u_rust`: Reset de 12u rust periode
-    * `breekt_werk_reeks`: Breekt reeks van werkdagen
-    * `heeft_vaste_uren`: Code heeft vaste tijden (bijv. RDS 10:00-18:00)
+**TermCodeService:**
+```python
+from services.term_code_service import TermCodeService
 
-### Typediensttabel
-- 6-weken roterend patroon
-- Bevat V/L/N/RX/CX/T codes
-- Template voor planning generatie
-- Reserves volgen GEEN typetabel
+# Haal code op voor term (met fallback)
+verlof_code = TermCodeService.get_code_for_term('verlof')
+# Returns: 'VV' (of 'VL' als gebruiker dit heeft aangepast)
+
+# Cache refresh na wijzigingen
+TermCodeService.refresh()
+```
+
+**Gebruikersflow:**
+1. Gebruiker kan VV bewerken naar VL (code wijzigt)
+2. Term 'verlof' blijft gekoppeld
+3. Bij verlof goedkeuren gebruikt systeem automatisch VL
+4. Verwijderen geblokkeerd: term moet blijven bestaan
+
+### Tijd Notatie Parsing
+
+Flexibele parser accepteert:
+```python
+"6-14"        → "06:00" tot "14:00"  # Hele uren shortcut
+"06:00-14:00" → "06:00" tot "14:00"  # Volledig
+"06:30-14:30" → "06:30" tot "14:30"  # Halve uren
+"14:15-22:45" → "14:15" tot "22:45"  # Kwartieren
+"22:00-06:00" → "22:00" tot "06:00"  # Over middernacht
+```
+
+**Implementatie:**
+```python
+def parse_tijd(tijd_str: str) -> Tuple[str, str]:
+    tijd_clean = tijd_str.replace(' ', '')
+    parts = tijd_clean.split('-')
+    
+    # Parse start
+    if ':' in parts[0]:
+        start_parts = parts[0].split(':')
+        start_uur = f"{start_parts[0].zfill(2)}:{start_parts[1].zfill(2)}"
+    else:
+        start_uur = f"{parts[0].zfill(2)}:00"
+    
+    # Parse eind (zelfde logica)
+    if ':' in parts[1]:
+        eind_parts = parts[1].split(':')
+        eind_uur = f"{eind_parts[0].zfill(2)}:{eind_parts[1].zfill(2)}"
+    else:
+        eind_uur = f"{parts[1].zfill(2)}:00"
+    
+    return start_uur, eind_uur
+```
+
+### Code Eigenschappen
+
+**Op werkpost niveau (gelden voor alle shifts):**
+- `telt_als_werkdag`: Telt mee voor 19 dagen/28d regel
+- `reset_12u_rust`: Reset de 12u rust periode
+- `breekt_werk_reeks`: Breekt reeks werkdagen
+
+**Voorbeeld combinaties:**
+```python
+# VV - Verlof
+telt_als_werkdag=1, reset_12u=1, breekt=0
+
+# RX - Zondagsrust
+telt_als_werkdag=0, reset_12u=0, breekt=1
+
+# Z - Ziek
+telt_als_werkdag=0, reset_12u=1, breekt=1
+```
 
 ---
 
-## HR REGELS
+## KNOWN ISSUES
 
-### Configureerbare Regels
+### ✅ OPGELOST
 
-1. **Min 12u rust** tussen shifts
-   - VV/DA/VD reset deze regel
-   - Z reset ook (maar breekt reeks)
+**Filter State Reset (v0.6.8)** 🆕
+- **Probleem:** Filter verdween bij maand navigatie in kalenders
+- **Fix:** `_filter_initialized` flag pattern
+- **Impact:** Filter blijft behouden bij navigatie
+- **Locaties:** planner_grid_kalender.py:107, teamlid_grid_kalender.py:114
 
-2. **Max 50u/week**
-   - Zondag 00:00 - zondag 23:59
+**Grid Stretching Full-screen (v0.6.8)** 🆕
+- **Probleem:** Grid werd uitgerekt met witruimte op full-screen
+- **Fix:** HBoxLayout met stretch factors (3:1 ratio) + codes sidebar
+- **Locatie:** mijn_planning_screen.py:47
 
-3. **Max 19 gewerkte dagen/28d** (rode lijn)
-   - RX/CX tellen NIET als gewerkte dag
-   - Z telt NIET als gewerkte dag
+**F1 Shortcut Conflict (v0.6.8)** 🆕
+- **Probleem:** F1 in Planning Editor botste met globale handleiding
+- **Fix:** Shift codes helper verplaatst naar F2
+- **Locatie:** planning_editor_screen.py:300
 
-4. **Max 7 dagen tussen RX/CX**
-   - Kalenderdagen tussen rustdagen
+**Verlofcode Verwijderbaar (v0.6.7)**
+- **Probleem:** VV kon verwijderd worden, verlofgoedkeuring crashte daarna
+- **Fix:** Term-based systeem met beschermde codes
+- **Impact:** Systeemcodes (verlof, zondagrust, etc.) zijn nu beschermd
+- **Locaties:** shift_codes_screen.py, verlof_goedkeuring_screen.py, term_code_service.py
 
-5. **Max 7 werkdagen achter elkaar**
-   - RX/CX breken de reeks
-   - Z breekt ook de reeks
+**Typetabel Seed Conflict (v0.6.6)**
+- **Fix:** connection.py seed aangepast voor versioned systeem
+- **Impact:** Schone database start werkt correct
 
-### Rode Lijnen Systeem
+**Admin in Kalenders (v0.6.4)**
+- **Fix:** `WHERE gebruikersnaam != 'admin'` filter
+- **Locatie:** grid_kalender_base.py
 
-- 28-dagen cycli voor arbeidsduur validatie
-- Start: 28 juli 2024
-- Auto-extend via `ensure_jaar_data()`
-- Periode nummers voor tracking
+**Button Width Toggle (v0.6.4)**
+- **Fix:** Uniform 96px voor Activeren/Deactiveren
+- **Locaties:** gebruikersbeheer_screen.py, shift_codes_screen.py
+
+### 🟡 BEKEND
+
+**Netwerklatency**
+- **Probleem:** Trage DB toegang op netwerkschijf
+- **Impact:** Lichte vertraging bij opstarten
+- **Workaround:** Database caching overwegen
 
 ---
 
 ## CODE TEMPLATES
 
-### Scherm Template
+### Nieuw Scherm (Skeleton)
 
 ```python
-"""
-Scherm naam - Beschrijving
-"""
-from typing import Dict, Any, List, Optional, Callable
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QTableWidget, QTableWidgetItem)
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
-import sqlite3
+from typing import Callable, List, Dict, Any
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton
 from database.connection import get_connection
-from gui.styles import Styles, Colors, Fonts, Dimensions, TableConfig
-
+from gui.styles import Styles, Dimensions
+import sqlite3
 
 class MijnScherm(QWidget):
-    """Docstring"""
-    
-    # Signals als class attributes
-    data_changed: pyqtSignal = pyqtSignal(dict)
-    
     def __init__(self, router: Callable):
         super().__init__()
         self.router = router
-        
-        # Declareer ALLE instance attributes
-        self.tabel: QTableWidget = QTableWidget()
         self.data: List[Dict[str, Any]] = []
-        
         self.init_ui()
         self.load_data()
     
-    def init_ui(self) -> None:
-        """Bouw UI"""
+    def init_ui(self):
         layout = QVBoxLayout(self)
-        
-        # Header met terug knop
-        header = QHBoxLayout()
-        title = QLabel("Titel")
-        title.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_TITLE))
-        header.addWidget(title)
-        header.addStretch()
+        # Setup UI...
         
         terug_btn = QPushButton("Terug")
-        terug_btn.setFixedSize(100, Dimensions.BUTTON_HEIGHT_NORMAL)
-        terug_btn.clicked.connect(self.router.terug)  # type: ignore
-        terug_btn.setStyleSheet(Styles.button_secondary())
-        header.addWidget(terug_btn)
-        layout.addLayout(header)
-        
-        # Tabel
-        self.tabel.setColumnCount(3)
-        self.tabel.setHorizontalHeaderLabels(['Col1', 'Col2', 'Acties'])
-        TableConfig.setup_table_widget(self.tabel, row_height=50)
-        layout.addWidget(self.tabel)
+        terug_btn.clicked.connect(self.router)  # type: ignore
+        layout.addWidget(terug_btn)
     
-    def load_data(self) -> None:
-        """Laad data uit database"""
+    def load_data(self):
         try:
             conn = get_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM table")
             self.data = cursor.fetchall()
             conn.close()
-            self.display_data()
         except sqlite3.Error as e:
-            QMessageBox.critical(self, "Database Fout", str(e))
-        except Exception as e:
-            QMessageBox.critical(self, "Fout", str(e))
-    
-    def display_data(self) -> None:
-        """Toon data in tabel"""
-        self.tabel.setRowCount(len(self.data))
-        
-        for row, item in enumerate(self.data):
-            self.tabel.setItem(row, 0, QTableWidgetItem(str(item['field1'])))
-            
-            # Acties buttons
-            actie_widget = QWidget()
-            actie_layout = QHBoxLayout()
-            actie_layout.setContentsMargins(0, 0, 0, 0)
-            actie_layout.setSpacing(Dimensions.SPACING_SMALL)
-            actie_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            
-            btn = QPushButton("Actie")
-            btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_TINY)
-            btn.setFixedWidth(80)
-            btn.setStyleSheet(Styles.button_primary(Dimensions.BUTTON_HEIGHT_TINY))
-            btn.clicked.connect(self.create_callback(dict(item)))  # type: ignore
-            actie_layout.addWidget(btn)
-            
-            actie_widget.setLayout(actie_layout)
-            self.tabel.setCellWidget(row, 2, actie_widget)
-    
-    def create_callback(self, item: Dict[str, Any]):
-        """Factory voor callbacks"""
-        def callback():
-            self.handle_action(item)
-        return callback
-    
-    def handle_action(self, item: Dict[str, Any]) -> None:
-        """Handle button click"""
-        pass
+            # Handle error...
+            pass
 ```
 
-### Dialog Template
+### Dialog (Skeleton)
 
 ```python
+from typing import Dict, Any, Optional
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QLineEdit
+from gui.styles import Styles
+
 class MijnDialog(QDialog):
-    """Dialog beschrijving"""
-    
-    def __init__(self, parent: Optional[QWidget] = None, data: Optional[Dict[str, Any]] = None):
+    def __init__(self, parent, data: Optional[Dict[str, Any]] = None):
         super().__init__(parent)
         self.data = data
-        self.setWindowTitle("Dialog Titel")
         self.setModal(True)
-        
-        # Instance attributes
         self.input: QLineEdit = QLineEdit()
-        
         self.init_ui()
     
-    def init_ui(self) -> None:
-        layout = QVBoxLayout()
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        # Setup UI...
         
-        # Input field
-        self.input.setPlaceholderText("Placeholder")
-        self.input.setStyleSheet(Styles.input_field())
-        layout.addWidget(self.input)
-        
-        # Buttons
-        buttons = QDialogButtonBox()
-        buttons.addButton(QDialogButtonBox.StandardButton.Ok)
-        buttons.addButton(QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.valideer_en_accept)  # type: ignore
-        buttons.rejected.connect(self.reject)  # type: ignore
-        layout.addWidget(buttons)
-        
-        self.setLayout(layout)
+        opslaan_btn = QPushButton("Opslaan")
+        opslaan_btn.clicked.connect(self.accept)  # type: ignore
+        layout.addWidget(opslaan_btn)
     
-    def valideer_en_accept(self) -> None:
-        """Valideer input"""
-        if not self.input.text().strip():
-            QMessageBox.warning(self, 'Fout', 'Vul een waarde in!')
-            return
-        self.accept()
-    
-    def get_data(self) -> str:
-        """Return data"""
-        return self.input.text().strip()
+    def get_data(self) -> Dict[str, Any]:
+        return {'field': self.input.text().strip()}
 ```
 
 ---
 
-## OPTIMALISATIE VOOR .EXE
+## DASHBOARD & MAIN.PY
 
-Bij conversie naar .exe voor netwerkschijf:
+### Signal Pattern
 
-### PyInstaller Settings
-```bash
-pyinstaller --onefile --windowed \
-    --exclude-module matplotlib \
-    --exclude-module numpy \
-    --exclude-module pandas \
-    main.py
-```
-
-### UPX Compressie
-```bash
-# Installeer UPX
-# Linux: apt-get install upx
-# Windows: Download van upx.github.io
-
-pyinstaller --onefile --windowed --upx-dir=/path/to/upx main.py
-```
-
-### Minimale Dependencies
-- Virtual environment met alleen essentiële packages
-- PyQt6 minimaal (geen QtWebEngine, etc.)
-- SQLite embedded
-- Geen externe dependencies waar mogelijk
-
-### Performance Testing
-- Test vanaf netwerkschijf
-- Meet laadtijden
-- Check latency bij database operaties
-- Valideer memory usage
-
-### Relatieve Paths
-```python
-# In main.py
-if getattr(sys, 'frozen', False):
-    # Running as .exe
-    application_path = os.path.dirname(sys.executable)
-else:
-    # Running as script
-    application_path = os.path.dirname(__file__)
-
-db_path = os.path.join(application_path, 'data', 'planning.db')
-```
-
----
-
-## BELANGRIJKE CREDENTIALS
-
-**Admin login:**
-- Gebruikersnaam: `admin`
-- Wachtwoord: `admin`
-
-**Eerste run:**
-- Database wordt automatisch aangemaakt
-- Seed data wordt geladen
-- Admin user wordt aangemaakt
-
----
-
-## DEVELOPMENT WORKFLOW
-
-### Voor Nieuwe Features
-1. Check roadmap in PROJECT_INFO.md
-2. Maak feature branch (optioneel)
-3. Schrijf database migratie indien nodig
-4. Gebruik scherm/dialog templates
-5. Volg PyQt6 best practices
-6. Test grondig (vooral table layouts!)
-7. Update documentatie
-
-### Voor Bugfixes
-1. Reproduceer bug
-2. Check Known Issues sectie
-3. Fix implementeren
-4. Test oplossing
-5. Document in DEVELOPMENT_GUIDE.md
-
-### Voor Database Changes
-1. Schrijf migratie script
-2. Test migratie op kopie
-3. Update connection.py (create_tables)
-4. Update seed data indien nodig
-5. Commit migratie script
-
----
-
-## DASHBOARD & MAIN.PY - MENU SYSTEEM
-
-### Hoe het Dashboard Menu Werkt
-
-Het dashboard gebruikt een **centraal event handling systeem** via signals en één handler methode.
-
-#### Architectuur
-Dashboard Menu Button
-↓ (click)
-create_menu_button() - Maakt widget met titel
-↓ (mousePressEvent)
-handle_menu_click(title) - Centraal routing punt
-↓ (emit signal)
-Signal (bijv. planning_clicked)
-↓ (connected in main.py)
-MainWindow handler (bijv. on_planning_clicked)
-↓
-Toon scherm via stack.addWidget()
-
-### Stap-voor-Stap: Nieuw Menu Item Toevoegen
-
-#### 1. Dashboard Signal Declareren
-
-In `gui/screens/dashboard_screen.py` (class-level, rond regel 20):
+**Dashboard heeft signals:**
 ```python
 class DashboardScreen(QWidget):
-    # Bestaande signals
+    # Signals als class attributes
     gebruikers_clicked = pyqtSignal()
-    planning_clicked = pyqtSignal()
-    # ... etc
-    
-    # NIEUW signal toevoegen
-    jouw_nieuwe_feature_clicked = pyqtSignal()
+    typedienst_clicked = pyqtSignal()  # Voor typetabel
+    shift_codes_clicked = pyqtSignal()
+    # etc...
 ```
-###  2. Menu Button Maken   
-In de juiste tab methode (create_beheer_tab, create_persoonlijk_tab, of create_instellingen_tab):
-```python
-scroll_layout.addWidget(self.create_menu_button(
-    "Jouw Feature Naam",
-    "Beschrijving van wat deze knop doet"
-))
-```
-### 3. Handler Toevoegen
-In handle_menu_click(self, title: str) methode (rond regel 380):
-```python
-def handle_menu_click(self, title: str) -> None:
-    """Handle menu button clicks"""
-    # ... bestaande handlers ...
-    
-    elif title == "Jouw Feature Naam":
-        self.jouw_nieuwe_feature_clicked.emit()  # type: ignore
-```
-⚠️ BELANGRIJK: Titel in create_menu_button() moet EXACT matchen met titel in handle_menu_click()!
 
-###4. Signal Connecten in Main
-In main.py in de show_dashboard() methode (rond regel 60):
+**Main.py connect pattern:**
 ```python
-def show_dashboard(self) -> None:
-    """Toon dashboard"""
+def show_dashboard(self):
     dashboard = DashboardScreen(self.current_user)
     
-    # Bestaande connections
-    dashboard.planning_clicked.connect(self.on_planning_clicked)  # type: ignore
-    # ... etc
+    # Connect alle signals
+    dashboard.typedienst_clicked.connect(self.on_typedienst_clicked)  # type: ignore
+    # etc...
     
-    # NIEUW connection toevoegen
-    dashboard.jouw_nieuwe_feature_clicked.connect(self.on_jouw_nieuwe_feature_clicked)  # type: ignore
-```
+    self.stack.addWidget(dashboard)
+    self.stack.setCurrentWidget(dashboard)
 
-### 5. Handler Methode in Main
-In main.py (rond regel 150):
-```python
-def on_jouw_nieuwe_feature_clicked(self) -> None:
-    """Jouw feature scherm openen"""
-    if not self.current_user:
-        return
-    
-    from types import SimpleNamespace
-    router = SimpleNamespace(terug=self.terug)
-    scherm = JouwFeatureScreen(router, self.current_user['id'])  # type: ignore[arg-type]
+def on_typedienst_clicked(self):
+    from gui.screens.typetabel_beheer_screen import TypetabelBeheerScreen
+    scherm = TypetabelBeheerScreen(self.terug)
     self.stack.addWidget(scherm)
     self.stack.setCurrentWidget(scherm)
 ```
-Pattern voor router:
-✅ Gebruik SimpleNamespace(terug=self.terug) voor schermen die router.terug() aanroepen
-✅ Gebruik self.terug direct voor schermen die router() aanroepen (zoals GebruikersbeheerScreen)
 
-### 6. Bestaande Menu Items & Handlers
-✅ VOLLEDIG GEÏMPLEMENTEERD
-### Menu Systeem - Screens & Handlers
+### Nieuwe Menu Item Toevoegen
 
-| Menu Item         | Tab         | Signal               | Handler                  | Screen File               |
-|-------------------|-------------|-----------------------|---------------------------|---------------------------|
-| Gebruikersbeheer  | Beheer      | `gebruikers_clicked`  | `on_gebruikers_clicked()` | `gebruikersbeheer_screen.py` |
-| Feestdagen        | Instellingen| `feestdagen_clicked`  | `on_feestdagen_clicked()` | `feestdagen_screen.py`       |
-| Kalender Test     | Beheer      | `kalender_test_clicked` | `on_kalender_test_clicked()` | `kalender_test_screen.py`    |
-| Mijn Planning     | Persoonlijk | `planning_clicked`    | `on_planning_clicked()`   | `mijn_planning_screen.py`    |
-| Wijzig Wachtwoord | Persoonlijk | N/A                   | `show_wachtwoord_dialog()` | (dialog in dashboard)        |
-
-🔨 TODO (Signals bestaan, maar geen implementatie)
-### Menu Systeem Overzicht
-
-| Menu Item               | Tab             | Signal                | Handler               | Status |
-|-------------------------|-----------------|------------------------|------------------------|--------|
-| Planning Editor         | Beheer          | `planning_clicked`     | `on_planning_clicked()` | ⚠️ Gebruikt zelfde signal als "Mijn Planning" |
-| Verlof Aanvragen        | Persoonlijk     | `verlof_clicked`       | `on_verlof_clicked()`   | TODO |
-| Verlof Goedkeuring      | Beheer          | `verlof_clicked`       | `on_verlof_clicked()`   | TODO – zelfde handler |
-| Mijn Voorkeuren         | Persoonlijk     | `voorkeuren_clicked`   | `on_voorkeuren_clicked()` | TODO |
-| HR Regels               | Instellingen    | `hr_regels_clicked`    | `on_hr_regels_clicked()` | TODO |
-| Shift Codes & Posten    | Instellingen    | `shift_codes_clicked`  | `on_shift_codes_clicked()` | TODO |
-| Rode Lijnen             | Instellingen    | `rode_lijnen_clicked`  | `on_rode_lijnen_clicked()` | TODO |
-
-⚠️ BELANGRIJK: Planning Editor vs Mijn Planning
-Probleem: Beide menu items gebruiken hetzelfde signal (planning_clicked)!
-Huidige situatie:
-
-"Planning Editor" (Beheer tab) → emit planning_clicked
-"Mijn Planning" (Persoonlijk tab) → emit planning_clicked
-Beide roepen on_planning_clicked() aan
-Handler toont MijnPlanningScreen (teamlid view)
-
-Oplossing voor Planning Editor:
-Wanneer je Planning Editor implementeert, heb je 2 opties:
-Optie A: Apart signal voor Planning Editor
+**Stap 1:** Signal in dashboard:
 ```python
-# Dashboard
-planning_editor_clicked = pyqtSignal()
-
-# handle_menu_click
-elif title == "Planning Editor":
-    self.planning_editor_clicked.emit()  # type: ignore
-
-# main.py
-dashboard.planning_editor_clicked.connect(self.on_planning_editor_clicked)  # type: ignore
-
-def on_planning_editor_clicked(self) -> None:
-    """Planning editor voor planners"""
-    # Toon PlannerGridKalender in editable mode
+nieuw_scherm_clicked = pyqtSignal()
 ```
-Optie B: Rol-based routing in handler
+
+**Stap 2:** Button in create_XXX_tab():
 ```python
-def on_planning_clicked(self) -> None:
-    """Planning scherm - rol afhankelijk"""
-    if not self.current_user:
-        return
-    
-    if self.current_user['rol'] == 'planner':
-        # Toon Planning Editor (PlannerGridKalender)
-        router = SimpleNamespace(terug=self.terug)
-        scherm = PlanningEditorScreen(router)
-        self.stack.addWidget(scherm)
-        self.stack.setCurrentWidget(scherm)
-    else:
-        # Toon Mijn Planning (TeamlidGridKalender)
-        router = SimpleNamespace(terug=self.terug)
-        scherm = MijnPlanningScreen(router, self.current_user['id'])
-        self.stack.addWidget(scherm)
-        self.stack.setCurrentWidget(scherm)
+scroll_layout.addWidget(self.create_menu_button(
+    "Nieuw Scherm",
+    "Beschrijving van het scherm"
+))
 ```
-Aanbeveling: Optie A is cleaner en volgt de bestaande architectuur beter.
 
-### 7.Common Pitfalls
-❌ FOUT - Titel niet exact gelijk:
+**Stap 3:** Handler in handle_menu_click():
 ```python
-# In create_menu_button
-"Gebruikers Beheer"  # Met spatie
-
-# In handle_menu_click
-elif title == "Gebruikersbeheer":  # Zonder spatie - WERKT NIET!
+elif title == "Nieuw Scherm":
+    self.nieuw_scherm_clicked.emit()
 ```
-❌ FOUT - Verkeerd router object:
+
+**Stap 4:** Connect in main.py:
 ```python
-# Dit werkt NIET
-scherm = MijnScreen(self.terug, user_id)
-
-# Dit werkt WEL
-from types import SimpleNamespace
-router = SimpleNamespace(terug=self.terug)
-scherm = MijnScreen(router, user_id)
+dashboard.nieuw_scherm_clicked.connect(self.on_nieuw_scherm_clicked)  # type: ignore
 ```
-❌ FOUT - Signal vergeten connecten:
+
+**Stap 5:** Handler implementeren:
 ```python
-# Signal gedeclareerd in dashboard ✓
-# Handler toegevoegd aan handle_menu_click ✓
-# Methode in main.py gemaakt ✓
-# MAAR: Signal niet geconnect in show_dashboard() ✗
-# Resultaat: Button doet niks!
+def on_nieuw_scherm_clicked(self):
+    from gui.screens.nieuw_scherm import NieuwScherm
+    scherm = NieuwScherm(self.terug)
+    self.stack.addWidget(scherm)
+    self.stack.setCurrentWidget(scherm)
 ```
-Debugging Tips
-Button doet niks bij klikken:
 
-Check of titel in create_menu_button() exact matcht met handle_menu_click()
-Check of signal emit statement bestaat in handle_menu_click()
-Check of signal connected is in show_dashboard()
-Check of handler methode bestaat in main.py
+---
 
-AttributeError bij router:
+## VERSIE GESCHIEDENIS
 
-Gebruik SimpleNamespace(terug=self.terug) voor nieuwe schermen
-Check of screen verwacht router.terug() of router()
+### v0.6.8 (19 Oktober 2025) - HUIDIG
+**Rode Lijnen Config & UX Verbeteringen**
+- Versioned rode lijnen configuratie beheer
+- Auto-maximize window na login
+- Tab-based handleiding systeem (F1)
+- Filter state preservation bij navigatie
+- Grid stretching fix + codes sidebar
+- Keyboard shortcuts (F1/F2)
+- Historiek standaard zichtbaar
 
-Print debug in handle_menu_click:
-```python
-def handle_menu_click(self, title: str) -> None:
-    """Handle menu button clicks"""
-    print(f"DEBUG: Menu clicked - {title}")  # ADD THIS
-    
-    if title == "...":
-        # ...
-```
-Dit toont je exact welke titel wordt doorgegeven.
+### v0.6.7 (19 Oktober 2025)
+**Term-based Systeem voor Speciale Codes**
+- Systeemcodes beschermd tegen verwijdering
+- TermCodeService met cache
+- Dynamische code mapping via termen
+- Database migratie + UI updates
 
-of run main.py in terminal:
-```bash
-python main.py
-```
-Dit toont je alle print statements in de terminal.
+### v0.6.6 (18 Oktober 2025)
+**Typetabel Beheer Systeem**
+- Versioned typetabellen (Concept/Actief/Archief)
+- Grid editor voor patronen
+- Kopiëren, verwijderen functionaliteit
+- Database migratie + seed update
+- Multi-post support (V1, V2, L1, etc.)
 
-*Laatste update: Oktober 2025*
-*Versie: 1.0*
+### v0.6.5 (16 Oktober 2025)
+**Planning Editor & Verlof**
+- Planning Editor eerste iteratie
+- Editable cellen in kalender
+- Verlof aanvragen/goedkeuring schermen
+
+### v0.6.4 (15 Oktober 2025)
+**Shift Codes Systeem**
+- Werkposten met multi-team support
+- Speciale codes beheer
+- Flexibele tijd parsing
+- Grid editor
+
+### v0.6.3 (14 Oktober 2025)
+**Feestdagen & Kalenders**
+- Feestdagen verbeterd (variabel/vast)
+- Paasberekening
+- Grid Kalender widgets
+- Database migratie systeem
+
+### v0.6.0-0.6.2
+- Login systeem
+- Dashboard
+- Gebruikersbeheer
+- Database redesign
+- Centrale styling
+
+---
+
+## DEPLOYMENT (TODO)
+
+**Voor Release 1.0:**
+- PyInstaller .exe build
+- Netwerkschijf deployment guide
+- Backup strategie
+- Multi-user testing
+- Performance optimalisatie
+
+**Zie DEV_NOTES.md voor deployment checklist**
+
+---
+
+*Laatste update: 19 Oktober 2025*
+*Versie: 0.6.8*
+
+*Voor user-facing documentatie, zie PROJECT_INFO.md*
+*Voor development logs, zie DEV_NOTES.md*

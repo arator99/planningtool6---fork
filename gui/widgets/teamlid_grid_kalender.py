@@ -109,9 +109,12 @@ class TeamlidGridKalender(GridKalenderBase):
         # Laad gebruikers
         self.load_gebruikers(alleen_actief=True)
 
-        # Standaard: alleen huidige gebruiker zichtbaar
-        self.set_alle_gebruikers_filter(False)
-        self.filter_gebruikers[self.huidige_gebruiker_id] = True
+        # Alleen bij eerste keer: alleen huidige gebruiker zichtbaar
+        # Bij refresh: behoud huidige filter
+        if not hasattr(self, '_filter_initialized'):
+            self.set_alle_gebruikers_filter(False)
+            self.filter_gebruikers[self.huidige_gebruiker_id] = True
+            self._filter_initialized = True
 
         # Laad feestdagen
         self.load_feestdagen()
