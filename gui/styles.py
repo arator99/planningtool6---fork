@@ -1,54 +1,183 @@
 #gui/styles.py
 """
 Centrale styling configuratie voor Planning Tool
-UPDATED: Uniforme button styling (zelfde padding, font-size, height voor alle button types)
-Gebruik: from gui.styles import Styles, Colors, Fonts
+UPDATED: Dark mode ondersteuning met ThemeManager
+Gebruik: from gui.styles import Styles, Colors, Fonts, ThemeManager
 """
+from typing import Optional
+
+
+class ThemeManager:
+    """Beheer het huidige thema (light/dark)"""
+    _instance: Optional['ThemeManager'] = None
+    _current_theme: str = 'light'  # default
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    @classmethod
+    def set_theme(cls, theme: str) -> None:
+        """Stel thema in: 'light' of 'dark'"""
+        if theme not in ['light', 'dark']:
+            raise ValueError(f"Ongeldig thema: {theme}. Gebruik 'light' of 'dark'.")
+        cls._current_theme = theme
+        # Update Colors class
+        Colors.apply_theme(theme)
+
+    @classmethod
+    def get_theme(cls) -> str:
+        """Haal huidig thema op"""
+        return cls._current_theme
+
+    @classmethod
+    def toggle_theme(cls) -> str:
+        """Wissel tussen light en dark mode. Returns nieuwe thema."""
+        new_theme = 'dark' if cls._current_theme == 'light' else 'light'
+        cls.set_theme(new_theme)
+        return new_theme
 
 
 class Colors:
-    """Kleur palette voor de applicatie"""
-    # Primary colors
-    PRIMARY = "#007bff"
-    PRIMARY_HOVER = "#0056b3"
+    """Kleur palette voor de applicatie (thema-bewust)"""
+    # Light theme colors (default)
+    _LIGHT_THEME = {
+        # Primary colors
+        'PRIMARY': "#007bff",
+        'PRIMARY_HOVER': "#0056b3",
 
-    # State colors
-    SUCCESS = "#28a745"
-    SUCCESS_HOVER = "#218838"
-    WARNING = "#ffc107"
-    WARNING_HOVER = "#e0a800"
-    DANGER = "#dc3545"
-    DANGER_HOVER = "#c82333"
-    INFO = "#17a2b8"
-    INFO_HOVER = "#117a8b"
+        # State colors
+        'SUCCESS': "#28a745",
+        'SUCCESS_HOVER': "#218838",
+        'WARNING': "#ffc107",
+        'WARNING_HOVER': "#e0a800",
+        'DANGER': "#dc3545",
+        'DANGER_HOVER': "#c82333",
+        'INFO': "#17a2b8",
+        'INFO_HOVER': "#117a8b",
 
-    # Neutral colors
-    SECONDARY = "#6c757d"
-    SECONDARY_HOVER = "#5a6268"
-    LIGHT = "#f8f9fa"
-    DARK = "#343a40"
+        # Neutral colors
+        'SECONDARY': "#6c757d",
+        'SECONDARY_HOVER': "#5a6268",
+        'LIGHT': "#f8f9fa",
+        'DARK': "#343a40",
 
-    # Backgrounds
-    BG_WHITE = "#ffffff"
-    BG_LIGHT = "#f8f9fa"
-    BG_DARK = "#343a40"
+        # Backgrounds
+        'BG_WHITE': "#ffffff",
+        'BG_LIGHT': "#f8f9fa",
+        'BG_DARK': "#343a40",
 
-    # Borders
-    BORDER_LIGHT = "#dee2e6"
-    BORDER_MEDIUM = "#ced4da"
-    BORDER_DARK = "#6c757d"
+        # Borders
+        'BORDER_LIGHT': "#dee2e6",
+        'BORDER_MEDIUM': "#ced4da",
+        'BORDER_DARK': "#6c757d",
 
-    # Text
-    TEXT_PRIMARY = "#212529"
-    TEXT_SECONDARY = "#6c757d"
-    TEXT_MUTED = "#999999"
-    TEXT_WHITE = "#ffffff"
-    TEXT_BLACK = "#000000"
+        # Text
+        'TEXT_PRIMARY': "#212529",
+        'TEXT_SECONDARY': "#6c757d",
+        'TEXT_MUTED': "#999999",
+        'TEXT_WHITE': "#ffffff",
+        'TEXT_BLACK': "#000000",
 
-    # Table
-    TABLE_GRID = "#dee2e6"
-    TABLE_HEADER_BG = "#f8f9fa"
-    TABLE_HOVER = "#e9ecef"
+        # Table
+        'TABLE_GRID': "#dee2e6",
+        'TABLE_HEADER_BG': "#f8f9fa",
+        'TABLE_HOVER': "#e9ecef",
+
+        # Menu buttons (dashboard)
+        'MENU_BUTTON_BG': "#ffffff",
+        'MENU_BUTTON_HOVER': "#e9ecef",
+    }
+
+    # Dark theme colors
+    _DARK_THEME = {
+        # Primary colors (iets lichter voor contrast)
+        'PRIMARY': "#4a9eff",
+        'PRIMARY_HOVER': "#3d8ae0",
+
+        # State colors
+        'SUCCESS': "#5cb85c",
+        'SUCCESS_HOVER': "#4cae4c",
+        'WARNING': "#f0ad4e",
+        'WARNING_HOVER': "#ec971f",
+        'DANGER': "#d9534f",
+        'DANGER_HOVER': "#c9302c",
+        'INFO': "#5bc0de",
+        'INFO_HOVER': "#46b8da",
+
+        # Neutral colors
+        'SECONDARY': "#7a8288",
+        'SECONDARY_HOVER': "#62686d",
+        'LIGHT': "#2b3035",
+        'DARK': "#e0e0e0",
+
+        # Backgrounds
+        'BG_WHITE': "#1e1e1e",
+        'BG_LIGHT': "#2b3035",
+        'BG_DARK': "#141414",
+
+        # Borders
+        'BORDER_LIGHT': "#3d4349",
+        'BORDER_MEDIUM': "#4a5159",
+        'BORDER_DARK': "#6c757d",
+
+        # Text
+        'TEXT_PRIMARY': "#e0e0e0",
+        'TEXT_SECONDARY': "#a0a0a0",
+        'TEXT_MUTED': "#707070",
+        'TEXT_WHITE': "#ffffff",
+        'TEXT_BLACK': "#000000",
+
+        # Table
+        'TABLE_GRID': "#3d4349",
+        'TABLE_HEADER_BG': "#2b3035",
+        'TABLE_HOVER': "#353b41",
+
+        # Menu buttons (dashboard) - lichter dan BG_WHITE voor zichtbaarheid
+        'MENU_BUTTON_BG': "#2b3035",
+        'MENU_BUTTON_HOVER': "#353b41",
+    }
+
+    # Active theme colors (wijst naar light of dark)
+    PRIMARY = _LIGHT_THEME['PRIMARY']
+    PRIMARY_HOVER = _LIGHT_THEME['PRIMARY_HOVER']
+    SUCCESS = _LIGHT_THEME['SUCCESS']
+    SUCCESS_HOVER = _LIGHT_THEME['SUCCESS_HOVER']
+    WARNING = _LIGHT_THEME['WARNING']
+    WARNING_HOVER = _LIGHT_THEME['WARNING_HOVER']
+    DANGER = _LIGHT_THEME['DANGER']
+    DANGER_HOVER = _LIGHT_THEME['DANGER_HOVER']
+    INFO = _LIGHT_THEME['INFO']
+    INFO_HOVER = _LIGHT_THEME['INFO_HOVER']
+    SECONDARY = _LIGHT_THEME['SECONDARY']
+    SECONDARY_HOVER = _LIGHT_THEME['SECONDARY_HOVER']
+    LIGHT = _LIGHT_THEME['LIGHT']
+    DARK = _LIGHT_THEME['DARK']
+    BG_WHITE = _LIGHT_THEME['BG_WHITE']
+    BG_LIGHT = _LIGHT_THEME['BG_LIGHT']
+    BG_DARK = _LIGHT_THEME['BG_DARK']
+    BORDER_LIGHT = _LIGHT_THEME['BORDER_LIGHT']
+    BORDER_MEDIUM = _LIGHT_THEME['BORDER_MEDIUM']
+    BORDER_DARK = _LIGHT_THEME['BORDER_DARK']
+    TEXT_PRIMARY = _LIGHT_THEME['TEXT_PRIMARY']
+    TEXT_SECONDARY = _LIGHT_THEME['TEXT_SECONDARY']
+    TEXT_MUTED = _LIGHT_THEME['TEXT_MUTED']
+    TEXT_WHITE = _LIGHT_THEME['TEXT_WHITE']
+    TEXT_BLACK = _LIGHT_THEME['TEXT_BLACK']
+    TABLE_GRID = _LIGHT_THEME['TABLE_GRID']
+    TABLE_HEADER_BG = _LIGHT_THEME['TABLE_HEADER_BG']
+    TABLE_HOVER = _LIGHT_THEME['TABLE_HOVER']
+    MENU_BUTTON_BG = _LIGHT_THEME['MENU_BUTTON_BG']
+    MENU_BUTTON_HOVER = _LIGHT_THEME['MENU_BUTTON_HOVER']
+
+    @classmethod
+    def apply_theme(cls, theme: str) -> None:
+        """Pas een thema toe door alle class attributes bij te werken"""
+        theme_colors = cls._DARK_THEME if theme == 'dark' else cls._LIGHT_THEME
+
+        for key, value in theme_colors.items():
+            setattr(cls, key, value)
 
 
 class Fonts:
@@ -288,10 +417,11 @@ class Styles:
 
     @staticmethod
     def menu_button():
-        """Dashboard menu button styling"""
+        """Dashboard menu button styling (thema-bewust)"""
         return f"""
             QPushButton {{
-                background-color: {Colors.BG_WHITE};
+                background-color: {Colors.MENU_BUTTON_BG};
+                color: {Colors.TEXT_PRIMARY};
                 border: 2px solid {Colors.BORDER_LIGHT};
                 border-radius: {Dimensions.RADIUS_XL}px;
                 text-align: left;
@@ -300,11 +430,13 @@ class Styles:
                 font-family: {Fonts.FAMILY};
             }}
             QPushButton:hover {{
-                background-color: {Colors.TABLE_HOVER};
+                background-color: {Colors.MENU_BUTTON_HOVER};
                 border-color: {Colors.PRIMARY};
+                color: {Colors.TEXT_PRIMARY};
             }}
             QPushButton:pressed {{
-                background-color: {Colors.BORDER_LIGHT};
+                background-color: {Colors.MENU_BUTTON_HOVER};
+                color: {Colors.TEXT_PRIMARY};
             }}
             QPushButton:disabled {{
                 background-color: {Colors.LIGHT};

@@ -12,6 +12,7 @@ from PyQt6.QtGui import QFont
 from gui.widgets.grid_kalender_base import GridKalenderBase
 from gui.styles import Styles, Colors, Fonts, Dimensions
 from datetime import datetime
+from database.connection import get_connection
 
 
 class TeamlidGridKalender(GridKalenderBase):
@@ -119,6 +120,9 @@ class TeamlidGridKalender(GridKalenderBase):
         # Laad feestdagen
         self.load_feestdagen()
 
+        # Laad rode lijnen (28-daagse HR cycli)
+        self.load_rode_lijnen()
+
         # Datum range: alleen deze maand
         datum_lijst = self.get_datum_lijst(start_offset=0, eind_offset=0)
         if datum_lijst:
@@ -131,6 +135,30 @@ class TeamlidGridKalender(GridKalenderBase):
 
         # Bouw grid
         self.build_grid()
+
+    def load_rode_lijnen(self) -> None:
+        """Laad rode lijnen (28-daagse HR cycli) voor huidige periode"""
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Laad alle rode lijnen start datums (deze markeren begin van een nieuwe periode)
+        cursor.execute("""
+            SELECT start_datum, eind_datum, periode_nummer
+            FROM rode_lijnen
+            ORDER BY start_datum
+        """)
+
+        # Dictionary met start_datum als key voor snelle lookup
+        # Converteer datetime naar date string (YYYY-MM-DD)
+        self.rode_lijnen_starts: Dict[str, int] = {}
+        for row in cursor.fetchall():
+            datum_str = row['start_datum']
+            # Strip timestamp als die er is (2024-07-28T00:00:00 -> 2024-07-28)
+            if 'T' in datum_str:
+                datum_str = datum_str.split('T')[0]
+            self.rode_lijnen_starts[datum_str] = row['periode_nummer']
+
+        conn.close()
 
     def build_grid(self) -> None:
         """Bouw de grid met namen en datums"""
@@ -176,15 +204,34 @@ class TeamlidGridKalender(GridKalenderBase):
 
             # Achtergrond kleur voor header (geel voor zondag/feestdag, grijs voor zaterdag)
             achtergrond = self.get_datum_achtergrond(datum_str)
-            datum_header.setStyleSheet(f"""
-                QLabel {{
-                    background-color: {achtergrond};
-                    color: {Colors.TEXT_PRIMARY};
-                    padding: 4px;
-                    border: 1px solid {Colors.BORDER_LIGHT};
-                    qproperty-alignment: AlignCenter;
-                }}
-            """)
+
+            # Check of dit het begin van een rode lijn periode is
+            is_rode_lijn_start = datum_str in self.rode_lijnen_starts
+
+            if is_rode_lijn_start:
+                periode_nr = self.rode_lijnen_starts[datum_str]
+                datum_header.setStyleSheet(f"""
+                    QLabel {{
+                        background-color: {achtergrond};
+                        color: {Colors.TEXT_PRIMARY};
+                        padding: 4px;
+                        border: 1px solid {Colors.BORDER_LIGHT};
+                        border-left: 4px solid #dc3545;
+                        qproperty-alignment: AlignCenter;
+                    }}
+                """)
+                datum_header.setToolTip(f"Start Rode Lijn Periode {periode_nr}")
+            else:
+                datum_header.setStyleSheet(f"""
+                    QLabel {{
+                        background-color: {achtergrond};
+                        color: {Colors.TEXT_PRIMARY};
+                        padding: 4px;
+                        border: 1px solid {Colors.BORDER_LIGHT};
+                        qproperty-alignment: AlignCenter;
+                    }}
+                """)
+
             datum_header.setFixedWidth(60)
             grid_layout.addWidget(datum_header, 0, col)
 
@@ -225,13 +272,29 @@ class TeamlidGridKalender(GridKalenderBase):
         achtergrond = self.get_datum_achtergrond(datum_str)
         overlay = self.get_verlof_overlay(datum_str, gebruiker_id, mode)
 
+        # Check of dit het begin van een rode lijn periode is
+        is_rode_lijn_start = datum_str in self.rode_lijnen_starts
+
         # Maak label
         cel = QLabel(shift_code)
         cel.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL, QFont.Weight.Bold))
-        cel.setStyleSheet(self.create_cel_stylesheet(achtergrond, overlay))
+
+        # Stylesheet met optionele rode lijn
+        base_style = self.create_cel_stylesheet(achtergrond, overlay)
+        if is_rode_lijn_start:
+            # Voeg rode linker border toe
+            base_style = base_style.replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-left: 4px solid #dc3545;\n                    qproperty-alignment: AlignCenter;"
+            )
+        cel.setStyleSheet(base_style)
 
         # Tooltip
         tooltip = self.get_cel_tooltip(datum_str, gebruiker_id, mode)
+        if is_rode_lijn_start:
+            periode_nr = self.rode_lijnen_starts[datum_str]
+            rode_lijn_tooltip = f"Start Rode Lijn Periode {periode_nr}"
+            tooltip = f"{tooltip}\n{rode_lijn_tooltip}" if tooltip else rode_lijn_tooltip
         if tooltip:
             cel.setToolTip(tooltip)
 

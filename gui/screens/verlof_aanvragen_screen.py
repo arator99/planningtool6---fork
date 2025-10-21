@@ -7,8 +7,9 @@ from typing import Callable, List, Dict, Any
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QTableWidget, QTableWidgetItem,
                              QHeaderView, QDateEdit, QTextEdit, QMessageBox,
-                             QDialog, QDialogButtonBox)
+                             QDialog, QDialogButtonBox, QCalendarWidget)
 from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtGui import QTextCharFormat
 from PyQt6.QtGui import QFont
 from datetime import datetime, timedelta
 from database.connection import get_connection
@@ -34,6 +35,7 @@ class VerlofAanvragenScreen(QWidget):
         self.start_datum: QDateEdit = QDateEdit()
         self.eind_datum: QDateEdit = QDateEdit()
         self.reden_input: QTextEdit = QTextEdit()
+        self.saldo_widget = None  # Will be set in init_ui
 
         self.init_ui()
         self.load_aanvragen()
@@ -75,9 +77,19 @@ class VerlofAanvragenScreen(QWidget):
         info.setWordWrap(True)
         layout.addWidget(info)
 
-        # Formulier
+        # HBox: Formulier + Saldo Widget
+        content_layout = QHBoxLayout()
+
+        # Formulier (links)
         form_widget = self.create_form()
-        layout.addWidget(form_widget)
+        content_layout.addWidget(form_widget, stretch=2)
+
+        # Saldo Widget (rechts)
+        from gui.widgets.verlof_saldo_widget import VerlofSaldoWidget
+        self.saldo_widget = VerlofSaldoWidget(self.gebruiker_id)
+        content_layout.addWidget(self.saldo_widget, stretch=1)
+
+        layout.addLayout(content_layout)
 
         # Tabel met aanvragen
         tabel_label = QLabel("Mijn Verlof Aanvragen")
@@ -104,7 +116,8 @@ class VerlofAanvragenScreen(QWidget):
 
         # Titel
         form_title = QLabel("Nieuwe Verlofaanvraag")
-        form_title.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL, QFont.Weight.Bold))
+        form_title.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_HEADING, QFont.Weight.Bold))
+        form_title.setStyleSheet(f"color: {Colors.TEXT_PRIMARY};")
         layout.addWidget(form_title)
 
         # Datums layout (compacter - horizontaal)
@@ -113,7 +126,8 @@ class VerlofAanvragenScreen(QWidget):
 
         # Start datum
         start_label = QLabel("Van:")
-        start_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+        start_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL))
+        start_label.setStyleSheet(f"color: {Colors.TEXT_PRIMARY};")
         datums_layout.addWidget(start_label)
 
         self.start_datum.setCalendarPopup(True)
@@ -123,10 +137,12 @@ class VerlofAanvragenScreen(QWidget):
         self.start_datum.setMinimumWidth(120)
         self.start_datum.setStyleSheet(Styles.input_field())
         calendar_start = self.start_datum.calendarWidget()
+        calendar_start.setMinimumWidth(300)  # Zorg voor voldoende breedte
         calendar_start.setStyleSheet("""
             QCalendarWidget QToolButton {
                 color: black;
                 background-color: white;
+                min-width: 80px;
             }
             QCalendarWidget QMenu {
                 background-color: white;
@@ -135,10 +151,12 @@ class VerlofAanvragenScreen(QWidget):
             QCalendarWidget QSpinBox {
                 color: black;
                 background-color: white;
+                min-width: 60px;
             }
             QCalendarWidget QComboBox {
                 color: black;
                 background-color: white;
+                min-width: 100px;
             }
             QCalendarWidget QComboBox::drop-down {
                 background-color: white;
@@ -152,6 +170,9 @@ class VerlofAanvragenScreen(QWidget):
             QCalendarWidget QAbstractItemView::item {
                 color: black;
                 background-color: white;
+                min-width: 36px;
+                max-width: 36px;
+                min-height: 28px;
             }
             QCalendarWidget QAbstractItemView::item:hover {
                 color: black;
@@ -161,12 +182,24 @@ class VerlofAanvragenScreen(QWidget):
                 color: black;
                 background-color: #d0d0d0;
             }
+            QCalendarWidget QTableView {
+                selection-background-color: #d0d0d0;
+            }
+            QCalendarWidget QWidget {
+                alternate-background-color: white;
+            }
+            /* Dagen buiten huidige maand - lichtgrijs en disabled */
+            QCalendarWidget QAbstractItemView:disabled {
+                color: #cccccc;
+                background-color: #f5f5f5;
+            }
         """)
         datums_layout.addWidget(self.start_datum)
 
         # Eind datum
-        eind_label = QLabel("Tot:")
-        eind_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+        eind_label = QLabel("t/m:")
+        eind_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL))
+        eind_label.setStyleSheet(f"color: {Colors.TEXT_PRIMARY};")
         datums_layout.addWidget(eind_label)
 
         self.eind_datum.setCalendarPopup(True)
@@ -176,10 +209,12 @@ class VerlofAanvragenScreen(QWidget):
         self.eind_datum.setMinimumWidth(120)
         self.eind_datum.setStyleSheet(Styles.input_field())
         calendar_eind = self.eind_datum.calendarWidget()
+        calendar_eind.setMinimumWidth(300)  # Zorg voor voldoende breedte
         calendar_eind.setStyleSheet("""
             QCalendarWidget QToolButton {
                 color: black;
                 background-color: white;
+                min-width: 80px;
             }
             QCalendarWidget QMenu {
                 background-color: white;
@@ -188,10 +223,12 @@ class VerlofAanvragenScreen(QWidget):
             QCalendarWidget QSpinBox {
                 color: black;
                 background-color: white;
+                min-width: 60px;
             }
             QCalendarWidget QComboBox {
                 color: black;
                 background-color: white;
+                min-width: 100px;
             }
             QCalendarWidget QComboBox::drop-down {
                 background-color: white;
@@ -205,6 +242,9 @@ class VerlofAanvragenScreen(QWidget):
             QCalendarWidget QAbstractItemView::item {
                 color: black;
                 background-color: white;
+                min-width: 36px;
+                max-width: 36px;
+                min-height: 28px;
             }
             QCalendarWidget QAbstractItemView::item:hover {
                 color: black;
@@ -214,6 +254,17 @@ class VerlofAanvragenScreen(QWidget):
                 color: black;
                 background-color: #d0d0d0;
             }
+            QCalendarWidget QTableView {
+                selection-background-color: #d0d0d0;
+            }
+            QCalendarWidget QWidget {
+                alternate-background-color: white;
+            }
+            /* Dagen buiten huidige maand - lichtgrijs en disabled */
+            QCalendarWidget QAbstractItemView:disabled {
+                color: #cccccc;
+                background-color: #f5f5f5;
+            }
         """)
         datums_layout.addWidget(self.eind_datum)
 
@@ -221,15 +272,21 @@ class VerlofAanvragenScreen(QWidget):
 
         layout.addLayout(datums_layout)
 
-        # Reden (compacter)
+        # Reden (horizontaal - compacter)
+        reden_layout = QHBoxLayout()
+        reden_layout.setSpacing(Dimensions.SPACING_MEDIUM)
+
         reden_label = QLabel("Reden (optioneel):")
-        reden_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
-        layout.addWidget(reden_label)
+        reden_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL))
+        reden_label.setStyleSheet(f"color: {Colors.TEXT_PRIMARY};")
+        reden_layout.addWidget(reden_label)
 
         self.reden_input.setPlaceholderText("Bijv. Familievakantie, persoonlijke redenen...")
         self.reden_input.setMaximumHeight(60)
         self.reden_input.setStyleSheet(Styles.input_field())
-        layout.addWidget(self.reden_input)
+        reden_layout.addWidget(self.reden_input, stretch=1)
+
+        layout.addLayout(reden_layout)
 
         # Submit button (kleiner)
         submit_btn = QPushButton("Verlof Aanvragen")
@@ -485,6 +542,10 @@ class VerlofAanvragenScreen(QWidget):
 
             # Herlaad tabel
             self.load_aanvragen()
+
+            # Refresh saldo widget
+            if self.saldo_widget:
+                self.saldo_widget.refresh()
 
         except sqlite3.Error as e:
             QMessageBox.critical(self, "Database Fout", f"Kon aanvraag niet opslaan:\n{e}")

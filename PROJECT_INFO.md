@@ -2,15 +2,82 @@
 Roostersysteem voor Self-Rostering Teams
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.8 (Beta)
-**Release datum:** Oktober 2025
-**Status:** In actieve ontwikkeling - Rode Lijnen Config & UX verbeteringen
+**Huidige versie:** 0.6.12 (Beta)
+**Release datum:** 21 Oktober 2025
+**Status:** In actieve ontwikkeling - Theme Per Gebruiker + Shift Voorkeuren
 
 ---
 
 ## WAT IS NIEUW
 
-### Versie 0.6.8 (Oktober 2025) ⭐ NIEUW
+### Versie 0.6.12 (21 Oktober 2025) ⭐ NIEUW
+- ✅ **Theme Voorkeur Per Gebruiker**
+  - Elke gebruiker kiest eigen light/dark mode voorkeur
+  - Opgeslagen in database (niet meer globaal JSON bestand)
+  - Login scherm blijft altijd light mode
+  - Theme wordt onthouden tussen sessies
+  - Database migratie: `migratie_theme_per_gebruiker.py`
+
+### Versie 0.6.11 (21 Oktober 2025)
+- ✅ **Shift Voorkeuren Systeem**
+  - Dashboard → Persoonlijk → Mijn Voorkeuren
+  - Stel prioriteit in voor shift types (Vroeg, Laat, Nacht, Typetabel)
+  - Auto-save functionaliteit (geen opslaan knop)
+  - Real-time validatie: voorkomt dubbele prioriteiten
+  - Input voor toekomstige automatische planning generatie
+  - Database migratie: `migratie_shift_voorkeuren.py`
+
+### Versie 0.6.10 (20 Oktober 2025)
+- ✅ **Verlof & KD Saldo Systeem - Volledig operationeel**
+  - Admin: Verlof & KD Saldo Beheer scherm (Dashboard > Beheer tab)
+  - Jaarlijks contingent per gebruiker (handmatig input voor deeltijders)
+  - Overdracht management: VV vervalt 1 mei, KD max 35 dagen
+  - "Nieuw Jaar Aanmaken" functie voor bulk setup
+  - Opmerking veld voor notities (bijv. "80% deeltijd", "65+ regime")
+  - Database migratie: `migratie_verlof_saldo.py`
+
+- ✅ **Teamlid: Saldo Widget**
+  - VerlofSaldoWidget in verlof aanvragen scherm (rechts naast formulier)
+  - Read-only weergave eigen VV en KD saldo
+  - Specifieke labels: "Overdracht uit vorig jaar" (VV) vs "Overdracht uit voorgaande jaren" (KD)
+  - Warning countdown voor vervaldatum overgedragen verlof (1 mei)
+  - Auto-refresh na nieuwe aanvraag
+
+- ✅ **Planner: Type Selectie bij Goedkeuring**
+  - VerlofTypeDialog: kies VV of KD bij goedkeuren
+  - Real-time saldo preview met kleurcodering (groen/geel/rood)
+  - Planning records gegenereerd met gekozen code
+  - Auto-sync saldo na goedkeuring
+  - Workflow: teamlid vraagt "verlof" → planner beslist VV of KD
+
+- ✅ **UI/UX Verbeteringen**
+  - Label gewijzigd: "Tot:" → "t/m:" (duidelijkheid over inclusief einddatum)
+  - Compactere formulier layout (reden veld horizontaal naast label)
+  - Betere font hiërarchie (SIZE_HEADING voor titels, SIZE_NORMAL voor labels)
+
+- ✅ **Term-based Systeem Uitbreiding**
+  - Nieuwe speciale code: KD met term 'kompensatiedag' (6e systeem term)
+  - Queries gebruiken terms ipv hardcoded codes
+  - Codes kunnen hernoemd worden zonder functionaliteit te breken
+
+### Versie 0.6.9 (20 Oktober 2025)
+- ✅ **Dark Mode (Nachtmodus)** - Later verbeterd in v0.6.12
+  - ThemeToggleWidget in dashboard met zon/maan iconen
+  - Dashboard rebuild strategie voor correcte styling
+  - Alleen beschikbaar in dashboard (design choice)
+
+- ✅ **Rode Lijnen Visualisatie**
+  - Visuele weergave 28-daagse HR cycli in grid kalenders
+  - Dikke rode linker border markeert periode start
+  - Tooltip met periode nummer
+  - Toegepast op Planner en Teamlid kalenders
+
+- ✅ **Bug Fixes**
+  - Calendar widget kolom weergave (zondag gedeeltelijk afgesneden)
+  - Feestdagen laden voor 3 jaren (vorig, huidig, volgend)
+  - Extended loading voor buffer dagen in kalenders
+
+### Versie 0.6.8 (Oktober 2025)
 - ✅ **Rode Lijnen Config Beheer**
   - Versioned configuratie systeem (actief_vanaf, actief_tot)
   - UI scherm voor beheer rode lijnen configuratie
@@ -285,17 +352,36 @@ Het systeem controleert op:
 
 ## DATABASE MIGRATIE
 
-### Voor bestaande databases (v0.6.5 → v0.6.6)
+### Meest Recente Migraties
 
+**v0.6.11 → v0.6.12: Theme Per Gebruiker**
 ```bash
-python migrate_typetabel_versioned.py
+python migratie_theme_per_gebruiker.py
 ```
+- Voegt `theme_voorkeur` kolom toe aan gebruikers tabel
+- Migreert oude globale theme naar alle gebruikers
+- Verwijdert oude `theme_preference.json` bestand
 
-**Wat doet dit:**
-- Maakt nieuwe typetabel_versies tabel
-- Maakt nieuwe typetabel_data tabel
-- Converteert oude data
-- Behoudt backup als typetabel_old_backup
+**v0.6.10 → v0.6.11: Shift Voorkeuren**
+```bash
+python migratie_shift_voorkeuren.py
+```
+- Voegt `shift_voorkeuren` kolom toe aan gebruikers tabel
+- JSON format voor prioriteit mapping
+
+**v0.6.9 → v0.6.10: Verlof & KD Saldo**
+```bash
+python migratie_verlof_saldo.py
+```
+- Maakt `verlof_saldo` tabel voor VV en KD tracking
+- Voegt KD speciale code toe met term 'kompensatiedag'
+- Voegt `toegekende_code_term` kolom toe aan verlof_aanvragen
+
+### Eerdere Migraties
+
+**v0.6.7 → v0.6.8:** `python migratie_rode_lijnen_config.py`
+**v0.6.6 → v0.6.7:** `python migratie_systeem_termen.py`
+**v0.6.5 → v0.6.6:** `python migratie_typetabel_versioned.py`
 
 **Voor schone start:**
 Geen migratie nodig - automatisch correct aangemaakt.

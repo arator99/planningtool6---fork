@@ -2,8 +2,133 @@
 Planning Tool - Technische Documentatie voor Ontwikkelaars
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.8 (Beta)
-**Laatste update:** 19 Oktober 2025
+**Huidige versie:** 0.6.12 (Beta)
+**Laatste update:** 21 Oktober 2025
+
+---
+
+## NIEUWE FEATURES IN 0.6.9
+
+### Bug Fix: Calendar Widget Kolom Weergave
+Verlof aanvragen kalender toont nu correct alle 7 kolommen (zondag niet meer afgesneden).
+
+**Fix:**
+- `min-width: 36px` en `min-height: 28px` toegevoegd aan `QAbstractItemView::item`
+- `setMinimumWidth(300)` voor gehele kalender widget
+- Toegepast op beide start_datum en eind_datum kalenders
+
+**Code:**
+- `gui/screens/verlof_aanvragen_screen.py` - Calendar widget styling (regel 127-184, 197-254)
+
+### Bug Fix: Feestdagen Niet Herkend in Grid Kalender
+Feestdagen van vorig/volgend jaar worden nu correct geladen voor buffer dagen.
+
+**Fix:**
+- Nieuwe methode `load_feestdagen_extended()` laadt 3 jaren (vorig, huidig, volgend)
+- Auto-generatie via `ensure_jaar_data()` service
+- Toegepast op beide PlannerGridKalender en TeamlidGridKalender
+
+**Code:**
+- `gui/widgets/planner_grid_kalender.py` - load_feestdagen_extended() (regel 324-345)
+
+### Dark Mode (Nachtmodus)
+Volledige dark mode ondersteuning met visuele theme toggle in dashboard.
+
+**Architectuur:**
+- **ThemeManager class**: Singleton pattern voor theme state (`_current_theme`)
+- **Colors class**: Dynamische palette met `_LIGHT_THEME` en `_DARK_THEME` dictionaries
+- **ThemeToggleWidget**: Visuele component met zon/maan iconen en schuifknop
+- **Dashboard rebuild**: Bij theme toggle wordt dashboard opnieuw opgebouwd voor correcte styling
+- **Persistence**: Theme voorkeur opgeslagen in `data/theme_preference.json`
+
+**Thema Kleuren:**
+| Element | Light Mode | Dark Mode |
+|---------|-----------|-----------|
+| BG_WHITE | #ffffff | #1e1e1e |
+| TEXT_PRIMARY | #212529 | #e0e0e0 |
+| PRIMARY | #007bff | #4a9eff |
+| BORDER_DARK | #dee2e6 | #3d4349 |
+| TABLE_HEADER_BG | #f8f9fa | #2b3035 |
+| MENU_BUTTON_BG | #ffffff | #2b3035 |
+
+**Code:**
+- `gui/styles.py` - ThemeManager en Colors classes (regel 8-103)
+- `main.py` - Theme loading/saving/apply (regel 240-311)
+- `gui/screens/dashboard_screen.py` - Theme toggle integratie (regel 98-120)
+- `gui/widgets/theme_toggle_widget.py` - NIEUW bestand (volledige implementatie)
+- `gui/dialogs/handleiding_dialog.py` - Theme toggle info (regel 95-106)
+
+**Gebruik:**
+```python
+from gui.styles import ThemeManager, Colors
+
+# Check huidige theme
+current = ThemeManager.get_theme()  # 'light' of 'dark'
+
+# Toggle theme
+new_theme = ThemeManager.toggle_theme()
+
+# Set theme
+ThemeManager.set_theme('dark')
+
+# Gebruik dynamische kleuren
+background = Colors.BG_WHITE  # Past automatisch aan bij theme switch
+```
+
+**Bekende Beperkingen:**
+- Theme toggle alleen beschikbaar in dashboard
+- QCalendarWidget behouden light mode styling (Qt limitation)
+
+### Rode Lijnen Visualisatie in Grid Kalenders
+28-daagse HR cycli worden nu visueel weergegeven met rode verticale lijnen.
+
+**Functionaliteit:**
+- Dikke rode linker border (4px, #dc3545) markeert periode start
+- Doorlopende lijn van datum header tot alle data cellen
+- Tooltip toont periode nummer: "Start Rode Lijn Periode X"
+- Dictionary lookup voor O(1) performance
+- Timestamp stripping fix (2024-07-28T00:00:00 → 2024-07-28)
+
+**Architectuur:**
+- `load_rode_lijnen()` methode laadt alle periode start datums in dictionary
+- `{datum_str: periode_nummer}` mapping voor snelle lookup
+- Border styling wordt toegevoegd in `build_grid()` en `create_editable_cel()`/`create_shift_cel()`
+
+**Code:**
+- `gui/widgets/planner_grid_kalender.py`:
+  - `load_rode_lijnen()` methode (regel 347-369)
+  - `load_initial_data()` aanroep (regel 312)
+  - `build_grid()` datum headers check (regel 414-453)
+  - `create_editable_cel()` data cellen styling (regel 499-516)
+
+- `gui/widgets/teamlid_grid_kalender.py`:
+  - Import `get_connection` (regel 15)
+  - `load_rode_lijnen()` methode (regel 139-161)
+  - `load_initial_data()` aanroep (regel 124)
+  - `build_grid()` datum headers check (regel 203-231)
+  - `create_shift_cel()` data cellen styling (regel 270-284)
+
+**Gebruik:**
+```python
+# In grid kalender widget
+self.rode_lijnen_starts: Dict[str, int] = {}  # {datum_str: periode_nr}
+
+# Check of datum start van periode is
+is_rode_lijn_start = datum_str in self.rode_lijnen_starts
+
+# Voeg rode border toe aan styling
+if is_rode_lijn_start:
+    periode_nr = self.rode_lijnen_starts[datum_str]
+    style += "border-left: 4px solid #dc3545;"
+    tooltip = f"Start Rode Lijn Periode {periode_nr}"
+```
+
+**Database Query:**
+```sql
+SELECT start_datum, eind_datum, periode_nummer
+FROM rode_lijnen
+ORDER BY start_datum
+```
 
 ---
 
@@ -203,12 +328,18 @@ CREATE TABLE gebruikers (
     rol TEXT CHECK(rol IN ('planner', 'teamlid')),
     is_reserve BOOLEAN DEFAULT 0,
     startweek_typedienst INTEGER,      -- 1 tot aantal_weken actieve typetabel
+    shift_voorkeuren TEXT,              -- v0.6.11: JSON prioriteit mapping
+    theme_voorkeur TEXT DEFAULT 'light', -- v0.6.12: 'light' of 'dark'
     is_actief BOOLEAN DEFAULT 1,
     aangemaakt_op TIMESTAMP,
     gedeactiveerd_op TIMESTAMP,
     laatste_login TIMESTAMP
 )
 ```
+
+**Nieuwe kolommen (v0.6.11 en v0.6.12):**
+- `shift_voorkeuren`: JSON string met shift prioriteiten (bijv. `{"1": "vroeg", "2": "typetabel"}`)
+- `theme_voorkeur`: Light/dark mode voorkeur per gebruiker
 
 ### Werkposten & Shift Codes (v0.6.4)
 

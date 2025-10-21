@@ -54,7 +54,7 @@ def init_database():
 def create_tables(cursor):
     """Maak alle database tabellen aan"""
 
-    # Gebruikers tabel (UPDATED met UUID)
+    # Gebruikers tabel (UPDATED met UUID, shift_voorkeuren v0.6.11, theme_voorkeur v0.6.12)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS gebruikers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,6 +65,8 @@ def create_tables(cursor):
             rol TEXT NOT NULL CHECK(rol IN ('planner', 'teamlid')),
             is_reserve BOOLEAN DEFAULT 0,
             startweek_typedienst INTEGER CHECK(startweek_typedienst BETWEEN 1 AND 6),
+            shift_voorkeuren TEXT,
+            theme_voorkeur TEXT DEFAULT 'light',
             is_actief BOOLEAN DEFAULT 1,
             aangemaakt_op TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             gedeactiveerd_op TIMESTAMP,
@@ -219,7 +221,7 @@ def create_tables(cursor):
         )
     """)
 
-    # Verlof aanvragen tabel
+    # Verlof aanvragen tabel (v0.6.10: toegekende_code_term toegevoegd)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS verlof_aanvragen (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -227,8 +229,9 @@ def create_tables(cursor):
             start_datum DATE NOT NULL,
             eind_datum DATE NOT NULL,
             aantal_dagen INTEGER NOT NULL,
-            status TEXT DEFAULT 'pending' 
+            status TEXT DEFAULT 'pending'
                    CHECK(status IN ('pending', 'goedgekeurd', 'geweigerd')),
+            toegekende_code_term TEXT,
             opmerking TEXT,
             aangevraagd_op TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             behandeld_door INTEGER,
@@ -236,6 +239,26 @@ def create_tables(cursor):
             reden_weigering TEXT,
             FOREIGN KEY (gebruiker_id) REFERENCES gebruikers(id),
             FOREIGN KEY (behandeld_door) REFERENCES gebruikers(id)
+        )
+    """)
+
+    # Verlof saldo tabel (v0.6.10: NIEUW)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS verlof_saldo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            gebruiker_id INTEGER NOT NULL,
+            jaar INTEGER NOT NULL,
+            verlof_totaal INTEGER DEFAULT 0,
+            verlof_overgedragen INTEGER DEFAULT 0,
+            verlof_opgenomen INTEGER DEFAULT 0,
+            kd_totaal INTEGER DEFAULT 0,
+            kd_overgedragen INTEGER DEFAULT 0,
+            kd_opgenomen INTEGER DEFAULT 0,
+            opmerking TEXT,
+            aangemaakt_op TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            gewijzigd_op TIMESTAMP,
+            FOREIGN KEY (gebruiker_id) REFERENCES gebruikers(id) ON DELETE CASCADE,
+            UNIQUE(gebruiker_id, jaar)
         )
     """)
 
@@ -336,10 +359,11 @@ def seed_interventie_werkpost(cursor):
 
 
 def seed_speciale_codes(cursor):
-    """Maak speciale codes aan (v0.6.4 structuur, v0.6.7 met termen)"""
+    """Maak speciale codes aan (v0.6.4 structuur, v0.6.7 met termen, v0.6.10 + KD)"""
     codes = [
         # Code, Naam, Term, Telt_werkdag, Reset_12u, Breekt_reeks
         ('VV', 'Verlof', 'verlof', 1, 1, 0),
+        ('KD', 'Kompensatiedag', 'kompensatiedag', 1, 1, 0),
         ('RX', 'Zondagsrust', 'zondagrust', 0, 0, 1),
         ('CX', 'Zaterdagsrust', 'zaterdagrust', 0, 0, 1),
         ('Z', 'Ziek', 'ziek', 0, 1, 1),
@@ -358,7 +382,7 @@ def seed_speciale_codes(cursor):
         VALUES (?, ?, ?, ?, ?, ?)
     """, codes)
 
-    print(f"  ✓ {len(codes)} speciale codes aangemaakt (5 met systeem-termen)")
+    print(f"  ✓ {len(codes)} speciale codes aangemaakt (6 met systeem-termen)")
 
 
 def seed_hr_regels(cursor):

@@ -2,6 +2,7 @@
 """
 Main entry point voor Planning Tool
 FIXED: Signal namen + type hints + instance attributes
+UPDATED: Dark mode support met theme toggle (v0.6.12: per gebruiker)
 """
 import sys
 from typing import Dict, Any, Optional
@@ -13,6 +14,7 @@ from gui.screens.dashboard_screen import DashboardScreen
 from gui.screens.feestdagen_screen import FeestdagenScherm
 from gui.screens.gebruikersbeheer_screen import GebruikersbeheerScreen
 from gui.screens.mijn_planning_screen import MijnPlanningScreen
+from gui.styles import ThemeManager, Colors
 
 
 class MainWindow(QMainWindow):
@@ -27,6 +29,9 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Planning Tool")
         self.resize(1000, 700)
+
+        # Start altijd met light mode (login scherm)
+        ThemeManager.set_theme('light')
 
         # Globale F1 shortcut voor handleiding
         self.help_shortcut = QShortcut(QKeySequence("F1"), self)
@@ -56,10 +61,25 @@ class MainWindow(QMainWindow):
             if current:
                 current.deleteLater()
 
+    def rebuild_dashboard(self) -> None:
+        """Rebuild dashboard met huidige theme (gebruikt na theme toggle)"""
+        # Verwijder huidig dashboard
+        current = self.stack.currentWidget()
+        if current:
+            self.stack.removeWidget(current)
+            current.deleteLater()
+
+        # Maak nieuw dashboard
+        self.show_dashboard()
+
     def show_dashboard(self) -> None:
         """Toon dashboard"""
         if not self.current_user:
             return
+
+        # Laad theme voorkeur van gebruiker
+        self.load_theme_preference()
+        self.apply_theme()
 
         dashboard = DashboardScreen(self.current_user)
 
@@ -77,6 +97,7 @@ class MainWindow(QMainWindow):
         dashboard.planning_editor_clicked.connect(self.on_planning_editor_clicked)  # type: ignore
         dashboard.verlof_aanvragen_clicked.connect(self.on_verlof_aanvragen_clicked)  # type: ignore
         dashboard.verlof_goedkeuring_clicked.connect(self.on_verlof_goedkeuring_clicked)  # type: ignore
+        dashboard.verlof_saldo_beheer_clicked.connect(self.on_verlof_saldo_beheer_clicked)  # type: ignore
 
         self.stack.addWidget(dashboard)
         self.stack.setCurrentWidget(dashboard)
@@ -99,10 +120,14 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(scherm)
 
     def on_voorkeuren_clicked(self) -> None:
-        """Open voorkeuren scherm (TODO)"""
-        if self.current_user:
-            print(f"Voorkeuren clicked - User: {self.current_user['naam']}")
-        # TODO: Implementeer
+        """Open voorkeuren scherm"""
+        if not self.current_user:
+            return
+
+        from gui.screens.voorkeuren_screen import VoorkeurenScreen
+        scherm = VoorkeurenScreen(self.terug, self.current_user)
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
 
     # Handlers voor Instellingen tab
     def on_hr_regels_clicked(self) -> None:
@@ -142,9 +167,24 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(scherm)
         self.stack.setCurrentWidget(scherm)
 
+    def on_verlof_saldo_beheer_clicked(self) -> None:
+        """Open verlof & KD saldo beheer scherm"""
+        if not self.current_user:
+            return
+
+        from gui.screens.verlof_saldo_beheer_screen import VerlofSaldoBeheerScreen
+        scherm = VerlofSaldoBeheerScreen(self.terug)
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
+
     def on_logout(self) -> None:
         """Uitloggen"""
         self.current_user = None
+
+        # Reset naar light mode voor login scherm
+        ThemeManager.set_theme('light')
+        self.apply_theme()
+
         # Verwijder alle widgets behalve login
         while self.stack.count() > 1:
             widget = self.stack.widget(1)
@@ -216,6 +256,109 @@ class MainWindow(QMainWindow):
         dialog = HandleidingDialog(self)
         dialog.exec()
 
+    def load_theme_preference(self) -> None:
+        """Laad theme voorkeur van ingelogde gebruiker uit database"""
+        if not self.current_user:
+            # Geen gebruiker ingelogd: gebruik light mode (login scherm)
+            ThemeManager.set_theme('light')
+            return
+
+        try:
+            from database.connection import get_connection
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT theme_voorkeur
+                FROM gebruikers
+                WHERE id = ?
+            """, (self.current_user['id'],))
+
+            result = cursor.fetchone()
+            conn.close()
+
+            if result and result['theme_voorkeur']:
+                theme = result['theme_voorkeur']
+                ThemeManager.set_theme(theme)
+            else:
+                # Default naar light
+                ThemeManager.set_theme('light')
+
+        except Exception as e:
+            print(f"Kon theme preference niet laden: {e}")
+            ThemeManager.set_theme('light')
+
+    def save_theme_preference(self, theme: str) -> None:
+        """Sla theme voorkeur op van ingelogde gebruiker in database"""
+        if not self.current_user:
+            return
+
+        try:
+            from database.connection import get_connection
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                UPDATE gebruikers
+                SET theme_voorkeur = ?
+                WHERE id = ?
+            """, (theme, self.current_user['id']))
+
+            conn.commit()
+            conn.close()
+
+        except Exception as e:
+            print(f"Kon theme preference niet opslaan: {e}")
+
+    def apply_theme(self) -> None:
+        """Pas huidig thema toe op de hele applicatie (alleen bij startup en dashboard toggle)"""
+        # Update globale stylesheet
+        app = QApplication.instance()
+        if app:
+            app.setStyleSheet(f"""
+                QMainWindow {{
+                    background-color: {Colors.BG_WHITE};
+                }}
+                QWidget {{
+                    font-family: Arial, sans-serif;
+                    background-color: {Colors.BG_WHITE};
+                    color: {Colors.TEXT_PRIMARY};
+                }}
+                QMessageBox {{
+                    background-color: {Colors.BG_WHITE};
+                }}
+                QDialog {{
+                    background-color: {Colors.BG_WHITE};
+                }}
+                QCheckBox {{
+                    color: {Colors.TEXT_PRIMARY};
+                    spacing: 5px;
+                }}
+                QCheckBox::indicator {{
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid {Colors.BORDER_DARK};
+                    border-radius: 3px;
+                    background-color: {Colors.BG_WHITE};
+                }}
+                QCheckBox::indicator:hover {{
+                    border-color: {Colors.PRIMARY};
+                }}
+                QCheckBox::indicator:checked {{
+                    background-color: {Colors.PRIMARY};
+                    border-color: {Colors.PRIMARY};
+                }}
+                QCheckBox::indicator:unchecked {{
+                    background-color: {Colors.BG_WHITE};
+                    border-color: {Colors.BORDER_DARK};
+                }}
+            """)
+
+        # Rebuild dashboard (theme toggle alleen beschikbaar in dashboard)
+        current_widget = self.stack.currentWidget()
+        if current_widget and hasattr(current_widget, 'user_data'):
+            self.rebuild_dashboard()
+
 
 def main() -> None:
     """Main entry point"""
@@ -225,17 +368,12 @@ def main() -> None:
     # Start app
     app = QApplication(sys.argv)
 
-    # Globale stylesheet
-    app.setStyleSheet("""
-        QMainWindow {
-            background-color: white;
-        }
-        QWidget {
-            font-family: Arial, sans-serif;
-        }
-    """)
-
+    # Maak window (theme wordt geladen in __init__)
     window = MainWindow()
+
+    # Pas initieel thema toe
+    window.apply_theme()
+
     window.show()
     sys.exit(app.exec())
 

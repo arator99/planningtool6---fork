@@ -2,12 +2,30 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## IMPORTANT: Session Workflow
+
+**AT THE START OF EACH SESSION:**
+1. **READ `DEV_NOTES.md` FIRST** - Contains current development status, recent changes, known issues, and next priorities
+2. **READ `DEVELOPMENT_GUIDE.md` SECOND** - Contains technical architecture, coding patterns, and implementation details (~800 lines)
+3. **UNDERSTAND CURRENT STATE** - Check versie nummer, status, en openstaande taken before starting work
+
+**AT THE END OF EACH SESSION:**
+1. **UPDATE `DEV_NOTES.md`** - Add session notes, completed tasks, decisions made, and issues encountered
+2. **UPDATE `DEVELOPMENT_GUIDE.md`** - Add new patterns, architectural changes, or technical details if relevant
+3. **UPDATE VERSION** - Increment version number following the pattern below
+
+**Version Numbering:**
+- Pattern: `0.6.X` where X increments sequentially
+- Examples: `0.6.9` → `0.6.10` → `0.6.11` → `0.6.12`
+- Major features may increment to `0.7.0`, `0.8.0`, etc.
+- Release 1.0 planned for December 2025
+
 ## Project Overview
 
 **Planning Tool** - A shift scheduling application for self-rostering teams, built with Python and PyQt6. The application manages team schedules, leave requests, shift codes, and schedule templates (typetabellen) for shift-based work environments.
 
-**Current Version:** 0.6.7 (Beta)
-**Status:** Active development - Term-based system for special codes
+**Current Version:** 0.6.12 (Beta)
+**Status:** Active development - Theme Per Gebruiker + Shift Voorkeuren (Compleet)
 
 ## Running the Application
 
@@ -16,6 +34,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 python main.py
 
 # Run database migrations (if upgrading)
+python migratie_theme_per_gebruiker.py  # v0.6.11 → v0.6.12 (theme per gebruiker)
+python migratie_shift_voorkeuren.py      # v0.6.10 → v0.6.11 (shift voorkeuren)
+python migratie_verlof_saldo.py          # v0.6.9 → v0.6.10 (verlof & KD saldo)
+python migratie_rode_lijnen_config.py    # v0.6.7 → v0.6.8 (rode lijnen config)
 python migratie_systeem_termen.py        # v0.6.6 → v0.6.7 (term-based codes)
 python migratie_typetabel_versioned.py   # v0.6.5 → v0.6.6 (typetabel system)
 python database_shift_codes_migration.py # Earlier → v0.6.4+ (shift codes)
@@ -35,23 +57,32 @@ python database_shift_codes_migration.py # Earlier → v0.6.4+ (shift codes)
 - All tables use soft delete pattern (is_actief flag + timestamps)
 
 **Key Tables:**
-- `gebruikers` - Users with UUID-based identification
+- `gebruikers` - Users with UUID-based identification (kolom: `volledige_naam`, niet `naam`)
 - `typetabel_versies` + `typetabel_data` - Versioned schedule templates (v0.6.6)
 - `werkposten` + `shift_codes` - Team-specific shift codes
 - `speciale_codes` - Global codes with optional term field (v0.6.7)
-  - System codes: verlof, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting
+  - System codes: verlof, kompensatiedag, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting (v0.6.10)
   - Free codes: VD, RDS, TCR, SCR, T, etc.
 - `planning` - Daily schedule assignments
-- `verlof_aanvragen` - Leave requests with approval workflow
-- `feestdagen` - Holidays (fixed and variable)
+- `verlof_aanvragen` - Leave requests with approval workflow (v0.6.10: + `toegekende_code_term`)
+- `verlof_saldo` - Yearly leave and KD balances per user (v0.6.10: NIEUW)
+- `feestdagen` - Holidays (fixed and variable, GEEN `is_actief` kolom)
 - `rode_lijnen` - 28-day HR cycles
+- `rode_lijnen_config` - Versioned configuration for HR cycles (v0.6.8)
 
 ### GUI Layer (PyQt6)
 - **Entry point:** `main.py` with QStackedWidget for screen navigation
 - **Screens:** Located in `gui/screens/` - full-page views
 - **Dialogs:** Located in `gui/dialogs/` - modal dialogs
 - **Widgets:** Located in `gui/widgets/` - reusable components
-- **Styling:** Centralized in `gui/styles.py` (Styles, Colors, Fonts, Dimensions)
+- **Styling:** Centralized in `gui/styles.py` (Styles, Colors, Fonts, Dimensions, ThemeManager)
+
+**Theme System (v0.6.9):**
+- **ThemeManager**: Singleton class for theme state (`_current_theme`)
+- **Colors class**: Dynamic palette with `_LIGHT_THEME` and `_DARK_THEME` dictionaries
+- **Theme persistence**: Saved in `data/theme_preference.json`
+- **Dashboard rebuild**: On theme toggle, dashboard is rebuilt for correct styling
+- **ThemeToggleWidget**: Visual toggle component with sun/moon icons (only in dashboard)
 
 **Navigation Pattern:**
 - Main window uses QStackedWidget
@@ -68,6 +99,21 @@ python database_shift_codes_migration.py # Earlier → v0.6.4+ (shift codes)
 ### Services Layer
 - `services/data_ensure_service.py` - Auto-generation of holidays and HR cycles
 - `services/term_code_service.py` - Term-to-code mapping with cache (v0.6.7)
+- `services/verlof_saldo_service.py` - Leave and KD balance management (v0.6.10)
+
+### Grid Kalenders (v0.6.9)
+**Feestdagen Loading:**
+- `load_feestdagen_extended()` - Loads holidays for 3 years (previous, current, next)
+- Required for buffer days (8 days before/after month) in PlannerGridKalender
+- Auto-generates missing holidays via `ensure_jaar_data()`
+
+**Rode Lijnen Visualisatie:**
+- `load_rode_lijnen()` - Loads all HR cycle start dates into dictionary
+- `{datum_str: periode_nummer}` mapping for O(1) lookup performance
+- Timestamp stripping: `2024-07-28T00:00:00` → `2024-07-28`
+- Visual marker: 4px red left border on column start of new period
+- Tooltip: "Start Rode Lijn Periode X"
+- Implemented in both `PlannerGridKalender` and `TeamlidGridKalender`
 
 ## Core Concepts
 
@@ -82,10 +128,34 @@ A **typetabel** is a repeating schedule pattern (1-52 weeks) used to auto-genera
 Two-tier system:
 1. **Werkposten** (Work Posts) - Team-specific shift definitions with 3x4 grid (day_type × shift_type)
 2. **Speciale Codes** - Global codes with term-based system (v0.6.7)
-   - **System codes** (protected): verlof, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting
+   - **System codes** (protected): verlof, kompensatiedag, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting (6 terms sinds v0.6.10)
    - **Free codes**: VD, RDS, TCR, SCR, T, etc.
-   - Codes can be renamed (VV→VL) but terms are fixed
+   - Codes can be renamed (VV→VL, KD→CD) but terms are fixed
    - System uses TermCodeService for dynamic lookups
+
+### Verlof & KD Saldo Systeem (v0.6.10)
+**Admin beheer:**
+- Jaarlijks contingent per gebruiker (handmatig input voor deeltijders)
+- Overdracht management (VV vervalt 1 mei, KD max 35 dagen)
+- Nieuw jaar bulk aanmaken functie
+- Opmerking veld voor notities (bijv. "80% deeltijd")
+
+**Teamlid view:**
+- VerlofSaldoWidget toont eigen saldo (VV en KD)
+- Specifieke labels: "Overdracht uit vorig jaar" (VV) vs "Overdracht uit voorgaande jaren" (KD)
+- Warning countdown voor vervaldatum overgedragen verlof (1 mei)
+- Auto-refresh na nieuwe aanvraag
+
+**Planner workflow:**
+- VerlofTypeDialog bij goedkeuring: kies VV of KD
+- Real-time saldo preview met kleurcodering (rood/geel/groen)
+- Planning records gegenereerd met gekozen code
+- Auto-sync saldo na goedkeuring
+
+**Business rules:**
+- Opgenomen dagen auto-berekend uit goedgekeurde aanvragen (term-based)
+- Negatief saldo toegestaan (wordt schuld volgend jaar)
+- Teamlid vraagt "verlof", planner beslist VV of KD
 
 **Time Notation Parser** - Flexible formats:
 - `6-14` → `06:00-14:00` (shortcut for full hours)
@@ -187,7 +257,7 @@ cursor.execute("""
 
 **Always use centralized styles:**
 ```python
-from gui.styles import Styles, Colors, Fonts, Dimensions, TableConfig
+from gui.styles import Styles, Colors, Fonts, Dimensions, TableConfig, ThemeManager
 
 # Buttons
 btn.setStyleSheet(Styles.button_primary())
@@ -198,6 +268,10 @@ input.setStyleSheet(Styles.input_field())
 
 # Tables
 TableConfig.setup_table_widget(table, row_height=50)
+
+# Dynamic colors (v0.6.9 - theme aware)
+background = Colors.BG_WHITE  # Automatically adapts to current theme
+text_color = Colors.TEXT_PRIMARY  # Changes between light/dark mode
 ```
 
 **Common button pattern:**
@@ -234,6 +308,35 @@ class MyWidget(QWidget):
 **Problem:** Admin account appears in user calendars
 **Solution:** Filter with `WHERE gebruikersnaam != 'admin'`
 
+### Calendar Widget Columns (v0.6.9)
+**Problem:** Right column (Sunday) partially cut off in QCalendarWidget
+**Solution:** Set minimum width and item sizes:
+```python
+calendar.setMinimumWidth(300)
+calendar.setStyleSheet("""
+    QAbstractItemView::item {
+        min-width: 36px;
+        max-width: 36px;
+        min-height: 28px;
+    }
+""")
+```
+
+### Theme Switching (v0.6.9)
+**Problem:** Widget styles don't update when theme changes
+**Solution:** Dashboard rebuild strategy:
+```python
+# In main.py
+def rebuild_dashboard(self):
+    """Rebuild dashboard met huidige theme"""
+    current = self.stack.currentWidget()
+    if current:
+        self.stack.removeWidget(current)
+        current.deleteLater()
+    self.show_dashboard()
+```
+**Note:** Theme toggle only available in dashboard. Other screens automatically use selected theme on load.
+
 ## Database Migrations
 
 When schema changes are needed:
@@ -258,15 +361,25 @@ if 'versie_naam' not in columns:
 - `database/connection.py` - Database initialization and schema
 
 **Core Screens:**
-- `gui/screens/dashboard_screen.py` - Main menu with role-based tabs
+- `gui/screens/dashboard_screen.py` - Main menu with role-based tabs (theme toggle v0.6.9)
 - `gui/screens/planning_editor_screen.py` - Schedule editor
 - `gui/screens/typetabel_beheer_screen.py` - Template management (v0.6.6)
 - `gui/screens/gebruikersbeheer_screen.py` - User management
+- `gui/screens/verlof_aanvragen_screen.py` - Leave requests (saldo widget + layout fixes v0.6.10)
+- `gui/screens/verlof_goedkeuring_screen.py` - Leave approval (type selection v0.6.10)
+- `gui/screens/verlof_saldo_beheer_screen.py` - Leave balance management (v0.6.10)
+- `gui/screens/rode_lijnen_beheer_screen.py` - HR cycles config (v0.6.8)
 
 **Reusable Components:**
 - `gui/widgets/grid_kalender_base.py` - Base calendar widget
-- `gui/widgets/planner_grid_kalender.py` - Planner calendar view
-- `gui/styles.py` - All styling constants
+- `gui/widgets/planner_grid_kalender.py` - Planner calendar view (feestdagen extended + rode lijnen v0.6.9)
+- `gui/widgets/teamlid_grid_kalender.py` - Teamlid calendar view (rode lijnen v0.6.9)
+- `gui/widgets/verlof_saldo_widget.py` - Leave balance display widget (v0.6.10)
+- `gui/widgets/theme_toggle_widget.py` - Theme toggle component (v0.6.9)
+- `gui/styles.py` - All styling constants (ThemeManager + dynamic Colors v0.6.9)
+
+**Dialogs:**
+- `gui/dialogs/verlof_saldo_bewerken_dialog.py` - Edit user leave balance (v0.6.10)
 
 **Documentation:**
 - `PROJECT_INFO.md` - User-facing documentation
@@ -285,5 +398,22 @@ if 'versie_naam' not in columns:
 
 **Known Limitations:**
 - Network latency when database on network drive
-- Filter state resets on month navigation in calendars
 - Typetabel activation not yet implemented (next priority)
+- Theme toggle only available in dashboard (v0.6.9)
+- QCalendarWidget behouden light mode styling (Qt limitation v0.6.9)
+- Geen automatische cleanup overgedragen verlof op 1 mei (v0.6.10)
+
+**v0.6.10 Features Completed:**
+- ✅ Complete verlof & KD saldo tracking systeem
+- ✅ Admin: contingent input, overdracht management, nieuw jaar bulk aanmaken
+- ✅ Teamlid: saldo widget in verlof aanvragen scherm
+- ✅ Planner: type selectie (VV/KD) bij goedkeuring met saldo preview
+- ✅ Auto-sync saldo na goedkeuring
+- ✅ Term-based queries voor code-onafhankelijk systeem
+- ✅ UI/UX: "t/m:" label, specifieke overdracht teksten, compactere layouts
+
+**v0.6.9 Features Completed:**
+- ✅ Dark mode with theme toggle
+- ✅ Rode lijnen visualisatie in grid kalenders
+- ✅ Feestdagen extended loading (3 years)
+- ✅ Calendar widget column fix

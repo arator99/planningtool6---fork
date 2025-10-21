@@ -15,6 +15,7 @@ CACHE:
 
 VERPLICHTE TERMEN:
 - verlof (standaard: VV)
+- kompensatiedag (standaard: KD)
 - zondagrust (standaard: RX)
 - zaterdagrust (standaard: CX)
 - ziek (standaard: Z)
@@ -36,6 +37,7 @@ class TermCodeService:
     # Fallback codes als term niet gevonden wordt
     _FALLBACK_CODES = {
         'verlof': 'VV',
+        'kompensatiedag': 'KD',
         'zondagrust': 'RX',
         'zaterdagrust': 'CX',
         'ziek': 'Z',
@@ -48,7 +50,7 @@ class TermCodeService:
         Haal code op voor een systeemterm
 
         Args:
-            term: Systeem term (verlof, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting)
+            term: Systeem term (verlof, kompensatiedag, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting)
 
         Returns:
             Code string (bijv. 'VV', 'RX', etc.)

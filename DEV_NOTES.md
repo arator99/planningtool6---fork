@@ -1,10 +1,10 @@
 # DEV NOTES
 Active Development Notes & Session Logs
 
-## CURRENT VERSION: 0.6.8
+## CURRENT VERSION: 0.6.12
 
-**Last Updated:** 19 Oktober 2025
-**Status:** Beta - Actieve Ontwikkeling (Rode Lijnen Config & UX Verbeteringen)
+**Last Updated:** 21 Oktober 2025
+**Status:** Beta - Actieve Ontwikkeling (Theme Per Gebruiker + Shift Voorkeuren Compleet)
 
 ---
 
@@ -38,6 +38,325 @@ Active Development Notes & Session Logs
 ---
 
 ## 📝 RECENTE SESSIES
+
+### Sessie 21 Oktober 2025 (Deel 2) - Theme Per Gebruiker (v0.6.12)
+**Duur:** ~1 uur
+**Focus:** Theme voorkeur van globaal naar per gebruiker verplaatsen
+
+**Voltooid:**
+- ✅ **Database Migratie v0.6.11 → v0.6.12**
+  - Nieuwe kolom: `gebruikers.theme_voorkeur` (TEXT, default 'light')
+  - Migratie van oude globale theme preference naar alle gebruikers
+  - Migratie script: `migratie_theme_per_gebruiker.py`
+  - Oude `data/theme_preference.json` verwijderd
+
+- ✅ **Main.py Theme Management Refactor**
+  - `load_theme_preference()`: Laadt theme uit database per gebruiker
+  - `save_theme_preference()`: Slaat theme op in database per gebruiker
+  - Login scherm: Altijd light mode (geen gebruiker ingelogd)
+  - Na login: Gebruiker's theme geladen en toegepast
+  - Logout fix: Reset naar light mode voor login scherm
+
+- ✅ **Connection.py Schema Update**
+  - `theme_voorkeur TEXT DEFAULT 'light'` toegevoegd aan gebruikers tabel
+  - Seed functie up-to-date voor schone installs
+
+- ✅ **Code Cleanup**
+  - `THEME_PREF_FILE` constant verwijderd
+  - Onnodige imports (json, os) verwijderd uit main.py
+  - Globale theme file systeem volledig vervangen door database
+
+**Probleem Opgelost:**
+- Bug: Login scherm toonde dark theme na logout van dark mode gebruiker
+- Fix: `on_logout()` reset theme naar light + apply_theme() call
+
+**Technische Beslissingen:**
+- Database opslag ipv JSON file (consistenter met rest van applicatie)
+- Per gebruiker ipv globaal (elke gebruiker eigen voorkeur)
+- Login scherm altijd light (geen verwarring, standaard look)
+
+**User Experience:**
+- Jan kiest dark mode → opgeslagen in database
+- Jan logt uit → login scherm wordt light
+- Piet logt in met light voorkeur → ziet light mode
+- Elke gebruiker behoudt eigen theme tussen sessies
+
+**Testing:**
+- ✅ Theme opslaan per gebruiker
+- ✅ Theme laden bij login
+- ✅ Theme resetten bij logout
+- ✅ Login scherm altijd light
+- ✅ Migratie van oude globale voorkeur
+- ✅ Meerdere gebruikers met verschillende themes
+
+**Nieuwe Bestanden:**
+- `migratie_theme_per_gebruiker.py` - Database migratie script
+
+**Aangepaste Bestanden:**
+- `main.py` - Theme loading/saving per gebruiker + logout fix
+- `database/connection.py` - theme_voorkeur kolom in schema
+- `CLAUDE.md` - Versie 0.6.12, migratie lijst
+- `DEV_NOTES.md` - Deze sessie
+
+**Known Issues:**
+Geen bekende issues.
+
+---
+
+### Sessie 21 Oktober 2025 (Deel 1) - Shift Voorkeuren Systeem (v0.6.11)
+**Duur:** ~1.5 uur
+**Focus:** Shift voorkeuren voor gebruikers - input voor toekomstige automatische planning
+
+**Voltooid:**
+- ✅ **Database Migratie v0.6.10 → v0.6.11**
+  - Nieuwe kolom: `gebruikers.shift_voorkeuren` (TEXT, JSON format)
+  - Opslag voor prioriteit mapping van shift types
+  - Migratie script: `migratie_shift_voorkeuren.py`
+  - Idempotent en veilig herhaalbaar
+
+- ✅ **VoorkeurenScreen Implementatie**
+  - Dashboard → Persoonlijk → Mijn Voorkeuren
+  - 4 ComboBoxes voor shift types: Vroeg, Laat, Nacht, Typetabel
+  - Prioriteit selectie: 1 (hoogste) tot 4 (laagste), of geen voorkeur
+  - Live preview van gekozen volgorde tijdens invoer
+  - Validatie: voorkomt dubbele prioriteiten
+  - Reset functionaliteit naar standaard (leeg)
+
+- ✅ **JSON Data Model**
+  - Format: `{"1": "vroeg", "2": "typetabel", "3": "laat"}`
+  - Reverse mapping voor UI display (van value→key naar key→value)
+  - NULL = geen voorkeuren ingesteld
+  - Flexibel: 1-4 voorkeuren mogelijk, rest mag leeg
+
+- ✅ **UI/UX Features**
+  - Info box met duidelijke uitleg hoe systeem werkt
+  - Live preview: "1. Vroeg > 2. Typetabel > 3. Laat"
+  - Kleurcodering: groen = voorkeuren actief, grijs = geen voorkeuren
+  - Beschrijvingen per shift type
+  - "Opslaan" en "Reset" knoppen
+
+- ✅ **Main.py Handler**
+  - `on_voorkeuren_clicked()` geïmplementeerd
+  - Navigation: dashboard → voorkeuren → terug
+  - User data meegegeven aan scherm
+
+- ✅ **Database Connection Update**
+  - `create_tables()` aangepast met shift_voorkeuren kolom
+  - Seed functie up-to-date voor schone installs
+
+**Technische Beslissingen:**
+- JSON storage ipv aparte tabel (simpeler, flexibeler)
+- ComboBox UI ipv drag-and-drop (duidelijker, minder complex)
+- Geen verplichting alle opties in te vullen (gebruiksvriendelijk)
+- Validatie op duplicaten (voorkomt fouten)
+- Live preview voor directe feedback
+
+**Use Cases:**
+1. Teamlid met voorkeur voor vroege diensten: Vroeg=1, Typetabel=2, rest leeg
+2. Teamlid die alleen nachtdiensten wil: Nacht=1, rest leeg
+3. Teamlid die typetabel volgt: Typetabel=1, rest leeg
+4. Teamlid zonder voorkeuren: alles leeg (default gedrag)
+
+**Toekomstig Gebruik:**
+- Input voor automatische planning generatie (volgende sprint)
+- Planning algoritme respecteert voorkeuren waar mogelijk
+- Balans tussen voorkeuren en bedrijfsbehoeften
+- Rekening houden met HR regels
+
+**Testing:**
+- ✅ Voorkeuren opslaan en laden
+- ✅ Live preview updates
+- ✅ Validatie duplicaten
+- ✅ Reset functionaliteit
+- ✅ Database migratie
+- ✅ UI layout en styling
+- ✅ Navigation flow
+
+**Nieuwe Bestanden:**
+- `migratie_shift_voorkeuren.py` - Database migratie script
+- `gui/screens/voorkeuren_screen.py` - Voorkeuren scherm (300+ lines)
+- `RELEASE_NOTES_v0.6.11.md` - Release notes
+
+**Aangepaste Bestanden:**
+- `database/connection.py` - shift_voorkeuren kolom in create_tables()
+- `main.py` - on_voorkeuren_clicked() handler
+- `CLAUDE.md` - Versie 0.6.11, migratie lijst
+- `DEV_NOTES.md` - Deze sessie
+
+**Known Issues:**
+Geen bekende issues.
+
+---
+
+### Sessie 20 Oktober 2025 (Deel 2) - Verlof & KD Saldo Systeem (v0.6.10)
+**Duur:** ~2 uur
+**Focus:** Complete verlof en kompensatiedag saldo tracking systeem
+
+**Voltooid:**
+- ✅ **Database Migratie v0.6.9 → v0.6.10**
+  - Nieuwe tabel: `verlof_saldo` voor tracking van VV en KD per gebruiker/jaar
+  - Kolommen: verlof_totaal, verlof_overgedragen, verlof_opgenomen, kd_totaal, kd_overgedragen, kd_opgenomen
+  - Nieuwe speciale code: KD met term 'kompensatiedag' (6e systeem term)
+  - Nieuwe kolom: `verlof_aanvragen.toegekende_code_term` voor planner's type keuze
+  - 3 nieuwe HR regels: vervaldatum overgedragen verlof (1 mei), max KD overdracht (35 dagen)
+  - Bestand: `migratie_verlof_saldo.py`
+
+- ✅ **Service Layer: VerlofSaldoService**
+  - `get_saldo()`: Haalt saldo op met real-time berekening van opgenomen dagen
+  - `bereken_opgenomen_uit_aanvragen()`: Term-based query op goedgekeurde aanvragen
+  - `_bereken_werkdagen()`: Rekening met weekends en feestdagen
+  - `check_voldoende_saldo()`: Validatie voor negatief saldo warning
+  - `sync_saldo_naar_database()`: Auto-sync na goedkeuring
+  - `get_alle_saldi()`: Admin overzicht alle gebruikers
+  - `maak_jaar_saldi_aan()`: Bulk aanmaken voor nieuw jaar
+  - Bestand: `services/verlof_saldo_service.py`
+
+- ✅ **Admin Scherm: Verlof Saldo Beheer**
+  - Overzicht alle gebruikers met VV en KD saldi per jaar
+  - Jaar selector (vorig, huidig, volgend jaar)
+  - Per gebruiker: totaal, overdracht, opgenomen, resterend (met rood voor negatief)
+  - Bewerken dialog met validatie (KD max 35 overdracht)
+  - "Nieuw Jaar Aanmaken" functie voor bulk setup
+  - Opmerking veld voor notities (bijv. "80% deeltijd")
+  - Bestanden: `gui/screens/verlof_saldo_beheer_screen.py`, `gui/dialogs/verlof_saldo_bewerken_dialog.py`
+
+- ✅ **Teamlid Widget: VerlofSaldoWidget**
+  - Read-only weergave van eigen saldo (VV en KD)
+  - Toon jaarlijks contingent, overdracht, opgenomen, resterend
+  - Specifieke labels: "Overdracht uit vorig jaar" (VV) vs "Overdracht uit voorgaande jaren" (KD)
+  - Warning voor overgedragen verlof vervaldatum (1 mei) met countdown
+  - Auto-refresh na nieuwe aanvraag
+  - Bestand: `gui/widgets/verlof_saldo_widget.py`
+
+- ✅ **Verlof Aanvragen Scherm Uitbreiding**
+  - HBoxLayout: formulier (2/3) + saldo widget (1/3)
+  - Verbeterde layout hiërarchie: SIZE_HEADING voor titel, SIZE_NORMAL voor labels
+  - Label gewijzigd: "Tot:" → "t/m:" (duidelijkheid over inclusief einddatum)
+  - Reden veld horizontaal naast label (compacter)
+  - Saldo refresh na succesvol indienen
+  - Bestand: `gui/screens/verlof_aanvragen_screen.py`
+
+- ✅ **Planner Goedkeuring: Type Selectie Dialog**
+  - VerlofTypeDialog bij goedkeuring: kies tussen VV of KD
+  - Real-time saldo preview met kleurcodering (rood/geel/groen)
+  - Toont resterend saldo en saldo na goedkeuring
+  - Dynamische code weergave via TermCodeService
+  - Planning records gegenereerd met gekozen code
+  - `toegekende_code_term` opgeslagen in verlof_aanvragen
+  - Auto-sync saldo na goedkeuring
+  - Bestand: `gui/screens/verlof_goedkeuring_screen.py` (VerlofTypeDialog class)
+
+- ✅ **Dashboard Integratie**
+  - Nieuw menu item "Verlof & KD Saldo Beheer" in Beheer tab
+  - Signal + handler in main.py
+
+- ✅ **Database Connection Updates**
+  - `seed_speciale_codes()`: KD code toegevoegd
+  - `create_tables()`: verlof_saldo tabel en toegekende_code_term kolom
+
+**Business Rules Geïmplementeerd:**
+- Verlof overdracht vervalt 1 mei (handmatig cleanup door admin)
+- KD overdracht max 35 dagen (validatie in dialog)
+- Negatief saldo toegestaan (wordt schuld voor volgend jaar)
+- Opgenomen dagen auto-berekend uit goedgekeurde aanvragen (niet handmatig)
+- Planner beslist VV of KD (teamlid vraagt "verlof" zonder type)
+
+**Technische Beslissingen:**
+- Term-based systeem: queries op 'verlof' en 'kompensatiedag' terms ipv codes
+- Real-time berekening van opgenomen dagen (niet cached in database)
+- Sync functie update database na elke goedkeuring
+- Manual input voor contingenten (ondersteunt deeltijders, verschillende regelingen)
+- HBoxLayout voor compacte formulieren (label naast input)
+
+**UI/UX Verbeteringen:**
+- "t/m:" label ipv "Tot:" voor duidelijkheid
+- Specifieke overdracht labels voor VV en KD
+- Saldo preview met kleurcodering in goedkeuring dialog
+- Compactere formulier layout met betere hiërarchie
+
+**Testing:**
+- Complete workflow getest: admin setup → teamlid aanvraag → planner goedkeuring → saldo sync
+- Saldo widget updates correct na aanvraag
+- Type dialog toont juiste saldi en kleuren
+- Planning records gegenereerd met juiste code
+
+**Migratie Script Iteraties:**
+- 8 fixes voor database schema verschillen (naam vs volledige_naam, kleur_hex, etc.)
+- Unicode/emoji verwijderd (Windows console compatibiliteit)
+- Idempotent script: kan meerdere keren draaien zonder errors
+
+**Known Issues:**
+- Geen automatische cleanup overgedragen verlof op 1 mei (handmatig door admin)
+- Geen notificatie systeem voor vervaldatum warnings
+
+---
+
+### Sessie 20 Oktober 2025 (Deel 1) - Dark Mode & Rode Lijnen Visualisatie (v0.6.9)
+**Duur:** ~3 uur
+**Focus:** Bug fixes, dark mode implementatie, en rode lijnen visualisatie
+
+**Voltooid:**
+- ✅ **Bug Fix: Calendar Widget Kolom Weergave**
+  - Verlof aanvragen kalender: rechtse kolom (zondag) viel gedeeltelijk weg
+  - Fix: `min-width: 36px` en `min-height: 28px` toegevoegd aan QAbstractItemView::item
+  - `setMinimumWidth(300)` voor gehele kalender widget
+  - Toegepast op beide start_datum en eind_datum kalenders
+  - Bestand: `gui/screens/verlof_aanvragen_screen.py`
+
+- ✅ **Bug Fix: Feestdagen Niet Herkend in Grid Kalender**
+  - Feestdagen buiten huidig jaar werden niet geladen voor buffer dagen
+  - Probleem: Buffer dagen (8 voor/na maand) vielen buiten feestdagen dataset
+  - Fix: `load_feestdagen_extended()` methode toegevoegd
+  - Laadt feestdagen voor 3 jaren: vorig, huidig, volgend jaar
+  - Auto-generatie via `ensure_jaar_data()` service
+  - Toegepast op beide PlannerGridKalender en TeamlidGridKalender
+  - Bestand: `gui/widgets/planner_grid_kalender.py`
+
+- ✅ **Feature: Dark Mode (Nachtmodus)**
+  - ThemeManager singleton class voor theme state management
+  - Colors class met _LIGHT_THEME en _DARK_THEME dictionaries
+  - Visuele ThemeToggleWidget met zon/maan iconen
+  - Dashboard rebuild strategie voor correcte theme switching
+  - Theme persistence via `data/theme_preference.json`
+  - MENU_BUTTON_BG/HOVER kleuren per theme (wit vs grijs)
+  - QCheckBox styling toegevoegd aan global stylesheet
+  - Alleen beschikbaar in dashboard (design choice)
+  - Bestanden:
+    - `gui/styles.py` - ThemeManager en Colors
+    - `main.py` - Theme loading/saving en apply logic
+    - `gui/screens/dashboard_screen.py` - Theme toggle integratie
+    - `gui/widgets/theme_toggle_widget.py` - NIEUW bestand
+    - `gui/dialogs/handleiding_dialog.py` - Theme info toegevoegd
+
+- ✅ **Feature: Rode Lijnen Visualisatie**
+  - Visuele weergave van 28-daagse HR cycli in grid kalenders
+  - Dikke rode linker border (4px, #dc3545) markeert periode start
+  - Doorlopende lijn van header tot data cellen
+  - Tooltip met periode nummer: "Start Rode Lijn Periode X"
+  - Timestamp stripping fix (2024-07-28T00:00:00 → 2024-07-28)
+  - Dictionary lookup voor snelle O(1) performance
+  - Toegepast op beide PlannerGridKalender en TeamlidGridKalender
+  - Bestanden:
+    - `gui/widgets/planner_grid_kalender.py` - load_rode_lijnen() methode
+    - `gui/widgets/teamlid_grid_kalender.py` - load_rode_lijnen() methode
+
+**Technische Beslissingen:**
+- Dashboard rebuild voor theme switching ipv widget refresh (betrouwbaarder)
+- Theme toggle alleen in dashboard (niet in andere schermen)
+- Rode lijnen data wordt geladen bij kalender init (niet on-demand)
+- Timestamp stripping via string split ipv datetime parsing (sneller)
+
+**Testing:**
+- Alle bugs getest en opgelost
+- Dark mode werkt in light en dark theme
+- Rode lijnen zichtbaar op correcte datums (19 okt, 16 nov 2025)
+- Theme persistence werkt bij herstart
+
+**Bekende Beperkingen:**
+- Calendar widgets (QCalendarWidget) behouden light mode styling (Qt limitation)
+- Theme toggle alleen in dashboard (andere schermen laden automatisch met gekozen theme)
+
+---
 
 ### Sessie 19 Oktober 2025 (DEEL 2) - Rode Lijnen Config & UX Verbeteringen (v0.6.8)
 **Duur:** ~4 uur

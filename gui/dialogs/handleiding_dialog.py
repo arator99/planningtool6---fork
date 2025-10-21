@@ -100,6 +100,8 @@ en valideren van roosters volgens HR-regels.
 |-------|---------|
 | **F1** | Deze handleiding openen (werkt in alle schermen) |
 
+**Tip:** Gebruik de theme toggle (☀ ● ☾) in het dashboard header om te wisselen tussen Light en Dark Mode.
+
 ---
 
 ## Rollen en Rechten

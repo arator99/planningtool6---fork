@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec file voor Planning Tool v0.6.6
+# PyInstaller spec file voor Planning Tool v0.6.9
 
 block_cipher = None
 
@@ -8,6 +8,10 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
+        # Include documentatie (nodig voor handleiding systeem)
+        ('PROJECT_INFO.md', '.'),
+        ('HANDLEIDING.md', '.'),
+
         # Include database (optioneel - kan ook leeg starten)
         # ('data/planning.db', 'data'),
 
@@ -38,7 +42,8 @@ a = Analysis(
         'gui.screens.verlof_aanvragen_screen',
         'gui.screens.verlof_goedkeuring_screen',
         'gui.screens.mijn_planning_screen',
-        'gui.screens.kalender_test_screen',
+        'gui.screens.hr_regels_beheer_screen',
+        'gui.screens.rode_lijnen_beheer_screen',
 
         # Dialogs
         'gui.dialogs.about_dialog',
@@ -47,15 +52,20 @@ a = Analysis(
         'gui.dialogs.shift_codes_grid_dialog',
         'gui.dialogs.typetabel_dialogs',
         'gui.dialogs.typetabel_editor_dialog',
+        'gui.dialogs.handleiding_dialog',
+        'gui.dialogs.hr_regel_edit_dialog',
+        'gui.dialogs.rode_lijnen_config_dialog',
 
         # Widgets
         'gui.widgets.grid_kalender_base',
         'gui.widgets.planner_grid_kalender',
         'gui.widgets.teamlid_grid_kalender',
+        'gui.widgets.theme_toggle_widget',
 
         # Database & Services
         'database.connection',
         'services.data_ensure_service',
+        'services.term_code_service',
     ],
     hookspath=[],
     hooksconfig={},

@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from gui.styles import Styles, Colors, Fonts, Dimensions
 from gui.dialogs.about_dialog import AboutDialog
+from gui.widgets.theme_toggle_widget import ThemeToggleWidget
 import bcrypt
 from database.connection import get_connection
 import sqlite3
@@ -34,6 +35,7 @@ class DashboardScreen(QWidget):
     planning_editor_clicked: pyqtSignal = pyqtSignal()  # NIEUW
     verlof_aanvragen_clicked: pyqtSignal = pyqtSignal()  # Voor teamleden
     verlof_goedkeuring_clicked: pyqtSignal = pyqtSignal()  # Voor planners
+    verlof_saldo_beheer_clicked: pyqtSignal = pyqtSignal()  # Voor admin - v0.6.10
 
 
     def __init__(self, user_data: Dict[str, Any]):
@@ -84,6 +86,11 @@ class DashboardScreen(QWidget):
 
         header_layout.addStretch()
 
+        # Theme toggle widget
+        self.theme_toggle = ThemeToggleWidget()
+        self.theme_toggle.theme_changed.connect(self.on_theme_changed)  # type: ignore
+        header_layout.addWidget(self.theme_toggle)
+
         # Handleiding knop
         handleiding_btn = QPushButton("Handleiding (F1)")
         handleiding_btn.setStyleSheet(Styles.button_secondary())
@@ -104,6 +111,17 @@ class DashboardScreen(QWidget):
         logout_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         logout_btn.clicked.connect(self.logout_signal.emit)  # type: ignore
         header_layout.addWidget(logout_btn)
+
+    def on_theme_changed(self, nieuwe_theme: str) -> None:
+        """Handle theme change van toggle widget"""
+        # Save theme preference via main window method
+        main_window = self.window()
+        if hasattr(main_window, 'save_theme_preference'):
+            main_window.save_theme_preference(nieuwe_theme)
+
+        # Apply theme via main window (rebuilds dashboard)
+        if hasattr(main_window, 'apply_theme'):
+            main_window.apply_theme()
 
     def show_about_dialog(self) -> None:
         """Toon About dialog"""
@@ -219,6 +237,11 @@ class DashboardScreen(QWidget):
         scroll_layout.addWidget(self.create_menu_button(
             "Gebruikersbeheer",
             "Beheer teamleden en hun toegang"
+        ))
+
+        scroll_layout.addWidget(self.create_menu_button(
+            "Verlof & KD Saldo",
+            "Beheer verlof en kompensatiedagen saldi"
         ))
 
         scroll_layout.addStretch()
@@ -412,6 +435,8 @@ class DashboardScreen(QWidget):
             self.verlof_aanvragen_clicked.emit()  # type: ignore
         elif title == "Verlof Goedkeuring":
             self.verlof_goedkeuring_clicked.emit()  # type: ignore
+        elif title == "Verlof & KD Saldo":
+            self.verlof_saldo_beheer_clicked.emit()  # type: ignore
 
 
 class WachtwoordWijzigenDialog(QDialog):

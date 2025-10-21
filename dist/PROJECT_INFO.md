@@ -2,15 +2,49 @@
 Roostersysteem voor Self-Rostering Teams
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.6 (Beta)
+**Huidige versie:** 0.6.8 (Beta)
 **Release datum:** Oktober 2025
-**Status:** In actieve ontwikkeling - Typetabel Beheer toegevoegd
+**Status:** In actieve ontwikkeling - Rode Lijnen Config & UX verbeteringen
 
 ---
 
 ## WAT IS NIEUW
 
-### Versie 0.6.6 (Oktober 2025) ⭐ NIEUW
+### Versie 0.6.8 (Oktober 2025) ⭐ NIEUW
+- ✅ **Rode Lijnen Config Beheer**
+  - Versioned configuratie systeem (actief_vanaf, actief_tot)
+  - UI scherm voor beheer rode lijnen configuratie
+  - Historiek bijhouden van configuratie wijzigingen
+  - Database migratie: `migratie_rode_lijnen_config.py`
+  - Data ensure service gebruikt nu config ipv hardcoded waarden
+
+- ✅ **UX Verbeteringen**
+  - Auto-maximize venster na login voor optimaal schermgebruik
+  - Window centreren bij logout
+  - Tab-based handleiding met F1 shortcut (Eerste Gebruik, Voor Planners, Voor Teamleden)
+  - Filter state behouden bij maand navigatie in kalenders
+  - Codes sidebar toegevoegd aan Mijn Planning scherm
+  - Grid stretching probleem opgelost met betere layout
+
+- ✅ **Keyboard Shortcuts**
+  - F1: Globale handleiding (alle schermen)
+  - F2: Shift codes helper in Planning Editor (was F1)
+
+- ✅ **Historiek Standaard Zichtbaar**
+  - HR Regels beheer toont historiek standaard
+  - Rode Lijnen beheer toont historiek standaard
+
+### Versie 0.6.7 (Oktober 2025)
+- ✅ **Term-based Systeem voor Speciale Codes**
+  - Systeemcodes beschermd tegen verwijdering (verlof, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting)
+  - Codes zelf blijven aanpasbaar (bijv. VV → VL voor verlof)
+  - Automatische functies gebruiken termen ipv hardcoded codes
+  - Visual indicators voor systeemcodes in UI
+  - Database migratie: `migratie_systeem_termen.py`
+  - TermCodeService met cache voor performance
+  - **Bugfix:** Verlofcode kan niet meer per ongeluk verwijderd worden
+
+### Versie 0.6.6 (Oktober 2025)
 - ✅ **Typetabel Beheer Systeem - Volledig operationeel**
   - Versioned systeem (Concept/Actief/Archief status)
   - TypetabelBeheerScreen met overzicht alle versies
@@ -48,6 +82,8 @@ Roostersysteem voor Self-Rostering Teams
 - Overzichtelijk menu met tabs
 - Verschillende opties voor planner en teamleden
 - Snelle navigatie
+- Tab-based handleiding (F1)
+- Auto-maximize na login
 
 **Gebruikersbeheer** (Planners)
 - Teamleden toevoegen en bewerken
@@ -282,6 +318,9 @@ Geen migratie nodig - automatisch correct aangemaakt.
 - Table layout crashes
 - Feestdagen bewerken
 - Typetabel seed conflict
+- Filter reset bij maand navigatie (v0.6.8)
+- Grid stretching op full-screen (v0.6.8)
+- F1 conflict met shift codes helper (v0.6.8)
 
 ### ⚠️ BEKEND
 - Netwerklatency bij gebruik vanaf netwerkschijf
@@ -297,8 +336,10 @@ Geen migratie nodig - automatisch correct aangemaakt.
 - ✅ Feestdagen beheer
 - ✅ Shift Codes beheer
 - ✅ Typetabel Beheer basis ⭐
+- ✅ HR Regels beheer ⭐
+- ✅ Rode Lijnen config beheer ⭐
+- ✅ Handleiding systeem ⭐
 - 🔨 Typetabel Activatie
-- 🔨 HR Regels beheer
 - 🔨 Planning Editor volledig
 - 🔨 Validatie systeem
 - 🔨 Export functionaliteit
@@ -336,6 +377,6 @@ Deze tool is voor **alle teams met self-rostering**, niet alleen interventie. He
 
 ---
 
-*Voor technische details: zie DEVELOPMENT_GUIDE.md*  
-*Laatste update: 18 Oktober 2025*  
-*Versie: 0.6.6*
+*Voor technische details: zie DEVELOPMENT_GUIDE.md*
+*Laatste update: 19 Oktober 2025*
+*Versie: 0.6.8*

@@ -310,36 +310,40 @@ class VerlofGoedkeuringScreen(QWidget):
         start_datum = datetime.strptime(aanvraag['start_datum'], '%Y-%m-%d').strftime('%d-%m-%Y')
         eind_datum = datetime.strptime(aanvraag['eind_datum'], '%Y-%m-%d').strftime('%d-%m-%Y')
 
-        # Bevestiging
-        reply = QMessageBox.question(
+        # Vraag planner om type te kiezen (VV of KD)
+        type_dialog = VerlofTypeDialog(
             self,
-            "Aanvraag Goedkeuren",
-            f"Verlof goedkeuren voor {aanvraag['volledige_naam']}?\n\n"
-            f"Periode: {start_datum} t/m {eind_datum}\n"
-            f"Dagen: {aanvraag['aantal_dagen']}\n\n"
-            f"VV wordt automatisch in de planning gezet.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            aanvraag['volledige_naam'],
+            start_datum,
+            eind_datum,
+            aanvraag['aantal_dagen'],
+            aanvraag['gebruiker_id']
         )
 
-        if reply != QMessageBox.StandardButton.Yes:
+        if type_dialog.exec() != QDialog.DialogCode.Accepted:
             return
+
+        # Haal gekozen type op (term)
+        code_term = type_dialog.get_code_term()
 
         try:
             conn = get_connection()
             cursor = conn.cursor()
 
-            # Update aanvraag status
+            # Update aanvraag status + toegekende_code_term
             cursor.execute("""
                 UPDATE verlof_aanvragen
                 SET status = 'goedgekeurd',
                     behandeld_door = ?,
-                    behandeld_op = CURRENT_TIMESTAMP
+                    behandeld_op = CURRENT_TIMESTAMP,
+                    toegekende_code_term = ?
                 WHERE id = ?
-            """, (self.planner_id, aanvraag['id']))
+            """, (self.planner_id, code_term, aanvraag['id']))
 
-            # Vul verlof in planning voor elke dag (gebruik term-based code)
-            verlof_code = TermCodeService.get_code_for_term('verlof')
+            # Haal code op basis van gekozen term
+            toegekende_code = TermCodeService.get_code_for_term(code_term)
 
+            # Vul planning voor elke dag met gekozen code
             start = datetime.strptime(aanvraag['start_datum'], '%Y-%m-%d')
             eind = datetime.strptime(aanvraag['eind_datum'], '%Y-%m-%d')
 
@@ -353,18 +357,25 @@ class VerlofGoedkeuringScreen(QWidget):
                     ON CONFLICT(gebruiker_id, datum)
                     DO UPDATE SET shift_code = ?
                     WHERE status = 'concept'
-                """, (aanvraag['gebruiker_id'], datum_str, verlof_code, verlof_code))
+                """, (aanvraag['gebruiker_id'], datum_str, toegekende_code, toegekende_code))
 
                 huidige += timedelta(days=1)
 
             conn.commit()
+
+            # Sync saldo
+            from services.verlof_saldo_service import VerlofSaldoService
+            jaar = start.year
+            VerlofSaldoService.sync_saldo_naar_database(aanvraag['gebruiker_id'], jaar)
+
             conn.close()
 
+            type_naam = "Verlof (VV)" if code_term == "verlof" else "Kompensatiedag (KD)"
             QMessageBox.information(
                 self,
                 "Succes",
-                f"Verlof goedgekeurd voor {aanvraag['volledige_naam']}!\n\n"
-                f"{verlof_code} is toegevoegd aan de planning."
+                f"{type_naam} goedgekeurd voor {aanvraag['volledige_naam']}!\n\n"
+                f"{toegekende_code} is toegevoegd aan de planning."
             )
 
             # Herlaad tabel
@@ -410,6 +421,137 @@ class VerlofGoedkeuringScreen(QWidget):
 
         except sqlite3.Error as e:
             QMessageBox.critical(self, "Database Fout", f"Kon aanvraag niet weigeren:\n{e}")
+
+
+class VerlofTypeDialog(QDialog):
+    """Dialog voor kiezen verlof type (VV of KD)"""
+
+    def __init__(self, parent: QWidget, naam: str, start_datum: str,
+                 eind_datum: str, dagen: int, gebruiker_id: int):
+        super().__init__(parent)
+        self.naam = naam
+        self.start_datum = start_datum
+        self.eind_datum = eind_datum
+        self.dagen = dagen
+        self.gebruiker_id = gebruiker_id
+
+        self.setWindowTitle("Type Verlof Kiezen")
+        self.setModal(True)
+        self.setMinimumWidth(550)
+
+        # Instance attributes
+        self.type_combo: QComboBox = QComboBox()
+        self.saldo_label: QLabel = QLabel()
+
+        self.init_ui()
+        self.load_saldo()
+
+    def init_ui(self) -> None:
+        """Initialiseer UI"""
+        layout = QVBoxLayout(self)
+        layout.setSpacing(Dimensions.SPACING_MEDIUM)
+
+        # Titel
+        titel = QLabel(f"Verlof goedkeuren voor {self.naam}")
+        titel.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_LARGE, QFont.Weight.Bold))
+        titel.setStyleSheet(f"color: {Colors.TEXT_PRIMARY};")
+        layout.addWidget(titel)
+
+        # Info
+        info_text = (
+            f"Periode: {self.start_datum} t/m {self.eind_datum}\n"
+            f"Aantal dagen: {self.dagen}"
+        )
+        info = QLabel(info_text)
+        info.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL))
+        info.setStyleSheet(f"color: {Colors.TEXT_SECONDARY};")
+        layout.addWidget(info)
+
+        # Kies type
+        type_layout = QHBoxLayout()
+        type_label = QLabel("Toekennen als:")
+        type_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL, QFont.Weight.Bold))
+        type_label.setStyleSheet(f"color: {Colors.TEXT_PRIMARY};")
+        type_layout.addWidget(type_label)
+
+        # Type combobox met codes
+        verlof_code = TermCodeService.get_code_for_term('verlof')
+        kd_code = TermCodeService.get_code_for_term('kompensatiedag')
+
+        self.type_combo.addItem(f"Verlof ({verlof_code})", 'verlof')
+        self.type_combo.addItem(f"Kompensatiedag ({kd_code})", 'kompensatiedag')
+        self.type_combo.setStyleSheet(Styles.input_field())
+        self.type_combo.setMinimumWidth(200)
+        self.type_combo.currentIndexChanged.connect(self.on_type_changed)  # type: ignore
+        type_layout.addWidget(self.type_combo)
+        type_layout.addStretch()
+
+        layout.addLayout(type_layout)
+
+        # Saldo info
+        self.saldo_label.setWordWrap(True)
+        self.saldo_label.setStyleSheet(f"""
+            background-color: {Colors.BG_LIGHT};
+            border: 1px solid {Colors.BORDER_LIGHT};
+            border-radius: 4px;
+            padding: {Dimensions.SPACING_MEDIUM}px;
+            color: {Colors.TEXT_PRIMARY};
+        """)
+        layout.addWidget(self.saldo_label)
+
+        # Buttons
+        buttons = QDialogButtonBox()
+        buttons.addButton("Goedkeuren", QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton("Annuleren", QDialogButtonBox.ButtonRole.RejectRole)
+        buttons.accepted.connect(self.accept)  # type: ignore
+        buttons.rejected.connect(self.reject)  # type: ignore
+        layout.addWidget(buttons)
+
+    def load_saldo(self) -> None:
+        """Laad en toon saldo voor gekozen type"""
+        from services.verlof_saldo_service import VerlofSaldoService
+        from datetime import datetime
+
+        jaar = datetime.now().year
+        saldo = VerlofSaldoService.get_saldo(self.gebruiker_id, jaar)
+
+        code_term = self.type_combo.currentData()
+
+        if code_term == 'verlof':
+            resterend = saldo['vv_resterend']
+            type_naam = "Verlof"
+        else:
+            resterend = saldo['kd_resterend']
+            type_naam = "KD"
+
+        # Bepaal kleur
+        nieuw_resterend = resterend - self.dagen
+        if nieuw_resterend < 0:
+            kleur = Colors.DANGER
+            status = "LET OP: Tekort!"
+        elif nieuw_resterend < 5:
+            kleur = Colors.WARNING
+            status = "Laag saldo"
+        else:
+            kleur = Colors.SUCCESS
+            status = "OK"
+
+        saldo_text = (
+            f"<b>{type_naam} saldo ({jaar}):</b><br>"
+            f"Resterend: {resterend} dagen<br>"
+            f"Na goedkeuring: {nieuw_resterend} dagen<br>"
+            f"<span style='color: {kleur};'><b>{status}</b></span>"
+        )
+
+        self.saldo_label.setText(saldo_text)
+
+    def on_type_changed(self) -> None:
+        """Type combobox gewijzigd"""
+        self.load_saldo()
+
+    def get_code_term(self) -> str:
+        """Haal gekozen term op"""
+        return self.type_combo.currentData()
 
 
 class WeigeringRedenDialog(QDialog):
