@@ -221,6 +221,67 @@ Active Development Notes & Session Logs
 
 ---
 
+### Sessie 22 Oktober 2025 (Deel 8) - Multiscreen Setup Fix
+**Duur:** ~30 min
+**Focus:** Bug fix - Window over meerdere schermen bij multiscreen setup
+
+**Probleem:**
+- Gebruiker rapporteerde: "Mijn Planning" scherm wordt over 2 monitors getoond
+- Dit gebeurde niet bij andere schermen (volgens gebruiker)
+- Oorzaak: `showMaximized()` in `on_login_success()` maximaliseert over alle beschikbare schermen
+
+**Analyse:**
+- `main.py` regel 52: `self.showMaximized()` na login
+- Op multiscreen setup kan Qt het window over beide schermen maximaliseren
+- Dit is afhankelijk van monitor configuratie (extended desktop, etc.)
+- Alle schermen hadden dit probleem, maar het viel vooral op bij "Mijn Planning"
+
+**Oplossing:**
+- Nieuwe methode: `maximize_on_primary_screen()`
+- Gebruikt `QApplication.primaryScreen()` om primair scherm te identificeren
+- Gebruikt `availableGeometry()` voor beschikbare ruimte (minus taskbar)
+- Zet window geometry met `setGeometry()` op primair scherm
+- Gebruikt `showNormal()` in plaats van `showMaximized()` om multi-screen spread te voorkomen
+
+**Code Wijzigingen:**
+- `main.py`:
+  - `on_login_success()`: `showMaximized()` → `maximize_on_primary_screen()` - regel 52
+  - **NIEUW:** `maximize_on_primary_screen()` methode - regel 55-74
+  ```python
+  def maximize_on_primary_screen(self) -> None:
+      """
+      Maximaliseer window op primair scherm (multiscreen compatible)
+      Gebruikt availableGeometry om taskbar/menubar te respecteren
+      """
+      primary_screen = QApplication.primaryScreen()
+      if not primary_screen:
+          self.showMaximized()  # Fallback
+          return
+
+      screen_geometry = primary_screen.availableGeometry()
+      self.setGeometry(screen_geometry)
+      self.showNormal()
+  ```
+
+**Verificatie:**
+- ✅ Applicatie start zonder errors
+- ✅ Window maximaliseert op primair scherm
+- ✅ Geen multi-screen spread meer
+- ⏳ Nog te testen door gebruiker met multiscreen setup
+
+**Impact:**
+- **Multiscreen Setups:** Window blijft op primair scherm
+- **Single Screen:** Geen verschil in gedrag
+- **Alle Schermen:** Fix geldt voor alle schermen in de applicatie (niet alleen "Mijn Planning")
+
+**Geleerde Lessen:**
+- `showMaximized()` gedraagt zich anders op multiscreen setups
+- Gebruik `primaryScreen().availableGeometry()` voor multiscreen compatibility
+- `showNormal()` voorkomt ongewenste maximalisatie over meerdere schermen
+- Qt's maximalisatie gedrag is OS en configuratie afhankelijk
+
+---
+
 ### Sessie 22 Oktober 2025 (Deel 7) - Rode Lijnen Seed Datum Fix & Migratie
 **Duur:** ~1.5 uur
 **Focus:** Correctie rode lijnen seed datum + nieuwe cyclus logica fix + migratie script

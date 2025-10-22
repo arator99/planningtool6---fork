@@ -6,9 +6,9 @@ UPDATED: Dark mode support met theme toggle (v0.6.12: per gebruiker)
 """
 import sys
 from typing import Dict, Any, Optional
-from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget
+from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox
 from PyQt6.QtGui import QKeySequence, QShortcut
-from database.connection import init_database
+from database.connection import init_database, check_db_compatibility
 from gui.screens.login_screen import LoginScreen
 from gui.screens.dashboard_screen import DashboardScreen
 from gui.screens.feestdagen_screen import FeestdagenScherm
@@ -49,8 +49,29 @@ class MainWindow(QMainWindow):
     def on_login_success(self, user_data: Dict[str, Any]) -> None:
         """Na succesvolle login"""
         self.current_user = user_data
-        self.showMaximized()  # Maximaliseer window na login
+        self.maximize_on_primary_screen()  # Maximaliseer op primair scherm (multiscreen compatible)
         self.show_dashboard()
+
+    def maximize_on_primary_screen(self) -> None:
+        """
+        Maximaliseer window op primair scherm (multiscreen compatible)
+        Gebruikt availableGeometry om taskbar/menubar te respecteren
+        """
+        # Haal primaire scherm op
+        primary_screen = QApplication.primaryScreen()
+        if not primary_screen:
+            # Fallback naar oude gedrag als geen scherm gevonden
+            self.showMaximized()
+            return
+
+        # Haal beschikbare geometry op (minus taskbar, etc.)
+        screen_geometry = primary_screen.availableGeometry()
+
+        # Zet window geometry naar beschikbare ruimte op primair scherm
+        self.setGeometry(screen_geometry)
+
+        # Optioneel: gebruik showNormal() om te voorkomen dat Qt het window toch maximaliseert
+        self.showNormal()
 
     def terug(self) -> None:
         """Ga terug naar vorig scherm (dashboard)"""
@@ -98,6 +119,7 @@ class MainWindow(QMainWindow):
         dashboard.verlof_aanvragen_clicked.connect(self.on_verlof_aanvragen_clicked)  # type: ignore
         dashboard.verlof_goedkeuring_clicked.connect(self.on_verlof_goedkeuring_clicked)  # type: ignore
         dashboard.verlof_saldo_beheer_clicked.connect(self.on_verlof_saldo_beheer_clicked)  # type: ignore
+        dashboard.werkpost_koppeling_clicked.connect(self.on_werkpost_koppeling_clicked)  # type: ignore
 
         self.stack.addWidget(dashboard)
         self.stack.setCurrentWidget(dashboard)
@@ -174,6 +196,16 @@ class MainWindow(QMainWindow):
 
         from gui.screens.verlof_saldo_beheer_screen import VerlofSaldoBeheerScreen
         scherm = VerlofSaldoBeheerScreen(self.terug)
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
+
+    def on_werkpost_koppeling_clicked(self) -> None:
+        """Open werkpost koppeling beheer scherm"""
+        if not self.current_user:
+            return
+
+        from gui.screens.werkpost_koppeling_screen import WerkpostKoppelingScreen
+        scherm = WerkpostKoppelingScreen(self.terug)
         self.stack.addWidget(scherm)
         self.stack.setCurrentWidget(scherm)
 
@@ -362,12 +394,28 @@ class MainWindow(QMainWindow):
 
 def main() -> None:
     """Main entry point"""
+    # Start app (nodig voor QMessageBox)
+    app = QApplication(sys.argv)
+
     # Initialiseer database
     init_database()
 
-    # Start app
-    app = QApplication(sys.argv)
+    # Check database compatibiliteit
+    is_compatible, db_version, error_msg = check_db_compatibility()
 
+    if not is_compatible:
+        # Toon error dialog en sluit af
+        from config import APP_VERSION
+        QMessageBox.critical(
+            None,
+            "Database Versie Incompatibel",
+            f"Applicatie versie: {APP_VERSION}\n"
+            f"Database versie: {db_version if db_version else 'Onbekend'}\n\n"
+            f"{error_msg}"
+        )
+        sys.exit(1)
+
+    # Alles OK - start normaal
     # Maak window (theme wordt geladen in __init__)
     window = MainWindow()
 

@@ -426,6 +426,23 @@ def rebuild_dashboard(self):
 ```
 **Note:** Theme toggle only available in dashboard. Other screens automatically use selected theme on load.
 
+### Multiscreen Setup (v0.6.15)
+**Problem:** Window spreads across multiple monitors in multiscreen setups
+**Solution:** Use `maximize_on_primary_screen()` instead of `showMaximized()`:
+```python
+def maximize_on_primary_screen(self) -> None:
+    """Maximaliseer window op primair scherm (multiscreen compatible)"""
+    primary_screen = QApplication.primaryScreen()
+    if not primary_screen:
+        self.showMaximized()  # Fallback
+        return
+
+    screen_geometry = primary_screen.availableGeometry()
+    self.setGeometry(screen_geometry)
+    self.showNormal()  # Prevent multi-screen spread
+```
+**Note:** `showMaximized()` behavior is OS and configuration dependent on multiscreen setups. Using `primaryScreen().availableGeometry()` ensures window stays on primary screen.
+
 ## Database Migrations
 
 When schema changes are needed:

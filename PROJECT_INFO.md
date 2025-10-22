@@ -25,6 +25,7 @@ Roostersysteem voor Self-Rostering Teams
   - Filter blijft behouden bij maand navigatie in kalenders
   - Rode lijnen automatisch hertekend na config wijziging
   - Naam kolom verbreed naar 280px voor lange namen (28+ karakters)
+  - Multiscreen setup fix: window blijft nu op primair scherm (niet meer over 2 monitors)
 
 **Workflow:**
 1. Planner maakt planning → automatisch concept status
