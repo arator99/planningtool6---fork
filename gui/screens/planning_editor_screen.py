@@ -360,11 +360,24 @@ class PlanningEditorScreen(QWidget):
             self.current_status = 'gepubliceerd'
             self.update_status_ui()
 
-            QMessageBox.information(
-                self,
-                "Gepubliceerd",
-                f"Planning voor {maand_naam} is gepubliceerd."
-            )
+            # Genereer Excel export voor HR
+            try:
+                from services.export_service import export_maand_naar_excel
+                excel_pad = export_maand_naar_excel(jaar, maand)
+
+                QMessageBox.information(
+                    self,
+                    "Gepubliceerd",
+                    f"Planning voor {maand_naam} is gepubliceerd.\n\n"
+                    f"Excel bestand gegenereerd:\n{excel_pad}"
+                )
+            except Exception as e:
+                QMessageBox.warning(
+                    self,
+                    "Gepubliceerd (met waarschuwing)",
+                    f"Planning voor {maand_naam} is gepubliceerd.\n\n"
+                    f"WAARSCHUWING: Excel export mislukt:\n{str(e)}"
+                )
 
         except Exception as e:
             QMessageBox.critical(
