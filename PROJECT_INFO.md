@@ -430,7 +430,24 @@ Het systeem controleert op:
 
 ### Meest Recente Migraties
 
-**v0.6.12 → v0.6.13: Database Versie Tracking** ⭐ NIEUW
+**v0.6.14 → v0.6.15: Rode Lijnen Seed Datum Fix** ⭐ NIEUW
+```bash
+python fix_rode_lijnen_seed_datum.py
+```
+- Herstelt rode lijnen van 28 juli 2024 → 29 juli 2024 (correcte cyclus)
+- Update rode_lijnen_config indien nodig
+- Idempotent: veilig om meerdere keren te draaien
+- **LET OP:** Alleen nodig voor databases met oude seed datum
+
+**v0.6.13 → v0.6.14: Werkpost Koppeling**
+```bash
+python migratie_gebruiker_werkposten.py
+```
+- Maakt `gebruiker_werkposten` tabel voor many-to-many relatie
+- Koppelt gebruikers aan werkposten met prioriteit
+- Nodig voor slimme auto-generatie functionaliteit
+
+**v0.6.12 → v0.6.13: Database Versie Tracking**
 ```bash
 python upgrade_to_v0_6_13.py
 ```
@@ -493,6 +510,10 @@ Geen migratie nodig - automatisch correct aangemaakt.
 - Filter reset bij maand navigatie (v0.6.8)
 - Grid stretching op full-screen (v0.6.8)
 - F1 conflict met shift codes helper (v0.6.8)
+- Rode lijnen verkeerde seed datum (v0.6.15)
+- Multiscreen setup: window over 2 monitors (v0.6.15)
+- Dark mode: grid tekst niet leesbaar (v0.6.15)
+- About dialog: PROJECT_INFO niet gevonden in .exe (v0.6.15)
 
 ### ⚠️ BEKEND
 - Netwerklatency bij gebruik vanaf netwerkschijf
@@ -511,11 +532,14 @@ Geen migratie nodig - automatisch correct aangemaakt.
 - ✅ HR Regels beheer ⭐
 - ✅ Rode Lijnen config beheer ⭐
 - ✅ Handleiding systeem ⭐
+- ✅ .EXE build ⭐
+- ✅ Werkpost Koppeling (v0.6.14) ⭐
+- ✅ Auto-Generatie uit Typetabel (v0.6.14) ⭐
+- ✅ Concept vs Gepubliceerd Toggle (v0.6.15) ⭐
 - 🔨 Typetabel Activatie
-- 🔨 Planning Editor volledig
-- 🔨 Validatie systeem
-- 🔨 Export functionaliteit
-- 🔨 .EXE build
+- 🔨 Planning Editor bulk operaties (copy week, paste, clear)
+- 🔨 Validatie systeem met visuele feedback
+- 🔨 Export functionaliteit naar Excel
 
 ### Q1 2026 - Testing
 **Beta testing met eindgebruikers**

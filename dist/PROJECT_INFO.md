@@ -2,15 +2,40 @@
 Roostersysteem voor Self-Rostering Teams
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.14 (Beta)
+**Huidige versie:** 0.6.15 (Beta)
 **Release datum:** 22 Oktober 2025
-**Status:** In actieve ontwikkeling - Werkpost Koppeling & Slimme Auto-Generatie
+**Status:** In actieve ontwikkeling - Planning Editor Priority 1 Compleet
 
 ---
 
 ## WAT IS NIEUW
 
-### Versie 0.6.14 (22 Oktober 2025) ⭐ NIEUW
+### Versie 0.6.15 (22 Oktober 2025) ⭐ NIEUW
+- ✅ **Concept vs Gepubliceerd Toggle**
+  - Planning status management per maand
+  - Concept modus: planning nog niet zichtbaar voor teamleden (geel info box)
+  - Gepubliceerd modus: planning zichtbaar voor teamleden (groen info box)
+  - Planners kunnen altijd wijzigen, ook na publicatie (voor zieken, last-minute)
+  - Teamleden zien ALLEEN gepubliceerde planning
+  - Bevestiging dialogs bij status wijziging
+  - Locatie: Planning Editor (bovenaan scherm)
+
+- ✅ **Bug Fixes & Verbeteringen**
+  - Feestdag specifieke error messages ("Op feestdagen moeten zondagdiensten worden gebruikt")
+  - Filter blijft behouden bij maand navigatie in kalenders
+  - Rode lijnen automatisch hertekend na config wijziging
+  - Naam kolom verbreed naar 280px voor lange namen (28+ karakters)
+  - Multiscreen setup fix: window blijft nu op primair scherm (niet meer over 2 monitors)
+
+**Workflow:**
+1. Planner maakt planning → automatisch concept status
+2. Teamleden zien NIETS (verborgen)
+3. Planner klikt "Publiceren" → bevestiging
+4. Status = gepubliceerd → teamleden zien planning
+5. Planner kan altijd nog wijzigen (zieken, etc.)
+6. Optioneel: "Terug naar Concept" verbergt planning weer
+
+### Versie 0.6.14 (22 Oktober 2025)
 - ✅ **Werkpost Koppeling Systeem**
   - Nieuwe beheer functie: koppel gebruikers aan werkposten
   - Grid interface met checkboxes (gebruikers × werkposten)
@@ -405,7 +430,24 @@ Het systeem controleert op:
 
 ### Meest Recente Migraties
 
-**v0.6.12 → v0.6.13: Database Versie Tracking** ⭐ NIEUW
+**v0.6.14 → v0.6.15: Rode Lijnen Seed Datum Fix** ⭐ NIEUW
+```bash
+python fix_rode_lijnen_seed_datum.py
+```
+- Herstelt rode lijnen van 28 juli 2024 → 29 juli 2024 (correcte cyclus)
+- Update rode_lijnen_config indien nodig
+- Idempotent: veilig om meerdere keren te draaien
+- **LET OP:** Alleen nodig voor databases met oude seed datum
+
+**v0.6.13 → v0.6.14: Werkpost Koppeling**
+```bash
+python migratie_gebruiker_werkposten.py
+```
+- Maakt `gebruiker_werkposten` tabel voor many-to-many relatie
+- Koppelt gebruikers aan werkposten met prioriteit
+- Nodig voor slimme auto-generatie functionaliteit
+
+**v0.6.12 → v0.6.13: Database Versie Tracking**
 ```bash
 python upgrade_to_v0_6_13.py
 ```
@@ -468,6 +510,10 @@ Geen migratie nodig - automatisch correct aangemaakt.
 - Filter reset bij maand navigatie (v0.6.8)
 - Grid stretching op full-screen (v0.6.8)
 - F1 conflict met shift codes helper (v0.6.8)
+- Rode lijnen verkeerde seed datum (v0.6.15)
+- Multiscreen setup: window over 2 monitors (v0.6.15)
+- Dark mode: grid tekst niet leesbaar (v0.6.15)
+- About dialog: PROJECT_INFO niet gevonden in .exe (v0.6.15)
 
 ### ⚠️ BEKEND
 - Netwerklatency bij gebruik vanaf netwerkschijf
@@ -486,11 +532,14 @@ Geen migratie nodig - automatisch correct aangemaakt.
 - ✅ HR Regels beheer ⭐
 - ✅ Rode Lijnen config beheer ⭐
 - ✅ Handleiding systeem ⭐
+- ✅ .EXE build ⭐
+- ✅ Werkpost Koppeling (v0.6.14) ⭐
+- ✅ Auto-Generatie uit Typetabel (v0.6.14) ⭐
+- ✅ Concept vs Gepubliceerd Toggle (v0.6.15) ⭐
 - 🔨 Typetabel Activatie
-- 🔨 Planning Editor volledig
-- 🔨 Validatie systeem
-- 🔨 Export functionaliteit
-- 🔨 .EXE build
+- 🔨 Planning Editor bulk operaties (copy week, paste, clear)
+- 🔨 Validatie systeem met visuele feedback
+- 🔨 Export functionaliteit naar Excel
 
 ### Q1 2026 - Testing
 **Beta testing met eindgebruikers**
@@ -526,4 +575,4 @@ Deze tool is voor **alle teams met self-rostering**, niet alleen interventie. He
 
 *Voor technische details: zie DEVELOPMENT_GUIDE.md*
 *Laatste update: 22 Oktober 2025*
-*Versie: 0.6.14*
+*Versie: 0.6.15*
