@@ -60,11 +60,29 @@ class GridKalenderBase(QWidget):
         query += " ORDER BY volledige_naam"
 
         cursor.execute(query)
-        self.gebruikers_data = cursor.fetchall()
+        nieuwe_gebruikers_data = cursor.fetchall()
         conn.close()
 
-        # Initialiseer filter (allemaal aan)
-        self.filter_gebruikers = {user['id']: True for user in self.gebruikers_data}
+        # Update gebruikers data
+        oude_gebruiker_ids = {user['id'] for user in self.gebruikers_data} if hasattr(self, 'gebruikers_data') else set()
+        nieuwe_gebruiker_ids = {user['id'] for user in nieuwe_gebruikers_data}
+        self.gebruikers_data = nieuwe_gebruikers_data
+
+        # Behoud bestaande filter waar mogelijk, alleen nieuwe gebruikers toevoegen
+        if not hasattr(self, 'filter_gebruikers'):
+            # Eerste keer - initialiseer allemaal aan
+            self.filter_gebruikers = {user['id']: True for user in self.gebruikers_data}
+        else:
+            # Filter bestaat al - behoud bestaande instellingen
+            # Verwijder gebruikers die niet meer bestaan
+            for user_id in list(self.filter_gebruikers.keys()):
+                if user_id not in nieuwe_gebruiker_ids:
+                    del self.filter_gebruikers[user_id]
+
+            # Voeg nieuwe gebruikers toe (standaard aan)
+            for user_id in nieuwe_gebruiker_ids:
+                if user_id not in self.filter_gebruikers:
+                    self.filter_gebruikers[user_id] = True
 
     def load_planning_data(self, start_datum: str, eind_datum: str, alleen_gepubliceerd: bool = False) -> None:
         """

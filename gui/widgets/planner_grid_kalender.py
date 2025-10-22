@@ -298,14 +298,8 @@ class PlannerGridKalender(GridKalenderBase):
 
     def load_initial_data(self) -> None:
         """Laad initiële data"""
-        # Laad gebruikers
+        # Laad gebruikers (filter wordt automatisch behouden door base class)
         self.load_gebruikers(alleen_actief=True)
-
-        # Alleen bij eerste keer: iedereen zichtbaar (planner view)
-        # Bij refresh: behoud huidige filter
-        if not hasattr(self, '_filter_initialized'):
-            self.set_alle_gebruikers_filter(True)
-            self._filter_initialized = True
 
         # Laad feestdagen voor huidig jaar EN aangrenzende jaren (voor buffer dagen)
         self.load_feestdagen_extended()

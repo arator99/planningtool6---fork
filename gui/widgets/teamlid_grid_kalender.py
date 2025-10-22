@@ -107,15 +107,17 @@ class TeamlidGridKalender(GridKalenderBase):
 
     def load_initial_data(self) -> None:
         """Laad initiële data"""
-        # Laad gebruikers
+        # Check of dit de eerste keer is (voor standaard filter)
+        is_eerste_keer = not hasattr(self, 'filter_gebruikers')
+
+        # Laad gebruikers (filter wordt automatisch behouden door base class)
         self.load_gebruikers(alleen_actief=True)
 
         # Alleen bij eerste keer: alleen huidige gebruiker zichtbaar
-        # Bij refresh: behoud huidige filter
-        if not hasattr(self, '_filter_initialized'):
+        # Bij refresh: filter wordt automatisch behouden door base class
+        if is_eerste_keer:
             self.set_alle_gebruikers_filter(False)
             self.filter_gebruikers[self.huidige_gebruiker_id] = True
-            self._filter_initialized = True
 
         # Laad feestdagen
         self.load_feestdagen()
