@@ -284,6 +284,20 @@ class RodeLijnenBeheerScreen(QWidget):
             conn.commit()
             conn.close()
 
+            # BELANGRIJK: Regenereer rode lijnen met nieuwe configuratie
+            from services.data_ensure_service import regenereer_rode_lijnen_vanaf
+            try:
+                toegevoegd = regenereer_rode_lijnen_vanaf(nieuwe_data['actief_vanaf'])
+                print(f"✓ Rode lijnen geregenereerd: {toegevoegd} periodes")
+            except Exception as e:
+                print(f"✗ Fout bij regenereren rode lijnen: {e}")
+                QMessageBox.warning(
+                    self,
+                    "Waarschuwing",
+                    f"Configuratie opgeslagen, maar fout bij regenereren rode lijnen:\n{str(e)}\n\n"
+                    f"Herstart de applicatie om rode lijnen te vernieuwen."
+                )
+
             # Format data voor display
             datum_obj = datetime.fromisoformat(nieuwe_data['actief_vanaf'])
             datum_display = datum_obj.strftime('%d-%m-%Y')
@@ -296,7 +310,9 @@ class RodeLijnenBeheerScreen(QWidget):
                 f"Nieuwe configuratie aangemaakt!\n\n"
                 f"Start datum: {start_display}\n"
                 f"Interval: {nieuwe_data['interval_dagen']} dagen\n"
-                f"Actief vanaf: {datum_display}"
+                f"Actief vanaf: {datum_display}\n\n"
+                f"Rode lijnen zijn geregenereerd.\n"
+                f"Sluit en heropen planning schermen om vernieuwde rode lijnen te zien."
             )
 
             # Herlaad data

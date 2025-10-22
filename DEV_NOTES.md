@@ -39,6 +39,56 @@ Active Development Notes & Session Logs
 
 ## 📝 RECENTE SESSIES
 
+### Sessie 22 Oktober 2025 (Deel 4) - Rode Lijnen Regeneratie Fix
+**Duur:** ~30 min
+**Focus:** Bug fix - Rode lijnen niet hertekend na configuratie wijziging
+
+**Probleem:**
+- Rode lijnen configuratie wijzigen werkte wel in database
+- Maar visuele rode lijnen in kalender werden niet vernieuwd
+- Kalender toonde oude rode lijn posities
+
+**Oorzaak:**
+- `rode_lijnen_config` tabel werd geupdate ✓
+- Maar `rode_lijnen` tabel (daadwerkelijke periodes) werd NIET geregenereerd ✗
+- Kalender laadt rode lijnen uit `rode_lijnen` tabel → toonde oude data
+
+**Oplossing:**
+1. Nieuwe functie: `regenereer_rode_lijnen_vanaf(actief_vanaf_str)`
+   - Verwijdert toekomstige rode lijnen vanaf actief_vanaf datum
+   - Genereert nieuwe rode lijnen met nieuwe configuratie
+   - Tot +2 jaar in de toekomst
+
+2. Aanroepen na config opslaan:
+   - rode_lijnen_beheer_screen.py → save_nieuwe_versie()
+   - Roept regenereer functie aan
+   - Success dialog informeert gebruiker
+
+**Code Wijzigingen:**
+- `services/data_ensure_service.py`:
+  - `regenereer_rode_lijnen_vanaf()`: nieuwe functie
+  - DELETE rode lijnen >= actief_vanaf
+  - INSERT nieuwe periodes met nieuwe config
+
+- `gui/screens/rode_lijnen_beheer_screen.py`:
+  - Import regenereer functie
+  - Aanroep na commit van nieuwe config
+  - Success dialog met instructie: "Sluit en heropen planning schermen"
+
+**Workflow:**
+1. Beheerder wijzigt rode lijnen config (bijv. 28 → 21 dagen)
+2. Nieuwe config wordt opgeslagen in rode_lijnen_config ✓
+3. Oude rode lijnen vanaf actief_vanaf worden verwijderd ✓
+4. Nieuwe rode lijnen worden gegenereerd met nieuwe interval ✓
+5. Gebruiker moet planning scherm sluiten en heropenen voor visuele refresh
+
+**Limitatie:**
+- Gebruiker moet planning scherm handmatig heropenen (geen auto-refresh)
+- Acceptabel: rode lijnen config wijzigt niet vaak
+- Alternatief zou complexe signal/slot mechanisme vereisen
+
+---
+
 ### Sessie 22 Oktober 2025 (Deel 3) - Concept vs Gepubliceerd Status Toggle
 **Duur:** ~1 uur
 **Focus:** Planning Editor - status management (Prioriteit 1 TODO)

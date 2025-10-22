@@ -223,3 +223,98 @@ def extend_rode_lijnen_tot(doel_datum):
         print(f"  ✓ {toegevoegd} rode lijnen periodes toegevoegd tot {doel_datum.strftime('%d-%m-%Y')}")
 
     return toegevoegd
+
+
+def regenereer_rode_lijnen_vanaf(actief_vanaf_str: str):
+    """
+    Regenereer rode lijnen vanaf een bepaalde datum met nieuwe configuratie
+
+    Gebruikt:
+    - Na het wijzigen van rode lijnen configuratie
+    - Verwijdert toekomstige rode lijnen vanaf actief_vanaf
+    - Genereert nieuwe rode lijnen met nieuwe config tot +2 jaar
+
+    Args:
+        actief_vanaf_str: ISO datum string (YYYY-MM-DD) vanaf wanneer nieuwe config actief is
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        actief_vanaf = datetime.fromisoformat(actief_vanaf_str).date()
+
+        # Stap 1: Verwijder alle rode lijnen vanaf actief_vanaf datum
+        cursor.execute("""
+            DELETE FROM rode_lijnen
+            WHERE start_datum >= ?
+        """, (actief_vanaf.isoformat(),))
+
+        verwijderd = cursor.rowcount
+        print(f"  ✓ {verwijderd} rode lijnen periodes verwijderd vanaf {actief_vanaf.isoformat()}")
+
+        # Stap 2: Haal nieuwe actieve config op
+        cursor.execute("""
+            SELECT start_datum, interval_dagen FROM rode_lijnen_config
+            WHERE is_actief = 1
+            ORDER BY actief_vanaf DESC
+            LIMIT 1
+        """)
+        config = cursor.fetchone()
+
+        if not config:
+            print("  ⚠️ Geen actieve rode lijnen configuratie gevonden")
+            conn.close()
+            return 0
+
+        config_start_datum = datetime.fromisoformat(config[0]).date()
+        interval = config[1]
+
+        # Stap 3: Bepaal vanaf waar we moeten starten
+        # Haal laatste rode lijn EN hoogste periode nummer (voor periodes VÓÓr actief_vanaf)
+        cursor.execute("""
+            SELECT MAX(start_datum), MAX(periode_nummer) FROM rode_lijnen
+            WHERE start_datum < ?
+        """, (actief_vanaf.isoformat(),))
+
+        result = cursor.fetchone()
+        laatste_datum_str = result[0]
+        laatste_nummer = result[1] or 0
+
+        if laatste_datum_str:
+            # Er zijn rode lijnen voor actief_vanaf - continue vanaf daar
+            laatste_datum = datetime.fromisoformat(laatste_datum_str).date()
+            start_datum = laatste_datum + timedelta(days=interval)
+            periode_nummer = laatste_nummer + 1
+        else:
+            # Geen rode lijnen voor actief_vanaf - start vanaf config start
+            start_datum = config_start_datum
+            periode_nummer = 1
+
+        # Stap 4: Genereer nieuwe rode lijnen tot +2 jaar
+        doel_datum = datetime.now().date() + timedelta(days=730)  # +2 jaar
+
+        toegevoegd = 0
+        huidige = start_datum
+
+        while huidige <= doel_datum:
+            eind_datum = huidige + timedelta(days=interval - 1)
+            cursor.execute("""
+                INSERT INTO rode_lijnen (periode_nummer, start_datum, eind_datum)
+                VALUES (?, ?, ?)
+            """, (periode_nummer, huidige.isoformat(), eind_datum.isoformat()))
+
+            huidige += timedelta(days=interval)
+            periode_nummer += 1
+            toegevoegd += 1
+
+        conn.commit()
+        print(f"  ✓ {toegevoegd} nieuwe rode lijnen periodes gegenereerd tot {doel_datum.isoformat()}")
+
+        return toegevoegd
+
+    except Exception as e:
+        conn.rollback()
+        print(f"  ✗ Fout bij regenereren rode lijnen: {e}")
+        raise
+    finally:
+        conn.close()
