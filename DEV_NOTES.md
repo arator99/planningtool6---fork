@@ -1,7 +1,7 @@
 # DEV NOTES
 Active Development Notes & Session Logs
 
-## CURRENT VERSION: 0.6.14
+## CURRENT VERSION: 0.6.15
 
 **Last Updated:** 22 Oktober 2025
 **Status:** Beta - Actieve Ontwikkeling (Werkpost Koppeling & Slimme Auto-Generatie Compleet)
@@ -38,6 +38,326 @@ Active Development Notes & Session Logs
 ---
 
 ## 📝 RECENTE SESSIES
+
+### Sessie 22 Oktober 2025 (Deel 6) - Planning Editor Compleet (v0.6.15)
+**Duur:** ~4 uur
+**Focus:** Planning Editor Priority 1 afmaken + Multiple bug fixes uit live testing
+
+**Voltooid:**
+- ✅ **Concept vs Gepubliceerd Toggle** - Volledig status management systeem
+- ✅ **Feestdag Error Messages** - Specifieke foutmeldingen voor feestdagen
+- ✅ **Filter State Preservation** - Filter blijft behouden bij maand navigatie
+- ✅ **Rode Lijnen Auto-Regeneratie** - Automatisch hertekenen na config wijziging
+- ✅ **UI Layout Fix** - Naam kolom verbreed voor lange namen (280px)
+
+#### 1. Concept vs Gepubliceerd Status Toggle
+**Doel:** Planners kunnen planning publiceren zodat teamleden deze kunnen zien.
+
+**Geïmplementeerd:**
+- **Status Tracking per Maand:**
+  - `load_maand_status()` haalt status op uit planning records
+  - Status kan 'concept' of 'gepubliceerd' zijn
+  - Auto-reload bij maand navigatie via `maand_changed` signal
+
+- **Dynamische UI:**
+  - **Concept modus** (geel warning info box):
+    - "⚠️ Planning is in CONCEPT. Teamleden zien deze planning nog niet."
+    - Button: "Publiceren" (groen, primary style)
+  - **Gepubliceerd modus** (groen success info box):
+    - "✓ Planning is GEPUBLICEERD. Teamleden kunnen deze planning bekijken."
+    - Button: "Terug naar Concept" (oranje, warning style)
+
+- **Dialogs met Bevestiging:**
+  - Publiceren: "Weet je zeker dat je de planning voor [maand] wilt publiceren?"
+  - Terug naar concept: Waarschuwing dat teamleden planning niet meer kunnen zien
+
+- **Database Updates:**
+  - UPDATE alle planning records voor maand: `SET status = 'gepubliceerd'` of `'concept'`
+  - Query gebruikt datum range (eerste dag maand → eerste dag volgende maand)
+
+- **Teamlid View Filter:**
+  - Teamleden zien ALLEEN gepubliceerde planning (nieuwe parameter `alleen_gepubliceerd=True`)
+  - `load_planning_data()` in base class: `WHERE p.status = 'gepubliceerd'` voor teamleden
+  - Planners zien altijd alles (concept + gepubliceerd)
+
+**Workflow:**
+1. Planner maakt planning → status = 'concept'
+2. Teamleden zien NIETS (concept is verborgen)
+3. Planner klikt "Publiceren" → bevestiging dialog
+4. Status wordt 'gepubliceerd' voor hele maand
+5. Teamleden zien planning nu WEL
+6. Planner kan ALTIJD nog wijzigen (ook in gepubliceerd modus voor zieken/last-minute)
+7. Optioneel: "Terug naar Concept" → teamleden zien weer niets
+
+**Code Wijzigingen:**
+- `gui/screens/planning_editor_screen.py`:
+  - `load_maand_status()` - regel 160-175
+  - `publiceer_planning()` - regel 176-209
+  - `terug_naar_concept()` - regel 211-244
+  - `on_maand_changed()` handler - regel 146-149
+  - Dynamic UI update - regel 82-130
+
+- `gui/widgets/planner_grid_kalender.py`:
+  - `maand_changed` signal toegevoegd (regel 33)
+  - Emit signal in `refresh_data()` - regel 315
+
+- `gui/widgets/grid_kalender_base.py`:
+  - `load_planning_data()` parameter `alleen_gepubliceerd: bool = False` - regel 250
+  - WHERE clause met status filter - regel 264-265
+
+- `gui/widgets/teamlid_grid_kalender.py`:
+  - Aanroep `load_planning_data(..., alleen_gepubliceerd=True)` - regel 135
+
+#### 2. Feestdag Specifieke Error Messages
+**Doel:** Duidelijke foutmeldingen wanneer gebruiker verkeerde shift code invoert op feestdag.
+
+**Geïmplementeerd:**
+- `get_feestdag_naam()` helper methode in PlannerGridKalender
+- Laadt feestdag namen in dictionary bij `load_feestdagen_extended()`
+- Specifieke error messages in `on_cel_edited()`:
+  - Feestdag: "Deze datum is een feestdag (Kerstmis). Op feestdagen moeten zondagdiensten worden gebruikt."
+  - Weekdag/weekend: "Deze datum is een weekdag/zaterdag/zondag. Gebruik een shift code voor weekdag/zaterdag/zondag."
+
+**Code Wijzigingen:**
+- `gui/widgets/planner_grid_kalender.py`:
+  - `feestdag_namen: Dict[str, str]` attribute - regel 179
+  - `load_feestdagen_extended()` laadt namen - regel 336-349
+  - `get_feestdag_naam()` helper - regel 645-647
+  - `on_cel_edited()` specifieke messages - regel 587-605
+
+#### 3. Filter State Preservation Fix
+**Probleem:** Filter resette naar "iedereen" bij maand navigatie in kalenders.
+
+**Oorzaak:** `load_gebruikers()` overschreef altijd `self.filter_gebruikers` met nieuwe dictionary.
+
+**Oplossing:**
+- Check of `filter_gebruikers` al bestaat
+- Bij eerste keer: initialiseer met allemaal True
+- Bij herlaad: behoud bestaande filter, update alleen voor nieuwe/verwijderde gebruikers
+- Merge logica: voeg nieuwe toe, verwijder oude, behoud rest
+
+**Code Wijzigingen:**
+- `gui/widgets/grid_kalender_base.py`:
+  - Smart filter merge in `load_gebruikers()` - regel 115-130
+  - Verwijderd: oude `_filter_initialized` flag check
+
+- `gui/widgets/planner_grid_kalender.py`:
+  - Verwijderd: redundante `_filter_initialized` check - was regel 107
+
+- `gui/widgets/teamlid_grid_kalender.py`:
+  - Updated filter init logica - regel 111-120
+
+#### 4. Rode Lijnen Auto-Regeneratie Fix
+**Probleem:** Rode lijnen config wijzigen werkte, maar rode lijnen werden niet hertekend in kalenders.
+
+**Oorzaak:**
+- `rode_lijnen_config` tabel werd geupdate ✓
+- Maar `rode_lijnen` tabel (daadwerkelijke periodes) werd NIET geregenereerd ✗
+- Kalender laadt rode lijnen uit `rode_lijnen` tabel → toonde oude data
+
+**Oplossing:**
+- Nieuwe functie: `regenereer_rode_lijnen_vanaf(actief_vanaf_str)` in data_ensure_service
+- Workflow:
+  1. DELETE alle rode lijnen >= actief_vanaf datum
+  2. Haal nieuwe actieve config op
+  3. Bepaal start punt (laatste rode lijn vóór actief_vanaf, of config start)
+  4. Genereer nieuwe rode lijnen tot +2 jaar in toekomst
+- Aanroepen na config opslaan in rode_lijnen_beheer_screen
+
+**Code Wijzigingen:**
+- `services/data_ensure_service.py`:
+  - `regenereer_rode_lijnen_vanaf()` functie - regel 228-320
+  - DELETE + INSERT logica met error handling
+
+- `gui/screens/rode_lijnen_beheer_screen.py`:
+  - Import regenereer functie - regel 288
+  - Aanroep na commit - regel 290-299
+  - Success dialog met instructie: "Sluit en heropen planning schermen" - regel 307-316
+
+**Limitatie:**
+- Gebruiker moet planning scherm handmatig heropenen (geen auto-refresh)
+- Acceptabel: rode lijnen config wijzigt niet vaak
+
+#### 5. Naam Kolom Width Fix
+**Probleem:** Collega met 25 letters + 3 spaties (28 karakters) naam paste niet in kolom.
+
+**Oplossing:**
+- Verhoogd van 200px naar 280px in beide kalenders
+- Toegepast op naam header EN data cellen
+
+**Code Wijzigingen:**
+- `gui/widgets/planner_grid_kalender.py`:
+  - Naam header: `setFixedWidth(280)` - regel 397
+  - Naam cellen: `setFixedWidth(280)` - regel 451
+
+- `gui/widgets/teamlid_grid_kalender.py`:
+  - Naam header: `setFixedWidth(280)` - regel 199
+  - Naam cellen: `setFixedWidth(280)` - regel 254
+
+**Commits:**
+- `49d6886` - Feestdag specifieke error messages
+- `a2f6025` - Concept vs Gepubliceerd toggle
+- `b51c24e` - Filter preservation fix
+- `4e3e435` - Rode lijnen regeneratie
+- `377d2c6` - Naam kolom width fix
+
+**Testing:**
+- ⏳ Testen: volledige workflow publiceren → teamlid view → terug naar concept
+- ⏳ Verifiëren: filter blijft behouden bij navigatie
+- ⏳ Verifiëren: rode lijnen hertekenen na config wijziging
+- ⏳ Verifiëren: lange namen volledig zichtbaar
+
+**Geleerde Lessen:**
+- Filter state management: check bestaande state voor merge
+- Signals voor maand changes: essentieel voor cross-widget updates
+- Rode lijnen regeneratie: config changes vereisen data rebuild
+- UI layouts: test met edge cases (zeer lange namen, etc.)
+- Status management: per maand ipv globaal geeft meer flexibiliteit
+
+**Volgende Prioriteiten:**
+- Planning Editor: Auto-generatie uit typetabel (button al aanwezig, moet geactiveerd)
+- Planning Editor: Bulk operaties (copy week, paste, clear)
+- Validatie feedback integratie in grid
+
+---
+
+### Sessie 22 Oktober 2025 (Deel 7) - Rode Lijnen Seed Datum Fix & Migratie
+**Duur:** ~1.5 uur
+**Focus:** Correctie rode lijnen seed datum + nieuwe cyclus logica fix + migratie script
+
+**Probleem Gedetecteerd:**
+- Rode lijnen werden 1 dag te vroeg getekend (tussen 18-19 oktober i.p.v. 19-20 oktober)
+- Database toonde periode 17 starting 2025-10-19 (verkeerd) i.p.v. 2025-10-20 (correct)
+- Root cause: Seed datum in `database/connection.py` was 28 juli 2024, maar correcte cyclus vereist 29 juli 2024
+
+**Berekening Verificatie:**
+- Voor periode 17 op 20 oktober 2025:
+- Periode 1 moet starten op 29 juli 2024
+- 16 periodes × 28 dagen = 448 dagen
+- 29 juli 2024 + 448 dagen = 20 oktober 2025 ✓
+
+**Fixes Geïmplementeerd:**
+
+#### 1. Regeneratie Logica Fix
+**Probleem:** `regenereer_rode_lijnen_vanaf()` continueerde altijd vanuit oude cyclus, negeerde nieuwe config start_datum.
+
+**Oplossing:**
+- Check toegevoegd: `if config_start_datum >= actief_vanaf`
+- True: Start nieuwe cyclus vanaf config_start_datum
+- False: Continueer oude cyclus (backward compatibility)
+
+**Code Wijzigingen:**
+- `services/data_ensure_service.py` (regel 273-302):
+```python
+if config_start_datum >= actief_vanaf:
+    # Nieuwe cyclus: start vanaf config start datum
+    start_datum = config_start_datum
+    cursor.execute("SELECT MAX(periode_nummer) FROM rode_lijnen WHERE start_datum < ?",
+                  (config_start_datum.isoformat(),))
+    laatste_nummer = cursor.fetchone()[0] or 0
+    periode_nummer = laatste_nummer + 1
+else:
+    # Continue bestaande cyclus: haal laatste rode lijn vóór actief_vanaf
+    [... oude logica ...]
+```
+
+#### 2. Seed Datum Correctie
+**Bestanden aangepast:**
+- `database/connection.py`:
+  - `seed_rode_lijnen()`: start_datum van 2024-07-28 → 2024-07-29
+  - `seed_rode_lijnen_config()`: start_datum van 2024-07-28 → 2024-07-29
+  - Comments toegevoegd: "uitkomend op periode 17 = 20 oktober 2025"
+
+#### 3. Unicode Fixes voor Windows Console
+**Probleem:** Windows console (cp1252) kan Unicode ✓/✗ karakters niet tonen.
+
+**Oplossing:** Alle Unicode karakters vervangen met ASCII:
+- ✓ → [OK]
+- ✗ → [ERROR]
+- ⚠️ → [WARNING]
+
+**Bestanden aangepast:**
+- `services/data_ensure_service.py`: Alle print statements
+- `database/connection.py`: Alle seed functie print statements
+
+#### 4. Migratie Script Creatie
+**Nieuw bestand:** `fix_rode_lijnen_seed_datum.py`
+
+**Doel:** Herstel bestaande databases zonder clean install of herconfiguratie.
+
+**Functionaliteit:**
+1. **Detectie:** Check of eerste rode lijn start op 28 juli 2024 (oud) of 29 juli (nieuw)
+2. **Validatie:** Waarschuw bij onverwachte start datum
+3. **Backup Info:** Toon aantal bestaande periodes
+4. **Delete:** Verwijder ALLE rode lijnen
+5. **Regenerate:** Genereer nieuwe rode lijnen vanaf 29 juli 2024 tot +2 jaar
+6. **Config Update:** Update rode_lijnen_config indien nodig
+7. **Verificatie:** Toon eerste 3 periodes + oktober 2025 (periode 17)
+
+**Kenmerken:**
+- Idempotent: Veilig om meerdere keren te draaien
+- Interactief: Vraagt bevestiging bij onverwachte start datum
+- Verifieerbaar: Toont duidelijke output met verificatie markers
+
+**Test Resultaten:**
+```
+[OK] 43 rode lijnen verwijderd
+[OK] 43 nieuwe rode lijnen periodes gegenereerd
+Van: 29-07-2024
+Tot: 18-10-2027
+
+Verificatie periode 17:
+Periode 17: 2025-10-20 t/m 2025-11-16 <- CORRECT!
+```
+
+**Gebruiksinstructies:**
+```bash
+# Voor bestaande databases met oude seed:
+python fix_rode_lijnen_seed_datum.py
+
+# Herstart applicatie om nieuwe rode lijnen te zien
+```
+
+**Database Impact:**
+- DELETE FROM rode_lijnen (alle records)
+- INSERT nieuwe periodes vanaf correcte seed datum
+- UPDATE rode_lijnen_config indien oude start datum aanwezig
+
+**Code Wijzigingen:**
+- `services/data_ensure_service.py`:
+  - Regeneratie logica - regel 273-302
+  - Unicode fixes - diverse print statements
+
+- `database/connection.py`:
+  - `seed_rode_lijnen()` start datum - regel ~445
+  - `seed_rode_lijnen_config()` start datum - regel ~480
+  - Unicode fixes in alle seed functies
+
+- **NIEUW:** `fix_rode_lijnen_seed_datum.py` (191 regels):
+  - Volledige migratie script met verificatie
+  - Error handling en rollback support
+  - Duidelijke output voor gebruiker
+
+**Verificatie:**
+- ✅ Migratie script succesvol getest op huidige database
+- ✅ Periode 17 nu correct op 20 oktober 2025
+- ✅ Rode lijnen worden correct getekend in kalenders
+- ✅ Nieuwe clean installs gebruiken correcte seed datum
+
+**Geleerde Lessen:**
+- **Seed Datum Berekening:** Werk altijd backwards vanaf bekende cyclus datum
+- **Regeneratie Logica:** Nieuwe cyclus detectie essentieel voor config wijzigingen
+- **Console Compatibility:** Windows console vereist ASCII karakters, geen Unicode
+- **Migratie Scripts:** Idempotency + verificatie = veilige database updates
+- **Documentatie:** Comments in seed data met uitkomst verificatie (bijv. "periode 17 = 20 oktober 2025")
+
+**Impact:**
+- **Clean Installs:** Correcte rode lijnen vanaf eerste run
+- **Bestaande Databases:** Eenvoudige migratie met verificatie
+- **Future Config Changes:** Nieuwe cyclus logica werkt correct
+- **Windows Compatibility:** Geen encoding errors meer
+
+---
 
 ### Sessie 22 Oktober 2025 (Deel 4) - Rode Lijnen Regeneratie Fix
 **Duur:** ~30 min

@@ -250,7 +250,7 @@ def regenereer_rode_lijnen_vanaf(actief_vanaf_str: str):
         """, (actief_vanaf.isoformat(),))
 
         verwijderd = cursor.rowcount
-        print(f"  ✓ {verwijderd} rode lijnen periodes verwijderd vanaf {actief_vanaf.isoformat()}")
+        print(f"  [OK] {verwijderd} rode lijnen periodes verwijderd vanaf {actief_vanaf.isoformat()}")
 
         # Stap 2: Haal nieuwe actieve config op
         cursor.execute("""
@@ -262,7 +262,7 @@ def regenereer_rode_lijnen_vanaf(actief_vanaf_str: str):
         config = cursor.fetchone()
 
         if not config:
-            print("  ⚠️ Geen actieve rode lijnen configuratie gevonden")
+            print("  [WARNING] Geen actieve rode lijnen configuratie gevonden")
             conn.close()
             return 0
 
@@ -270,25 +270,36 @@ def regenereer_rode_lijnen_vanaf(actief_vanaf_str: str):
         interval = config[1]
 
         # Stap 3: Bepaal vanaf waar we moeten starten
-        # Haal laatste rode lijn EN hoogste periode nummer (voor periodes VÓÓr actief_vanaf)
-        cursor.execute("""
-            SELECT MAX(start_datum), MAX(periode_nummer) FROM rode_lijnen
-            WHERE start_datum < ?
-        """, (actief_vanaf.isoformat(),))
+        # Check of config_start_datum >= actief_vanaf (nieuwe cyclus start)
+        if config_start_datum >= actief_vanaf:
+            # Nieuwe cyclus: start vanaf config start datum
+            start_datum = config_start_datum
 
-        result = cursor.fetchone()
-        laatste_datum_str = result[0]
-        laatste_nummer = result[1] or 0
-
-        if laatste_datum_str:
-            # Er zijn rode lijnen voor actief_vanaf - continue vanaf daar
-            laatste_datum = datetime.fromisoformat(laatste_datum_str).date()
-            start_datum = laatste_datum + timedelta(days=interval)
+            # Haal hoogste periode nummer voor nummering
+            cursor.execute("SELECT MAX(periode_nummer) FROM rode_lijnen WHERE start_datum < ?",
+                          (config_start_datum.isoformat(),))
+            laatste_nummer = cursor.fetchone()[0] or 0
             periode_nummer = laatste_nummer + 1
         else:
-            # Geen rode lijnen voor actief_vanaf - start vanaf config start
-            start_datum = config_start_datum
-            periode_nummer = 1
+            # Continue bestaande cyclus: haal laatste rode lijn vóór actief_vanaf
+            cursor.execute("""
+                SELECT MAX(start_datum), MAX(periode_nummer) FROM rode_lijnen
+                WHERE start_datum < ?
+            """, (actief_vanaf.isoformat(),))
+
+            result = cursor.fetchone()
+            laatste_datum_str = result[0]
+            laatste_nummer = result[1] or 0
+
+            if laatste_datum_str:
+                # Er zijn rode lijnen voor actief_vanaf - continue vanaf daar
+                laatste_datum = datetime.fromisoformat(laatste_datum_str).date()
+                start_datum = laatste_datum + timedelta(days=interval)
+                periode_nummer = laatste_nummer + 1
+            else:
+                # Geen rode lijnen voor actief_vanaf - start vanaf config start
+                start_datum = config_start_datum
+                periode_nummer = 1
 
         # Stap 4: Genereer nieuwe rode lijnen tot +2 jaar
         doel_datum = datetime.now().date() + timedelta(days=730)  # +2 jaar
@@ -308,13 +319,13 @@ def regenereer_rode_lijnen_vanaf(actief_vanaf_str: str):
             toegevoegd += 1
 
         conn.commit()
-        print(f"  ✓ {toegevoegd} nieuwe rode lijnen periodes gegenereerd tot {doel_datum.isoformat()}")
+        print(f"  [OK] {toegevoegd} nieuwe rode lijnen periodes gegenereerd tot {doel_datum.isoformat()}")
 
         return toegevoegd
 
     except Exception as e:
         conn.rollback()
-        print(f"  ✗ Fout bij regenereren rode lijnen: {e}")
+        print(f"  [ERROR] Fout bij regenereren rode lijnen: {e}")
         raise
     finally:
         conn.close()

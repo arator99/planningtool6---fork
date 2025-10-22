@@ -12,20 +12,63 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **AT THE END OF EACH SESSION:**
 1. **UPDATE `DEV_NOTES.md`** - Add session notes, completed tasks, decisions made, and issues encountered
 2. **UPDATE `DEVELOPMENT_GUIDE.md`** - Add new patterns, architectural changes, or technical details if relevant
-3. **UPDATE VERSION** - Increment version number following the pattern below
+3. **UPDATE VERSION** - Follow version update workflow below
 
-**Version Numbering:**
+## Version Update Workflow (v0.6.13+)
+
+**IMPORTANT:** Since v0.6.13, version management is centralized in `config.py`. Always follow this checklist:
+
+### For ANY Change (GUI or Database):
+1. **Increment `APP_VERSION` in `config.py`**
+   ```python
+   APP_VERSION = "0.6.15"  # Always increment
+   ```
+
+2. **Update version in documentation:**
+   - `CLAUDE.md` - Line 70: Current Version
+   - `DEVELOPMENT_GUIDE.md` - Line 5: Huidige versie
+   - `DEV_NOTES.md` - Line 4: CURRENT VERSION
+   - `PROJECT_INFO.md` - Line 5: Huidige versie (+ footer line ~553)
+
+### For Database Schema Changes ONLY:
+3. **Also increment `MIN_DB_VERSION` in `config.py`**
+   ```python
+   APP_VERSION = "0.6.15"
+   MIN_DB_VERSION = "0.6.15"  # Same as APP_VERSION when DB changes
+   ```
+
+4. **Update database schema in `database/connection.py`**
+   - Modify `create_tables()` for new/changed tables
+   - Update seed functions if needed
+
+5. **Create upgrade script:** `upgrade_to_vX_Y_Z.py`
+   ```python
+   # Add schema changes
+   # Update db_metadata table with new version
+   ```
+
+6. **Update `db_metadata` table:**
+   ```sql
+   INSERT INTO db_metadata (version_number, migration_description)
+   VALUES ("0.6.15", "Description of schema change")
+   ```
+
+### Version Numbering Pattern:
 - Pattern: `0.6.X` where X increments sequentially
-- Examples: `0.6.9` → `0.6.10` → `0.6.11` → `0.6.12`
+- Examples: `0.6.9` → `0.6.10` → `0.6.11` → `0.6.12` → `0.6.13`
 - Major features may increment to `0.7.0`, `0.8.0`, etc.
 - Release 1.0 planned for December 2025
+
+### Quick Reference:
+- **GUI-only change:** APP_VERSION++ (MIN_DB_VERSION stays same)
+- **DB schema change:** APP_VERSION++ AND MIN_DB_VERSION++ (both equal)
 
 ## Project Overview
 
 **Planning Tool** - A shift scheduling application for self-rostering teams, built with Python and PyQt6. The application manages team schedules, leave requests, shift codes, and schedule templates (typetabellen) for shift-based work environments.
 
-**Current Version:** 0.6.12 (Beta)
-**Status:** Active development - Theme Per Gebruiker + Shift Voorkeuren (Compleet)
+**Current Version:** 0.6.15 (Beta)
+**Status:** Active development - Planning Editor Priority 1 Compleet (Concept/Gepubliceerd Toggle)
 
 ## Running the Application
 
@@ -33,7 +76,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Run the application
 python main.py
 
-# Run database migrations (if upgrading)
+# Upgrade bestaande database (v0.6.13 → v0.6.14)
+python migratie_gebruiker_werkposten.py  # Voegt gebruiker_werkposten tabel toe voor werkpost koppeling
+
+# Run database migrations (if upgrading from older versions)
+python upgrade_to_v0_6_13.py             # v0.6.12 → v0.6.13 (db_metadata tabel)
 python migratie_theme_per_gebruiker.py  # v0.6.11 → v0.6.12 (theme per gebruiker)
 python migratie_shift_voorkeuren.py      # v0.6.10 → v0.6.11 (shift voorkeuren)
 python migratie_verlof_saldo.py          # v0.6.9 → v0.6.10 (verlof & KD saldo)
@@ -57,7 +104,9 @@ python database_shift_codes_migration.py # Earlier → v0.6.4+ (shift codes)
 - All tables use soft delete pattern (is_actief flag + timestamps)
 
 **Key Tables:**
+- `db_metadata` - Database version tracking (v0.6.13)
 - `gebruikers` - Users with UUID-based identification (kolom: `volledige_naam`, niet `naam`)
+- `gebruiker_werkposten` - Many-to-many user-to-werkpost mapping with priority (v0.6.14: NIEUW)
 - `typetabel_versies` + `typetabel_data` - Versioned schedule templates (v0.6.6)
 - `werkposten` + `shift_codes` - Team-specific shift codes
 - `speciale_codes` - Global codes with optional term field (v0.6.7)
@@ -69,6 +118,26 @@ python database_shift_codes_migration.py # Earlier → v0.6.4+ (shift codes)
 - `feestdagen` - Holidays (fixed and variable, GEEN `is_actief` kolom)
 - `rode_lijnen` - 28-day HR cycles
 - `rode_lijnen_config` - Versioned configuration for HR cycles (v0.6.8)
+
+### Version Management (v0.6.13)
+**Centralized Version Control:**
+- `config.py` bevat `APP_VERSION` en `MIN_DB_VERSION`
+- `APP_VERSION`: verhoogt bij elke wijziging (GUI of DB)
+- `MIN_DB_VERSION`: verhoogt alleen bij DB schema wijzigingen
+- Versie weergave op loginscherm en About dialog
+- Automatische compatibiliteit check bij app start
+
+**Database Versie Tracking:**
+- `db_metadata` tabel slaat database versie op
+- `get_db_version()` haalt huidige DB versie op
+- `check_db_compatibility()` controleert app ↔ DB compatibiliteit
+- Bij incompatibele database: error dialog met contactinformatie (geen automatische migratie)
+
+**Upgrade Workflow:**
+1. Download nieuwe app versie
+2. Run `upgrade_to_v0_6_13.py` (of nieuwere upgrade script)
+3. Start app - versie check gebeurt automatisch
+4. Bij error: neem contact op met beheerder voor handmatige upgrade
 
 ### GUI Layer (PyQt6)
 - **Entry point:** `main.py` with QStackedWidget for screen navigation
@@ -132,6 +201,26 @@ Two-tier system:
    - **Free codes**: VD, RDS, TCR, SCR, T, etc.
    - Codes can be renamed (VV→VL, KD→CD) but terms are fixed
    - System uses TermCodeService for dynamic lookups
+
+### Werkpost Koppeling System (v0.6.14)
+**Many-to-many relatie tussen gebruikers en werkposten:**
+- Elke gebruiker kan meerdere werkposten kennen
+- Prioriteit systeem (1 = eerste keuze, 2 = fallback, etc.)
+- UI: Grid met checkboxes (gebruikers × werkposten)
+- Filters: naam zoeken + toon reserves
+
+**Slimme Auto-Generatie:**
+1. Typetabel bevat abstract shift types ("V", "L", "N", "dag")
+2. Datum bepaalt dag_type (weekdag/zaterdag/zondag)
+3. Gebruiker's werkposten bepalen welke concrete codes beschikbaar zijn
+4. Algoritme: loop door werkposten (op prioriteit) totdat shift_code match gevonden
+5. Resultaat: typetabel "V" + weekdag + werkpost PAT → shift_code "7101"
+
+**Voorbeeld multi-post scenario:**
+- Jan kent: PAT (prio 1), Interventie (prio 2)
+- Typetabel: "N" op maandag
+- PAT heeft geen nacht op weekdag → skip
+- Interventie heeft wel nacht op weekdag = "7201" → gebruik deze
 
 ### Verlof & KD Saldo Systeem (v0.6.10)
 **Admin beheer:**
@@ -362,23 +451,25 @@ if 'versie_naam' not in columns:
 
 **Core Screens:**
 - `gui/screens/dashboard_screen.py` - Main menu with role-based tabs (theme toggle v0.6.9)
-- `gui/screens/planning_editor_screen.py` - Schedule editor
+- `gui/screens/planning_editor_screen.py` - Schedule editor (auto-generatie v0.6.14, concept/gepubliceerd v0.6.15)
 - `gui/screens/typetabel_beheer_screen.py` - Template management (v0.6.6)
 - `gui/screens/gebruikersbeheer_screen.py` - User management
+- `gui/screens/werkpost_koppeling_screen.py` - User-to-werkpost mapping grid (v0.6.14: NIEUW)
 - `gui/screens/verlof_aanvragen_screen.py` - Leave requests (saldo widget + layout fixes v0.6.10)
 - `gui/screens/verlof_goedkeuring_screen.py` - Leave approval (type selection v0.6.10)
 - `gui/screens/verlof_saldo_beheer_screen.py` - Leave balance management (v0.6.10)
 - `gui/screens/rode_lijnen_beheer_screen.py` - HR cycles config (v0.6.8)
 
 **Reusable Components:**
-- `gui/widgets/grid_kalender_base.py` - Base calendar widget
-- `gui/widgets/planner_grid_kalender.py` - Planner calendar view (feestdagen extended + rode lijnen v0.6.9)
-- `gui/widgets/teamlid_grid_kalender.py` - Teamlid calendar view (rode lijnen v0.6.9)
+- `gui/widgets/grid_kalender_base.py` - Base calendar widget (filter preservation v0.6.15, alleen_gepubliceerd parameter v0.6.15)
+- `gui/widgets/planner_grid_kalender.py` - Planner calendar view (feestdagen extended + rode lijnen v0.6.9, maand_changed signal v0.6.15)
+- `gui/widgets/teamlid_grid_kalender.py` - Teamlid calendar view (rode lijnen v0.6.9, gepubliceerd filter v0.6.15)
 - `gui/widgets/verlof_saldo_widget.py` - Leave balance display widget (v0.6.10)
 - `gui/widgets/theme_toggle_widget.py` - Theme toggle component (v0.6.9)
 - `gui/styles.py` - All styling constants (ThemeManager + dynamic Colors v0.6.9)
 
 **Dialogs:**
+- `gui/dialogs/auto_generatie_dialog.py` - Auto-generate planning from typetabel (v0.6.14: NIEUW)
 - `gui/dialogs/verlof_saldo_bewerken_dialog.py` - Edit user leave balance (v0.6.10)
 
 **Documentation:**
@@ -391,7 +482,7 @@ if 'versie_naam' not in columns:
 **For v1.0 (December 2025):**
 - Typetabel activation flow with validation
 - HR rules management UI
-- Complete planning editor with auto-generation
+- Complete planning editor (bulk operaties, validatie feedback) ← concept/gepubliceerd ✅ compleet in v0.6.15
 - Validation system with visual feedback
 - Export functionality (Excel to HR)
 - .EXE build for deployment
@@ -402,6 +493,28 @@ if 'versie_naam' not in columns:
 - Theme toggle only available in dashboard (v0.6.9)
 - QCalendarWidget behouden light mode styling (Qt limitation v0.6.9)
 - Geen automatische cleanup overgedragen verlof op 1 mei (v0.6.10)
+
+**v0.6.15 Features Completed:**
+- ✅ Concept vs Gepubliceerd Toggle - Volledig status management systeem
+  - Planning status per maand (concept = verborgen, gepubliceerd = zichtbaar)
+  - Teamleden zien ALLEEN gepubliceerde planning
+  - Planners kunnen altijd wijzigen (ook na publicatie)
+  - Dynamische UI met visuele indicatoren (geel/groen info boxes)
+  - Bevestiging dialogs bij status wijziging
+- ✅ Feestdag specifieke error messages in Planning Editor
+- ✅ Filter state preservation bij maand navigatie (smart merge logica)
+- ✅ Rode lijnen auto-regeneratie na config wijziging
+- ✅ Naam kolom verbreed naar 280px voor lange namen
+- ✅ Bug fixes: 5 commits (49d6886, a2f6025, b51c24e, 4e3e435, 377d2c6)
+
+**v0.6.14 Features Completed:**
+- ✅ Werkpost Koppeling systeem (many-to-many gebruikers ↔ werkposten)
+- ✅ Slimme auto-generatie: typetabel "V" → shift_codes "7101" lookup
+- ✅ Multi-post support met prioriteit fallback
+- ✅ UI: Grid met checkboxes, filters (naam + reserves)
+- ✅ Bescherming speciale codes en handmatige wijzigingen
+- ✅ Bug fix: nieuwe werkpost reset_12u standaard uit
+- ✅ Database: gebruiker_werkposten tabel + migratie script
 
 **v0.6.10 Features Completed:**
 - ✅ Complete verlof & KD saldo tracking systeem

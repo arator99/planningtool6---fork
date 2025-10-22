@@ -24,6 +24,74 @@ def get_connection():
     return conn
 
 
+def get_db_version():
+    """
+    Haal database versie op uit db_metadata tabel.
+    Returns: versie string (bijv. "0.6.12") of None als niet gevonden
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Check of db_metadata tabel bestaat
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='db_metadata'
+        """)
+
+        if not cursor.fetchone():
+            conn.close()
+            return None  # Oude database zonder versie tracking
+
+        # Haal laatste versie op
+        cursor.execute("""
+            SELECT version_number FROM db_metadata
+            ORDER BY id DESC LIMIT 1
+        """)
+
+        result = cursor.fetchone()
+        conn.close()
+
+        return result[0] if result else None
+
+    except sqlite3.Error:
+        return None
+
+
+def check_db_compatibility():
+    """
+    Controleer of database versie compatibel is met applicatie.
+    Returns: (is_compatible: bool, db_version: str|None, error_msg: str|None)
+    """
+    from config import MIN_DB_VERSION, APP_VERSION
+
+    db_version = get_db_version()
+
+    # Geen versie gevonden = oude database
+    if db_version is None:
+        return (False, None,
+                f"Database heeft geen versie informatie.\n\n"
+                f"De applicatie vereist database versie {MIN_DB_VERSION} of hoger.\n"
+                f"Neem contact op met de beheerder voor een database upgrade.")
+
+    # Versie vergelijken (simpele string vergelijking werkt voor X.Y.Z formaat)
+    if db_version < MIN_DB_VERSION:
+        return (False, db_version,
+                f"Database versie {db_version} is te oud.\n\n"
+                f"De applicatie vereist database versie {MIN_DB_VERSION} of hoger.\n"
+                f"Neem contact op met de beheerder voor een database upgrade.")
+
+    # Database is nieuwer dan app (zou niet moeten gebeuren)
+    if db_version > APP_VERSION:
+        return (False, db_version,
+                f"Database versie {db_version} is nieuwer dan de applicatie.\n\n"
+                f"Applicatie versie: {APP_VERSION}\n"
+                f"Upgrade de applicatie naar de nieuwste versie.")
+
+    # Alles OK
+    return (True, db_version, None)
+
+
 def init_database():
     """Initialiseer database met alle tabellen en seed data"""
     conn = get_connection()
@@ -53,6 +121,16 @@ def init_database():
 
 def create_tables(cursor):
     """Maak alle database tabellen aan"""
+
+    # Database metadata tabel (v0.6.13 - NIEUW: versie tracking)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS db_metadata (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            version_number TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            migration_description TEXT
+        )
+    """)
 
     # Gebruikers tabel (UPDATED met UUID, shift_voorkeuren v0.6.11, theme_voorkeur v0.6.12)
     cursor.execute("""
@@ -105,6 +183,26 @@ def create_tables(cursor):
             FOREIGN KEY (werkpost_id) REFERENCES werkposten(id),
             UNIQUE(werkpost_id, dag_type, shift_type)
         )
+    """)
+
+    # Gebruiker Werkposten koppeling tabel (v0.6.14 - NIEUW: many-to-many relatie)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS gebruiker_werkposten (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            gebruiker_id INTEGER NOT NULL,
+            werkpost_id INTEGER NOT NULL,
+            prioriteit INTEGER DEFAULT 1,
+            aangemaakt_op TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(gebruiker_id, werkpost_id),
+            FOREIGN KEY (gebruiker_id) REFERENCES gebruikers(id) ON DELETE CASCADE,
+            FOREIGN KEY (werkpost_id) REFERENCES werkposten(id) ON DELETE CASCADE
+        )
+    """)
+
+    # Index voor gebruiker_werkposten performance
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_gebruiker_werkposten_gebruiker
+        ON gebruiker_werkposten(gebruiker_id, prioriteit)
     """)
 
     # Speciale codes tabel (v0.6.4, updated v0.6.7 met term kolom)
@@ -281,6 +379,7 @@ def create_tables(cursor):
 def seed_data(conn, cursor):
     """Seed initiële data in database"""
     print("\nSeeding data...")
+    seed_db_version(cursor)
     seed_admin_user(cursor)
     seed_interventie_werkpost(cursor)
     seed_speciale_codes(cursor)
@@ -289,7 +388,24 @@ def seed_data(conn, cursor):
     seed_typetabel(cursor)
     seed_rode_lijnen(cursor)
     conn.commit()
-    print("✓ Seed data compleet\n")
+    print("[OK] Seed data compleet\n")
+
+
+def seed_db_version(cursor):
+    """Seed database versie (v0.6.13)"""
+    from config import MIN_DB_VERSION
+
+    cursor.execute("SELECT COUNT(*) FROM db_metadata")
+    if cursor.fetchone()[0] > 0:
+        print("  ↳ Database versie al aanwezig")
+        return
+
+    cursor.execute("""
+        INSERT INTO db_metadata (version_number, migration_description)
+        VALUES (?, ?)
+    """, (MIN_DB_VERSION, f"Database schema versie {MIN_DB_VERSION}"))
+
+    print(f"  [OK] Database versie ingesteld op {MIN_DB_VERSION}")
 
 
 def seed_admin_user(cursor):
@@ -319,7 +435,7 @@ def seed_admin_user(cursor):
         1
     ))
 
-    print("  ✓ Admin user aangemaakt (gebruikersnaam: 'admin', wachtwoord: 'admin')")
+    print("  [OK] Admin user aangemaakt (gebruikersnaam: 'admin', wachtwoord: 'admin')")
 
 
 def seed_interventie_werkpost(cursor):
@@ -355,7 +471,7 @@ def seed_interventie_werkpost(cursor):
         VALUES (?, ?, ?, ?, ?, ?)
     """, shifts)
 
-    print(f"  ✓ Werkpost 'Interventie' aangemaakt met {len(shifts)} shift codes")
+    print(f"  [OK] Werkpost 'Interventie' aangemaakt met {len(shifts)} shift codes")
 
 
 def seed_speciale_codes(cursor):
@@ -382,7 +498,7 @@ def seed_speciale_codes(cursor):
         VALUES (?, ?, ?, ?, ?, ?)
     """, codes)
 
-    print(f"  ✓ {len(codes)} speciale codes aangemaakt (6 met systeem-termen)")
+    print(f"  [OK] {len(codes)} speciale codes aangemaakt (6 met systeem-termen)")
 
 
 def seed_hr_regels(cursor):
@@ -403,7 +519,7 @@ def seed_hr_regels(cursor):
         VALUES (?, ?, ?, ?, 1)
     """, regels)
 
-    print(f"  ✓ {len(regels)} HR regels aangemaakt (VOORBEELDEN - controleer met HR!)")
+    print(f"  [OK] {len(regels)} HR regels aangemaakt (VOORBEELDEN - controleer met HR!)")
 
 
 def seed_typetabel(cursor):
@@ -475,7 +591,7 @@ def seed_typetabel(cursor):
         VALUES (?, ?, ?, ?)
     """, alle_weken)
 
-    print(f"  ✓ Typetabel versie '{versie_id}' aangemaakt (42 entries - 6 weken, status: actief)")
+    print(f"  [OK] Typetabel versie '{versie_id}' aangemaakt (42 entries - 6 weken, status: actief)")
 
 
 def seed_rode_lijnen(cursor):
@@ -489,8 +605,8 @@ def seed_rode_lijnen(cursor):
         print("  ↳ Rode lijnen al aanwezig")
         return
 
-    # Start datum: 28 juli 2024 (bekende start rode lijn cyclus)
-    start = datetime(2024, 7, 28)
+    # Start datum: 29 juli 2024 (periode 1, uitkomend op periode 17 = 20 oktober 2025)
+    start = datetime(2024, 7, 29)
 
     # Genereer 12 maanden (≈13 periodes van 28 dagen)
     aantal_periodes = 13
@@ -505,7 +621,7 @@ def seed_rode_lijnen(cursor):
             VALUES (?, ?, ?)
         """, (periode_nummer, start_datum.isoformat(), eind_datum.isoformat()))
 
-    print(f"  ✓ {aantal_periodes} rode lijnen periodes aangemaakt (12 maanden)")
+    print(f"  [OK] {aantal_periodes} rode lijnen periodes aangemaakt (12 maanden)")
     print(f"    Vanaf: {start.strftime('%d-%m-%Y')}")
     print(f"    Tot: {(start + timedelta(days=28 * aantal_periodes)).strftime('%d-%m-%Y')}")
     print(f"    Verdere periodes worden on-demand gegenereerd")
@@ -519,8 +635,8 @@ def seed_rode_lijnen_config(cursor):
         print("  ↳ Rode lijnen config al aanwezig")
         return
 
-    # Default configuratie (huidige settings)
-    start_datum = datetime(2024, 7, 28)
+    # Default configuratie (periode 1 start, uitkomend op periode 17 = 20 oktober 2025)
+    start_datum = datetime(2024, 7, 29)
     interval_dagen = 28
 
     cursor.execute("""
@@ -529,6 +645,6 @@ def seed_rode_lijnen_config(cursor):
         VALUES (?, ?, 1)
     """, (start_datum.date().isoformat(), interval_dagen))
 
-    print(f"  ✓ Rode lijnen config aangemaakt")
+    print(f"  [OK] Rode lijnen config aangemaakt")
     print(f"    Start: {start_datum.strftime('%d-%m-%Y')}")
     print(f"    Interval: {interval_dagen} dagen")

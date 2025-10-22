@@ -2,15 +2,90 @@
 Roostersysteem voor Self-Rostering Teams
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.12 (Beta)
-**Release datum:** 21 Oktober 2025
-**Status:** In actieve ontwikkeling - Theme Per Gebruiker + Shift Voorkeuren
+**Huidige versie:** 0.6.15 (Beta)
+**Release datum:** 22 Oktober 2025
+**Status:** In actieve ontwikkeling - Planning Editor Priority 1 Compleet
 
 ---
 
 ## WAT IS NIEUW
 
-### Versie 0.6.12 (21 Oktober 2025) ⭐ NIEUW
+### Versie 0.6.15 (22 Oktober 2025) ⭐ NIEUW
+- ✅ **Concept vs Gepubliceerd Toggle**
+  - Planning status management per maand
+  - Concept modus: planning nog niet zichtbaar voor teamleden (geel info box)
+  - Gepubliceerd modus: planning zichtbaar voor teamleden (groen info box)
+  - Planners kunnen altijd wijzigen, ook na publicatie (voor zieken, last-minute)
+  - Teamleden zien ALLEEN gepubliceerde planning
+  - Bevestiging dialogs bij status wijziging
+  - Locatie: Planning Editor (bovenaan scherm)
+
+- ✅ **Bug Fixes & Verbeteringen**
+  - Feestdag specifieke error messages ("Op feestdagen moeten zondagdiensten worden gebruikt")
+  - Filter blijft behouden bij maand navigatie in kalenders
+  - Rode lijnen automatisch hertekend na config wijziging
+  - Naam kolom verbreed naar 280px voor lange namen (28+ karakters)
+
+**Workflow:**
+1. Planner maakt planning → automatisch concept status
+2. Teamleden zien NIETS (verborgen)
+3. Planner klikt "Publiceren" → bevestiging
+4. Status = gepubliceerd → teamleden zien planning
+5. Planner kan altijd nog wijzigen (zieken, etc.)
+6. Optioneel: "Terug naar Concept" verbergt planning weer
+
+### Versie 0.6.14 (22 Oktober 2025)
+- ✅ **Werkpost Koppeling Systeem**
+  - Nieuwe beheer functie: koppel gebruikers aan werkposten
+  - Grid interface met checkboxes (gebruikers × werkposten)
+  - Multi-post support met prioriteit (1 = eerste keuze, 2 = fallback, etc.)
+  - Filters: zoek op naam + toon reserves optie
+  - Reserves visueel onderscheiden met [RESERVE] label
+  - Locatie: Beheer tab → "Werkpost Koppeling"
+
+- ✅ **Slimme Auto-Generatie uit Typetabel**
+  - Planning Editor: knop "Auto-Genereren uit Typetabel" nu actief
+  - Intelligente code lookup: typetabel "V" → werkpost → shift_code "7101"
+  - Multi-post fallback: zoekt door werkposten tot match gevonden
+  - Beschermt verlof, ziekte en handmatig aangepaste shifts
+  - Preview met statistieken voor generatie
+  - Datum range selectie (standaard: huidige maand)
+
+- ✅ **Bug Fixes**
+  - Nieuwe werkpost: "Shifts resetten 12u rust regel" staat nu standaard UIT
+  - Speciale codes query error opgelost
+  - Kalender refresh na auto-generatie werkt correct
+
+**Workflow:**
+1. Configureer werkpost koppelingen (Beheer → Werkpost Koppeling)
+2. Vul typetabel in met shift types (V, L, N, dag)
+3. Ga naar Planning Editor → Auto-Genereren
+4. Selecteer datum bereik → Genereren
+5. Planning wordt automatisch ingevuld met juiste shift codes!
+
+### Versie 0.6.13 (21 Oktober 2025)
+- ✅ **Database Versie Beheer Systeem**
+  - Centrale versie configuratie in `config.py` (APP_VERSION en MIN_DB_VERSION)
+  - Automatische compatibiliteit check bij app start
+  - Database versie tracking via nieuwe `db_metadata` tabel
+  - Versie weergave op loginscherm (app + database versie)
+  - Versie weergave in About dialog
+  - Bij incompatibele database: duidelijke error met upgrade instructies
+  - Upgrade script: `upgrade_to_v0_6_13.py`
+
+- ✅ **UI Verbetering: Verlof Saldo Beheer Scherm**
+  - Terug knop verplaatst naar rechtsboven (consistent met andere schermen)
+  - Jaar selector verplaatst naar toolbar (logischere plaatsing bij acties)
+  - Uniformere gebruikerservaring door hele applicatie
+
+**Waarom belangrijk voor testers:**
+- Als je een oude database hebt, krijg je een duidelijke melding
+- Je weet altijd welke versie je draait (zie loginscherm)
+- Database upgrades zijn nu gecontroleerd en veilig
+- Bij problemen: app geeft aan dat je contact moet opnemen
+- Consistentere interface: alle schermen hebben terug knop rechtsboven
+
+### Versie 0.6.12 (21 Oktober 2025)
 - ✅ **Theme Voorkeur Per Gebruiker**
   - Elke gebruiker kiest eigen light/dark mode voorkeur
   - Opgeslagen in database (niet meer globaal JSON bestand)
@@ -354,6 +429,16 @@ Het systeem controleert op:
 
 ### Meest Recente Migraties
 
+**v0.6.12 → v0.6.13: Database Versie Tracking** ⭐ NIEUW
+```bash
+python upgrade_to_v0_6_13.py
+```
+- Maakt `db_metadata` tabel voor versie tracking
+- Initialiseert database versie op 0.6.13
+- Vanaf nu wordt database versie automatisch gecontroleerd bij app start
+
+**LET OP:** Vanaf v0.6.13 heeft de app een versiebeheersysteem. Bij het starten wordt automatisch gecontroleerd of je database compatibel is. Als dat niet zo is, krijg je een duidelijke melding.
+
 **v0.6.11 → v0.6.12: Theme Per Gebruiker**
 ```bash
 python migratie_theme_per_gebruiker.py
@@ -464,5 +549,5 @@ Deze tool is voor **alle teams met self-rostering**, niet alleen interventie. He
 ---
 
 *Voor technische details: zie DEVELOPMENT_GUIDE.md*
-*Laatste update: 19 Oktober 2025*
-*Versie: 0.6.8*
+*Laatste update: 22 Oktober 2025*
+*Versie: 0.6.15*

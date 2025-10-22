@@ -1,7 +1,7 @@
 # Planning Tool - Gebruikershandleiding
 
-**Versie:** 0.6.12
-**Laatst bijgewerkt:** 21 Oktober 2025
+**Versie:** 0.6.15
+**Laatst bijgewerkt:** 22 Oktober 2025
 
 ---
 
@@ -208,10 +208,35 @@ Het systeem controleert hoeveel dagen je hebt gewerkt binnen een rode lijn perio
 5. Planning verschijnt met kleur van de shift
 6. Wijzigingen opslaan
 
-**Planning status:**
-- 🟡 **CONCEPT** - Nog niet zichtbaar voor teamleden
-- 🟢 **GEPUBLICEERD** - Zichtbaar en definitief
-- 🔒 **GESLOTEN** - Automatisch gesloten na einddatum
+**Planning status: Concept vs Gepubliceerd**
+
+De planning heeft twee statussen per maand:
+
+- 🟡 **CONCEPT** (gele waarschuwing bovenaan)
+  - Planning is nog in bewerking
+  - Teamleden kunnen deze planning NIET zien
+  - Je kunt vrijelijk experimenteren en wijzigen
+  - Knop "Publiceren" verschijnt
+
+- 🟢 **GEPUBLICEERD** (groene bevestiging bovenaan)
+  - Planning is definitief en zichtbaar
+  - Teamleden kunnen deze planning WEL zien
+  - Je kunt ALTIJD nog wijzigen (voor zieken, last-minute wijzigingen)
+  - Knop "Terug naar Concept" beschikbaar (verbergt planning weer)
+
+**Planning publiceren:**
+1. Maak planning voor een maand
+2. Status is automatisch "CONCEPT"
+3. Klik op **"Publiceren"** knop bovenaan
+4. Bevestig in de dialog
+5. Status wordt "GEPUBLICEERD" voor hele maand
+6. Teamleden kunnen planning nu bekijken
+
+**Waarom concept status?**
+- Je kunt eerst plannen zonder dat teamleden alles zien
+- Experimenteer met verschillende roosters
+- Publiceer pas wanneer je tevreden bent
+- Voorkom verwarring bij teamleden
 
 #### ✅ Verlof goedkeuren
 
@@ -310,6 +335,12 @@ Het systeem controleert hoeveel dagen je hebt gewerkt binnen een rode lijn perio
 2. Zie je rooster per maand
 3. Gebruik knoppen om door maanden te navigeren
 4. Kleuren tonen verschillende shift types
+
+**Let op:**
+- Je ziet alleen **gepubliceerde** planning
+- Planning in concept status (nog in bewerking) is verborgen
+- Als je geen planning ziet voor een maand, is deze waarschijnlijk nog niet gepubliceerd
+- Neem contact op met je planner als je denkt dat planning wel gepubliceerd zou moeten zijn
 
 #### 🏖️ Verlof aanvragen
 
