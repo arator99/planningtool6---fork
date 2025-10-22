@@ -14,6 +14,7 @@ from gui.styles import Styles, Colors, Fonts, Dimensions
 from database.connection import get_db_version
 from config import APP_VERSION
 from pathlib import Path
+import sys
 import re
 
 BUILD_DATE = "oktober 2025"
@@ -22,12 +23,21 @@ DEVELOPERS = "Ontwikkeld door:\n• Aerts Bob (Lead Developer - I-O.112)\n• Cl
 
 def load_project_info():
     """Laad project info uit PROJECT_INFO.md"""
-    info_file = Path(__file__).parent.parent.parent / "PROJECT_INFO.md"
+    # Check of we in een PyInstaller bundle zitten
+    if getattr(sys, 'frozen', False):
+        # Gecompileerde .exe: zoek in huidige directory
+        base_path = Path(sys.executable).parent
+    else:
+        # Development: zoek in root folder
+        base_path = Path(__file__).parent.parent.parent
+
+    info_file = base_path / "PROJECT_INFO.md"
+
     try:
         if info_file.exists():
             return info_file.read_text(encoding='utf-8')
         else:
-            return "PROJECT_INFO.md niet gevonden in root folder."
+            return f"PROJECT_INFO.md niet gevonden.\nGezocht in: {info_file}"
     except Exception as e:
         return f"Fout bij laden van project info: {str(e)}"
 
