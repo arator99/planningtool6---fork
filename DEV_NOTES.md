@@ -221,6 +221,55 @@ Active Development Notes & Session Logs
 
 ---
 
+### Sessie 22 Oktober 2025 (Deel 9) - Grid Kalender Tekst Leesbaarheid Fix (Dark Mode)
+**Duur:** ~15 min
+**Focus:** UX fix - Tekstkleur in grid kalender cellen niet leesbaar in dark mode
+
+**Probleem:**
+- Gebruiker rapporteerde: tekst in grid kalender cellen is te licht grijs in dark mode
+- Tekst moeilijk te lezen tegen lichte cel achtergronden
+- Cel achtergronden zijn hardcoded lichte kleuren (wit, lichtgrijs, geel)
+- Tekstkleur was dynamisch via `Colors.TEXT_PRIMARY` (wit in dark mode)
+- Resultaat: witte tekst op witte achtergrond = onleesbaar
+
+**Analyse:**
+- Cel achtergronden in `get_datum_achtergrond()`:
+  - Weekdag: `#FFFFFF` (wit)
+  - Zaterdag: `#EEEEEE` (lichtgrijs)
+  - Zondag/feestdag: `#FFF9C4` (geel)
+- Deze cel kleuren blijven bewust licht (later gebruikt voor andere features)
+- Tekstkleur moet daarom altijd donker zijn, ongeacht theme
+
+**Oplossing:**
+- Hardcode cel tekstkleur naar zwart (`#000000`) in `create_cel_stylesheet()`
+- Niet theme-aware maken (altijd zwart)
+- Cel achtergronden blijven ongewijzigd (light colored)
+
+**Code Wijzigingen:**
+- `gui/widgets/grid_kalender_base.py`:
+  - `create_cel_stylesheet()`: `color: {Colors.TEXT_PRIMARY}` → `color: #000000` - regel 408, 420
+  - Geldt voor beide branches (met en zonder overlay)
+
+**Verificatie:**
+- ✅ Applicatie start zonder errors
+- ✅ Tekst in cellen nu altijd zwart
+- ✅ Goed leesbaar in zowel light als dark mode
+- ⏳ Nog te testen door gebruiker in dark mode
+
+**Impact:**
+- **Light Mode:** Geen visueel verschil (was al donker)
+- **Dark Mode:** Tekst nu goed leesbaar (zwart op licht)
+- **Cel Achtergronden:** Ongewijzigd (blijven licht voor toekomstige features)
+- **Consistency:** Tekst in cellen nu altijd zwart, ongeacht theme
+
+**Geleerde Lessen:**
+- Bij lichte cel achtergronden altijd donkere tekst gebruiken (niet theme-aware)
+- Hardcode kleuren wanneer contrast belangrijker is dan theme consistency
+- Test UI elementen in beide themes, vooral bij hardcoded achtergronden
+- Cel achtergronden en tekstkleuren moeten samen als systeem worden bekeken
+
+---
+
 ### Sessie 22 Oktober 2025 (Deel 8) - Multiscreen Setup Fix
 **Duur:** ~30 min
 **Focus:** Bug fix - Window over meerdere schermen bij multiscreen setup

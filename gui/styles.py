@@ -52,6 +52,7 @@ class Colors:
         'SUCCESS_HOVER': "#218838",
         'WARNING': "#ffc107",
         'WARNING_HOVER': "#e0a800",
+        'WARNING_BG': "#fff3cd",
         'DANGER': "#dc3545",
         'DANGER_HOVER': "#c82333",
         'INFO': "#17a2b8",
@@ -101,6 +102,7 @@ class Colors:
         'SUCCESS_HOVER': "#4cae4c",
         'WARNING': "#f0ad4e",
         'WARNING_HOVER': "#ec971f",
+        'WARNING_BG': "#664d03",
         'DANGER': "#d9534f",
         'DANGER_HOVER': "#c9302c",
         'INFO': "#5bc0de",
@@ -146,6 +148,7 @@ class Colors:
     SUCCESS_HOVER = _LIGHT_THEME['SUCCESS_HOVER']
     WARNING = _LIGHT_THEME['WARNING']
     WARNING_HOVER = _LIGHT_THEME['WARNING_HOVER']
+    WARNING_BG = _LIGHT_THEME['WARNING_BG']
     DANGER = _LIGHT_THEME['DANGER']
     DANGER_HOVER = _LIGHT_THEME['DANGER_HOVER']
     INFO = _LIGHT_THEME['INFO']

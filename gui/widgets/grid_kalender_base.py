@@ -405,7 +405,7 @@ class GridKalenderBase(QWidget):
             return f"""
                 QLabel {{
                     background: linear-gradient({overlay}, {overlay}), {achtergrond};
-                    color: {Colors.TEXT_PRIMARY};
+                    color: #000000;
                     font-size: {Fonts.SIZE_SMALL}px;
                     font-weight: bold;
                     border: 1px solid {Colors.BORDER_LIGHT};
@@ -417,7 +417,7 @@ class GridKalenderBase(QWidget):
             return f"""
                 QLabel {{
                     background-color: {achtergrond};
-                    color: {Colors.TEXT_PRIMARY};
+                    color: #000000;
                     font-size: {Fonts.SIZE_SMALL}px;
                     font-weight: bold;
                     border: 1px solid {Colors.BORDER_LIGHT};
