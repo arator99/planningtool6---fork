@@ -434,7 +434,7 @@ class PlannerGridKalender(GridKalenderBase):
                 datum_header.setStyleSheet(f"""
                     QLabel {{
                         background-color: {achtergrond};
-                        color: {Colors.TEXT_PRIMARY};
+                        color: #000000;
                         padding: 4px;
                         border: {border_style};
                         border-left: 4px solid #dc3545;
@@ -447,7 +447,7 @@ class PlannerGridKalender(GridKalenderBase):
                 datum_header.setStyleSheet(f"""
                     QLabel {{
                         background-color: {achtergrond};
-                        color: {Colors.TEXT_PRIMARY};
+                        color: #000000;
                         padding: 4px;
                         border: {border_style};
                         qproperty-alignment: AlignCenter;
@@ -503,6 +503,7 @@ class PlannerGridKalender(GridKalenderBase):
 
         # Check of dit het begin van een rode lijn periode is
         is_rode_lijn_start = datum_str in self.rode_lijnen_starts
+
 
         # Maak editable label
         cel = EditableLabel(shift_code, datum_str, gebruiker_id, self)

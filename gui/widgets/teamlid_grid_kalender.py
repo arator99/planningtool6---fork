@@ -215,7 +215,7 @@ class TeamlidGridKalender(GridKalenderBase):
                 datum_header.setStyleSheet(f"""
                     QLabel {{
                         background-color: {achtergrond};
-                        color: {Colors.TEXT_PRIMARY};
+                        color: #000000;
                         padding: 4px;
                         border: 1px solid {Colors.BORDER_LIGHT};
                         border-left: 4px solid #dc3545;
@@ -227,7 +227,7 @@ class TeamlidGridKalender(GridKalenderBase):
                 datum_header.setStyleSheet(f"""
                     QLabel {{
                         background-color: {achtergrond};
-                        color: {Colors.TEXT_PRIMARY};
+                        color: #000000;
                         padding: 4px;
                         border: 1px solid {Colors.BORDER_LIGHT};
                         qproperty-alignment: AlignCenter;

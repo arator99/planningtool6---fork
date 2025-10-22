@@ -250,6 +250,14 @@ Active Development Notes & Session Logs
   - `create_cel_stylesheet()`: `color: {Colors.TEXT_PRIMARY}` → `color: #000000` - regel 408, 420
   - Geldt voor beide branches (met en zonder overlay)
 
+- `gui/widgets/planner_grid_kalender.py`:
+  - Datum headers: `color: {Colors.TEXT_PRIMARY}` → `color: #000000` - regel 437, 450
+  - Beide branches (met en zonder rode lijn)
+
+- `gui/widgets/teamlid_grid_kalender.py`:
+  - Datum headers: `color: {Colors.TEXT_PRIMARY}` → `color: #000000` - regel 218, 230
+  - Beide branches (met en zonder rode lijn)
+
 **Verificatie:**
 - ✅ Applicatie start zonder errors
 - ✅ Tekst in cellen nu altijd zwart
