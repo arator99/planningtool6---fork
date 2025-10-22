@@ -405,7 +405,7 @@ class PlannerGridKalender(GridKalenderBase):
                 qproperty-alignment: AlignCenter;
             }}
         """)
-        naam_header.setFixedWidth(200)
+        naam_header.setFixedWidth(280)  # Verhoogd van 200 naar 280 voor lange namen
         grid_layout.addWidget(naam_header, 0, 0)
 
         # Datum headers
@@ -471,7 +471,7 @@ class PlannerGridKalender(GridKalenderBase):
                     border: 1px solid {Colors.BORDER_LIGHT};
                 }}
             """)
-            naam_label.setFixedWidth(200)
+            naam_label.setFixedWidth(280)  # Verhoogd van 200 naar 280 voor lange namen
             grid_layout.addWidget(naam_label, row, 0)
 
             # Shift cellen (editable)
