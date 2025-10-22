@@ -275,9 +275,10 @@ Roostersysteem voor Self-Rostering Teams
 - Bulk operaties
 
 **Planning Editor:**
-- Auto-generatie uit typetabel
-- Concept vs Gepubliceerd
-- Validatie feedback
+- ✅ Auto-generatie uit typetabel (v0.6.14)
+- ✅ Concept vs Gepubliceerd (v0.6.15)
+- Bulk operaties (copy week, paste, clear)
+- Validatie feedback met visuele indicatoren
 
 **Validatie Systeem:**
 - HR regels checking
