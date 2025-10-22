@@ -37,6 +37,7 @@ class PlanningEditorScreen(QWidget):
             'zondag': set()
         }
         self.speciale_codes: Set[str] = set()
+        self.current_status: str = 'concept'  # 'concept' of 'gepubliceerd'
 
         self.kalender: PlannerGridKalender = PlannerGridKalender(
             datetime.now().year,
@@ -45,9 +46,12 @@ class PlanningEditorScreen(QWidget):
 
         # UI components
         self.codes_help_table: QTableWidget = QTableWidget()
+        self.info_label: QLabel = QLabel()
+        self.status_btn: QPushButton = QPushButton()
 
         self.init_ui()
         self.load_valid_codes()
+        self.load_maand_status()  # Haal status op voor huidige maand
 
         # Geef codes door aan kalender
         self.kalender.set_valid_codes(
@@ -55,6 +59,12 @@ class PlanningEditorScreen(QWidget):
             self.valid_codes_per_dag,
             self.speciale_codes
         )
+
+        # Connect maand changed signal voor status reload
+        self.kalender.maand_changed.connect(self.on_maand_changed)  # type: ignore
+
+        # Update UI met huidige status
+        self.update_status_ui()
 
     def init_ui(self) -> None:
         """Bouw UI"""
@@ -122,36 +132,23 @@ class PlanningEditorScreen(QWidget):
         """Maak toolbar met acties"""
         toolbar = QHBoxLayout()
 
-        # Info box
-        info = QLabel(
-            "⚠️ Planning is momenteel in CONCEPT modus. "
-            "Wijzigingen worden direct opgeslagen."
-        )
-        info.setStyleSheet(Styles.info_box(
-            bg_color="#FFF9C4",
-            border_color="#FFE082",
-            text_color="#F57C00"
-        ))
-        info.setWordWrap(True)
-        toolbar.addWidget(info)
+        # Info box (wordt later dynamisch gevuld)
+        self.info_label.setWordWrap(True)
+        toolbar.addWidget(self.info_label)
 
         toolbar.addStretch()
 
-        # Auto-generatie button (Sessie 2)
+        # Auto-generatie button
         auto_btn = QPushButton("Auto-Genereren uit Typetabel")
         auto_btn.setStyleSheet(Styles.button_primary())
         auto_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
-        auto_btn.setEnabled(False)
-        auto_btn.setToolTip("Komt in volgende versie")
+        auto_btn.clicked.connect(self.show_auto_generatie_dialog)  # type: ignore
         toolbar.addWidget(auto_btn)
 
-        # Status toggle button (Sessie 2)
-        status_btn = QPushButton("Publiceren")
-        status_btn.setStyleSheet(Styles.button_success())
-        status_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
-        status_btn.setEnabled(False)
-        status_btn.setToolTip("Komt in volgende versie")
-        toolbar.addWidget(status_btn)
+        # Status toggle button
+        self.status_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
+        self.status_btn.clicked.connect(self.toggle_status)  # type: ignore
+        toolbar.addWidget(self.status_btn)
 
         return toolbar
 
@@ -246,6 +243,198 @@ class PlanningEditorScreen(QWidget):
             self.speciale_codes.add(code)
 
         conn.close()
+
+    def load_maand_status(self):
+        """Haal status op voor huidige maand"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            jaar = self.kalender.jaar
+            maand = self.kalender.maand
+
+            # Bepaal eerste dag van maand en eerste dag van volgende maand
+            eerste_dag = f"{jaar:04d}-{maand:02d}-01"
+            if maand == 12:
+                volgende_maand = f"{jaar + 1:04d}-01-01"
+            else:
+                volgende_maand = f"{jaar:04d}-{maand + 1:02d}-01"
+
+            # Haal unieke statussen op voor deze maand
+            cursor.execute("""
+                SELECT DISTINCT status
+                FROM planning
+                WHERE datum >= ? AND datum < ?
+            """, (eerste_dag, volgende_maand))
+
+            statussen = [row['status'] for row in cursor.fetchall()]
+            conn.close()
+
+            # Bepaal status
+            if 'gepubliceerd' in statussen:
+                self.current_status = 'gepubliceerd'
+            else:
+                self.current_status = 'concept'
+
+        except Exception as e:
+            print(f"Fout bij laden status: {e}")
+            self.current_status = 'concept'
+
+    def update_status_ui(self):
+        """Update info box en button op basis van huidige status"""
+        if self.current_status == 'concept':
+            # CONCEPT modus
+            self.info_label.setText(
+                "⚠️ Planning is in CONCEPT. Teamleden zien deze planning nog niet."
+            )
+            self.info_label.setStyleSheet(Styles.info_box(
+                bg_color="#FFF9C4",
+                border_color="#FFE082",
+                text_color="#F57C00"
+            ))
+            self.status_btn.setText("Publiceren")
+            self.status_btn.setStyleSheet(Styles.button_success())
+
+        else:  # gepubliceerd
+            # GEPUBLICEERD modus
+            self.info_label.setText(
+                "✓ Planning is GEPUBLICEERD. Teamleden kunnen deze planning bekijken."
+            )
+            self.info_label.setStyleSheet(Styles.info_box(
+                bg_color="#E8F5E9",
+                border_color="#81C784",
+                text_color="#2E7D32"
+            ))
+            self.status_btn.setText("Terug naar Concept")
+            self.status_btn.setStyleSheet(Styles.button_warning())
+
+    def toggle_status(self):
+        """Toggle tussen concept en gepubliceerd"""
+        if self.current_status == 'concept':
+            self.publiceer_planning()
+        else:
+            self.terug_naar_concept()
+
+    def publiceer_planning(self):
+        """Publiceer planning voor huidige maand"""
+        jaar = self.kalender.jaar
+        maand = self.kalender.maand
+        maand_naam = datetime(jaar, maand, 1).strftime("%B %Y")
+
+        # Bevestiging dialog
+        reply = QMessageBox.question(
+            self,
+            "Planning Publiceren",
+            f"Planning publiceren voor {maand_naam}?\n\n"
+            f"Teamleden kunnen deze planning dan bekijken.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Update database
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # Bepaal datum range
+            eerste_dag = f"{jaar:04d}-{maand:02d}-01"
+            if maand == 12:
+                volgende_maand = f"{jaar + 1:04d}-01-01"
+            else:
+                volgende_maand = f"{jaar:04d}-{maand + 1:02d}-01"
+
+            # Update alle planning records naar gepubliceerd
+            cursor.execute("""
+                UPDATE planning
+                SET status = 'gepubliceerd'
+                WHERE datum >= ? AND datum < ?
+            """, (eerste_dag, volgende_maand))
+
+            conn.commit()
+            conn.close()
+
+            # Update UI
+            self.current_status = 'gepubliceerd'
+            self.update_status_ui()
+
+            QMessageBox.information(
+                self,
+                "Gepubliceerd",
+                f"Planning voor {maand_naam} is gepubliceerd."
+            )
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Fout",
+                f"Fout bij publiceren: {str(e)}"
+            )
+
+    def terug_naar_concept(self):
+        """Zet planning terug naar concept"""
+        jaar = self.kalender.jaar
+        maand = self.kalender.maand
+        maand_naam = datetime(jaar, maand, 1).strftime("%B %Y")
+
+        # Waarschuwing dialog
+        reply = QMessageBox.warning(
+            self,
+            "Terug naar Concept",
+            f"Planning terug naar concept zetten?\n\n"
+            f"Teamleden kunnen deze planning dan NIET meer bekijken.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Update database
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # Bepaal datum range
+            eerste_dag = f"{jaar:04d}-{maand:02d}-01"
+            if maand == 12:
+                volgende_maand = f"{jaar + 1:04d}-01-01"
+            else:
+                volgende_maand = f"{jaar:04d}-{maand + 1:02d}-01"
+
+            # Update alle planning records naar concept
+            cursor.execute("""
+                UPDATE planning
+                SET status = 'concept'
+                WHERE datum >= ? AND datum < ?
+            """, (eerste_dag, volgende_maand))
+
+            conn.commit()
+            conn.close()
+
+            # Update UI
+            self.current_status = 'concept'
+            self.update_status_ui()
+
+            QMessageBox.information(
+                self,
+                "Terug naar Concept",
+                f"Planning voor {maand_naam} is teruggezet naar concept."
+            )
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Fout",
+                f"Fout bij terug naar concept: {str(e)}"
+            )
+
+    def on_maand_changed(self):
+        """Handle maand navigatie - reload status"""
+        self.load_maand_status()
+        self.update_status_ui()
 
     def get_shift_codes_text(self) -> str:
         """Haal shift codes tekst voor sidebar"""
@@ -403,6 +592,15 @@ class PlanningEditorScreen(QWidget):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+
+    def show_auto_generatie_dialog(self):
+        """Toon auto-generatie dialog"""
+        from gui.dialogs.auto_generatie_dialog import AutoGeneratieDialog
+
+        dialog = AutoGeneratieDialog(self, self.kalender.jaar, self.kalender.maand)
+        if dialog.exec():
+            # Refresh kalender na generatie
+            self.kalender.load_initial_data()
 
     def filter_codes_table(self, search_text: str):
         """Filter codes table op zoekterm"""

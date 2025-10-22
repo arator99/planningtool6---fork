@@ -66,19 +66,25 @@ class GridKalenderBase(QWidget):
         # Initialiseer filter (allemaal aan)
         self.filter_gebruikers = {user['id']: True for user in self.gebruikers_data}
 
-    def load_planning_data(self, start_datum: str, eind_datum: str) -> None:
+    def load_planning_data(self, start_datum: str, eind_datum: str, alleen_gepubliceerd: bool = False) -> None:
         """
         Laad planning data voor periode
         Args:
             start_datum: YYYY-MM-DD
             eind_datum: YYYY-MM-DD
+            alleen_gepubliceerd: Als True, toon alleen gepubliceerde planning (voor teamleden)
         """
         conn = get_connection()
         cursor = conn.cursor()
 
+        # Bouw WHERE clause
+        where_clause = "WHERE p.datum BETWEEN ? AND ?"
+        if alleen_gepubliceerd:
+            where_clause += " AND p.status = 'gepubliceerd'"
+
         # Haal planning op met details van shift_codes en speciale_codes
-        cursor.execute("""
-            SELECT 
+        query = f"""
+            SELECT
                 p.gebruiker_id,
                 p.datum,
                 p.shift_code,
@@ -94,8 +100,9 @@ class GridKalenderBase(QWidget):
             LEFT JOIN shift_codes sc ON p.shift_code = sc.code
             LEFT JOIN werkposten w ON sc.werkpost_id = w.id
             LEFT JOIN speciale_codes spc ON p.shift_code = spc.code
-            WHERE p.datum BETWEEN ? AND ?
-        """, (start_datum, eind_datum))
+            {where_clause}
+        """
+        cursor.execute(query, (start_datum, eind_datum))
 
         # Organiseer per datum per gebruiker
         self.planning_data = {}

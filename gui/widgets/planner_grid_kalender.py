@@ -163,6 +163,7 @@ class PlannerGridKalender(GridKalenderBase):
     # Signals
     cel_clicked: pyqtSignal = pyqtSignal(str, int)  # (datum_str, gebruiker_id)
     data_changed: pyqtSignal = pyqtSignal()  # Planning gewijzigd
+    maand_changed: pyqtSignal = pyqtSignal()  # Maand gewijzigd (navigatie)
 
     def __init__(self, jaar: int, maand: int):
         super().__init__(jaar, maand)
@@ -827,3 +828,5 @@ class PlannerGridKalender(GridKalenderBase):
         self.maand = maand
         self.update_title()
         self.load_initial_data()
+        # Emit signal zodat parent screen kan reageren (bijv. status reload)
+        self.maand_changed.emit()  # type: ignore

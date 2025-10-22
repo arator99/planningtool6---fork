@@ -39,6 +39,86 @@ Active Development Notes & Session Logs
 
 ## 📝 RECENTE SESSIES
 
+### Sessie 22 Oktober 2025 (Deel 3) - Concept vs Gepubliceerd Status Toggle
+**Duur:** ~1 uur
+**Focus:** Planning Editor - status management (Prioriteit 1 TODO)
+
+**Wat is geïmplementeerd:**
+1. ✅ **Status Tracking**
+   - `load_maand_status()`: Haalt status op uit database voor huidige maand
+   - Automatische detectie: concept of gepubliceerd per maand
+   - Status reload bij maand navigatie
+
+2. ✅ **Dynamische UI**
+   - **Concept modus** (geel info box):
+     - "⚠️ Planning is in CONCEPT. Teamleden zien deze planning nog niet."
+     - Button: "Publiceren" (groen)
+   - **Gepubliceerd modus** (groen info box):
+     - "✓ Planning is GEPUBLICEERD. Teamleden kunnen deze planning bekijken."
+     - Button: "Terug naar Concept" (oranje/warning)
+
+3. ✅ **Dialogs**
+   - Publiceren: Bevestiging dialog met maand naam
+   - Terug naar concept: Waarschuwing dialog
+
+4. ✅ **Database Updates**
+   - UPDATE alle planning records voor maand naar nieuwe status
+   - Query gebruikt datum range (eerste dag maand → eerste dag volgende maand)
+
+5. ✅ **Maand Navigatie**
+   - Signal `maand_changed` toegevoegd aan PlannerGridKalender
+   - Auto-reload status bij navigatie
+
+6. ✅ **Teamlid View Filter**
+   - Teamleden zien ALLEEN gepubliceerde planning
+   - `load_planning_data()`: nieuwe parameter `alleen_gepubliceerd: bool = False`
+   - TeamlidGridKalender: `alleen_gepubliceerd=True`
+   - PlannerGridKalender: `alleen_gepubliceerd=False` (default, ziet alles)
+
+**Code Wijzigingen:**
+- `gui/screens/planning_editor_screen.py`:
+  - Status tracking en UI update logica
+  - `publiceer_planning()` en `terug_naar_concept()` methoden
+  - Maand changed handler
+- `gui/widgets/planner_grid_kalender.py`:
+  - `maand_changed` signal toegevoegd
+  - Emit bij refresh_data()
+- `gui/widgets/grid_kalender_base.py`:
+  - `load_planning_data()`: parameter `alleen_gepubliceerd` toegevoegd
+  - WHERE clause: `AND p.status = 'gepubliceerd'` voor teamleden
+- `gui/widgets/teamlid_grid_kalender.py`:
+  - Roept `load_planning_data(..., alleen_gepubliceerd=True)` aan
+
+**Business Logic:**
+```python
+# Status bepaling:
+if 'gepubliceerd' in unique_statussen_voor_maand:
+    current_status = 'gepubliceerd'
+else:
+    current_status = 'concept'
+
+# Teamlid view filter:
+WHERE p.datum BETWEEN ? AND ?
+AND p.status = 'gepubliceerd'  # Alleen voor teamleden!
+```
+
+**Workflow:**
+1. Planner maakt planning (status: concept)
+2. Teamleden zien NIETS (concept is verborgen)
+3. Planner klikt "Publiceren" → bevestiging
+4. Status wordt 'gepubliceerd' voor hele maand
+5. Teamleden zien planning nu WEL
+6. Planner kan ALTIJD nog wijzigen (ook in gepubliceerd modus)
+7. Bij zieken/last-minute: planner past aan, teamleden zien direct update
+8. Optioneel: "Terug naar Concept" → teamleden zien weer niets
+
+**Testing:**
+- ⏳ Testen: Toggle flow doorlopen
+- ⏳ Verifiëren: Teamlid ziet geen concept planning
+- ⏳ Verifiëren: Teamlid ziet wel gepubliceerde planning
+
+---
+
 ### Sessie 22 Oktober 2025 (Deel 2) - Feestdag Behandeling in Auto-Generatie Fix
 **Duur:** ~30 min
 **Focus:** Bug fix - Feestdagen krijgen verkeerde shift codes bij auto-generatie

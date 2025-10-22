@@ -129,8 +129,8 @@ class TeamlidGridKalender(GridKalenderBase):
             start_datum = datum_lijst[0][0]
             eind_datum = datum_lijst[-1][0]
 
-            # Laad planning en verlof
-            self.load_planning_data(start_datum, eind_datum)
+            # Laad planning en verlof (alleen gepubliceerde planning voor teamleden)
+            self.load_planning_data(start_datum, eind_datum, alleen_gepubliceerd=True)
             self.load_verlof_data(start_datum, eind_datum)
 
         # Bouw grid
