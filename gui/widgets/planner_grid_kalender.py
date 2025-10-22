@@ -176,6 +176,7 @@ class PlannerGridKalender(GridKalenderBase):
         }  # Codes per dag_type
         self.speciale_codes: Set[str] = set()  # Speciale codes (altijd geldig)
         self.cel_widgets: Dict[str, Dict[int, EditableLabel]] = {}  # {datum: {user_id: widget}}
+        self.feestdag_namen: Dict[str, str] = {}  # {datum_str: naam} - feestdag namen
 
         self.init_ui()
         self.load_initial_data()
@@ -332,16 +333,20 @@ class PlannerGridKalender(GridKalenderBase):
         for jaar in jaren:
             ensure_jaar_data(jaar)
 
-        # Laad feestdagen
+        # Laad feestdagen met namen
         conn = get_connection()
         cursor = conn.cursor()
         self.feestdagen = []
+        self.feestdag_namen = {}  # Reset dictionary
         for jaar in jaren:
             cursor.execute("""
-                SELECT datum FROM feestdagen
+                SELECT datum, naam FROM feestdagen
                 WHERE datum LIKE ?
             """, (f"{jaar}-%",))
-            self.feestdagen.extend([row['datum'] for row in cursor.fetchall()])
+            for row in cursor.fetchall():
+                datum_str = row['datum']
+                self.feestdagen.append(datum_str)
+                self.feestdag_namen[datum_str] = row['naam']
         conn.close()
 
     def load_rode_lijnen(self) -> None:
@@ -583,12 +588,25 @@ class PlannerGridKalender(GridKalenderBase):
 
             if gevonden_types:
                 types_str = ', '.join(gevonden_types)
+
+                # Check of het een feestdag is voor specifieke melding
+                is_feestdag = datum_str in self.feestdagen
+                if is_feestdag:
+                    # Haal feestdag naam op
+                    feestdag_naam = self.get_feestdag_naam(datum_str)
+                    dag_beschrijving = f"een feestdag ({feestdag_naam})"
+                    extra_info = "Op feestdagen moeten zondagdiensten worden gebruikt."
+                else:
+                    # Gewone zondag/zaterdag/weekdag
+                    dag_beschrijving = f"een {dag_type}"
+                    extra_info = f"Gebruik een shift code voor {dag_type}."
+
                 QMessageBox.warning(
                     self,
                     "Verkeerde Dag Type",
                     f"'{code}' is een {types_str} shift.\n\n"
-                    f"Deze datum is een {dag_type}.\n"
-                    f"Gebruik een shift code voor {dag_type}."
+                    f"Deze datum is {dag_beschrijving}.\n"
+                    f"{extra_info}"
                 )
             else:
                 QMessageBox.warning(
@@ -623,6 +641,10 @@ class PlannerGridKalender(GridKalenderBase):
         # Weekdag (ma-vr)
         else:
             return 'weekdag'
+
+    def get_feestdag_naam(self, datum_str: str) -> str:
+        """Haal feestdag naam op voor een datum"""
+        return self.feestdag_namen.get(datum_str, "Feestdag")
 
     def save_shift(self, datum_str: str, gebruiker_id: int, shift_code: str):
         """Sla shift op in database"""

@@ -1,17 +1,17 @@
 # DEV NOTES
 Active Development Notes & Session Logs
 
-## CURRENT VERSION: 0.6.12
+## CURRENT VERSION: 0.6.14
 
-**Last Updated:** 21 Oktober 2025
-**Status:** Beta - Actieve Ontwikkeling (Theme Per Gebruiker + Shift Voorkeuren Compleet)
+**Last Updated:** 22 Oktober 2025
+**Status:** Beta - Actieve Ontwikkeling (Werkpost Koppeling & Slimme Auto-Generatie Compleet)
 
 ---
 
 ## 🎯 FOCUS VOOR VOLGENDE SESSIE
 
-### Prioriteit 1: Planning Editor Volledig
-- Auto-generatie uit typetabel implementeren
+### Prioriteit 1: Planning Editor Afmaken
+- ✅ Auto-generatie uit typetabel (GEDAAN v0.6.14)
 - Concept vs Gepubliceerd toggle
 - Bulk operaties (copy week, paste, clear)
 - Validatie feedback integratie
@@ -38,6 +38,265 @@ Active Development Notes & Session Logs
 ---
 
 ## 📝 RECENTE SESSIES
+
+### Sessie 22 Oktober 2025 (Deel 2) - Feestdag Behandeling in Auto-Generatie Fix
+**Duur:** ~30 min
+**Focus:** Bug fix - Feestdagen krijgen verkeerde shift codes bij auto-generatie
+
+**Probleem:**
+- Bij auto-generatie uit typetabel kregen feestdagen normale weekdag codes
+- Voorbeeld: Typetabel zegt "V" (vroeg) op feestdag → kreeg 7101 (weekdag vroeg)
+- MOET ZIJN: Feestdagen = zondag codes → 7701 (zondag vroeg)
+
+**Oplossing:**
+- ✅ Auto-generatie dialog: feestdagen laden uit database
+- ✅ `bereken_shift_slim()`: check of datum feestdag is
+- ✅ Als feestdag: `dag_type = 'zondag'` ipv weekdag/zaterdag
+- ✅ Lookup shift_codes met zondag: (werkpost, 'zondag', 'vroeg') → 7701
+- ✅ Info box en preview updaten met feestdag info
+- ✅ Documentatie: PlanningValidator TODO updated (toekomstig)
+
+**Code Wijzigingen:**
+- `gui/dialogs/auto_generatie_dialog.py`:
+  - Nieuwe instance attribute: `self.feestdagen: Dict[str, bool]` (regel 41)
+  - Load feestdagen in `load_data()` (regel 169-175)
+  - `bereken_shift_slim()`: feestdag check (regel 497-510)
+  - Info box en preview tekst updated (regel 58, 232-234)
+
+- `gui/widgets/planner_grid_kalender.py`:
+  - Instance attribute: `self.feestdag_namen: Dict[str, str]` (regel 179)
+  - `load_feestdagen_extended()`: laadt nu ook namen (regel 336-349)
+  - `get_feestdag_naam()`: helper methode (regel 645-647)
+  - `on_cel_edited()`: specifieke foutmelding voor feestdagen (regel 587-605)
+
+**Business Logic:**
+```python
+# Auto-generatie:
+if is_feestdag:
+    dag_type = 'zondag'  # Altijd zondag codes voor feestdagen
+# Resultaat: V → 7701, L → 7801, N → 7901 op feestdagen
+
+# Handmatige invoer foutmelding:
+if is_feestdag:
+    "Deze datum is een feestdag (Kerstmis). Op feestdagen moeten zondagdiensten worden gebruikt."
+else:
+    "Deze datum is een zondag/zaterdag/weekdag. Gebruik een shift code voor zondag/zaterdag/weekdag."
+```
+
+**Toekomstig (PlanningValidator):**
+- Wanneer validator wordt gemaakt: ook feestdagen als zondag behandelen
+- Documentatie toegevoegd aan DEV_NOTES.md TODO sectie
+
+**Testing:**
+- ⏳ Nog testen: genereer planning met feestdagen en verifieer codes
+
+---
+
+### Sessie 22 Oktober 2025 - Werkpost Koppeling & Slimme Auto-Generatie (v0.6.14)
+**Duur:** ~3 uur
+**Focus:** Many-to-many werkpost koppeling met intelligente auto-generatie uit typetabel
+
+**Voltooid:**
+- ✅ **Database Migratie**
+  - Nieuwe tabel `gebruiker_werkposten` (many-to-many met prioriteit)
+  - Index `idx_gebruiker_werkposten_gebruiker` voor performance
+  - Migratie script `migratie_gebruiker_werkposten.py`
+  - Auto-seed: koppel alle gebruikers aan eerste actieve werkpost
+
+- ✅ **Werkpost Koppeling UI**
+  - Nieuw scherm `werkpost_koppeling_screen.py`
+  - Grid layout: gebruikers (Y-as) × werkposten (X-as)
+  - Checkboxes voor koppelingen + prioriteit spinboxes
+  - Filters: naam zoeken + toon reserves
+  - Reserves visueel onderscheiden ([RESERVE] label + grijze achtergrond)
+  - Menu item toegevoegd aan Beheer tab (was eerst in Instellingen)
+
+- ✅ **Slimme Auto-Generatie**
+  - Nieuwe dialog `auto_generatie_dialog.py`
+  - Algoritme: typetabel "V" → dag_type + werkpost → shift_code "7101"
+  - Multi-post support met prioriteit fallback
+  - Bescherming: speciale codes en handmatige wijzigingen blijven behouden
+  - Preview functionaliteit met statistieken
+  - Datum range selectie met QDateEdit
+  - Bevestiging dialog met overzicht
+
+- ✅ **Planning Editor Integratie**
+  - "Auto-Genereren uit Typetabel" knop geactiveerd
+  - Link naar auto_generatie_dialog
+  - Refresh kalender na generatie
+
+- ✅ **Bug Fixes**
+  - Nieuwe werkpost: `reset_12u` standaard UIT (0 ipv 1)
+  - Speciale codes query: geen `is_actief` kolom (runtime error fix)
+  - Kalender attribute fix: `jaar` en `maand` ipv `current_year/month`
+
+- ✅ **Documentatie Updates**
+  - `config.py`: APP_VERSION = "0.6.14", MIN_DB_VERSION = "0.6.14"
+  - `CLAUDE.md`: Key tables, features, running instructions
+  - `DEVELOPMENT_GUIDE.md`: Database schema, nieuwe features sectie
+  - `DEV_NOTES.md`: Sessie log
+  - `PROJECT_INFO.md`: (TODO)
+
+**Technische Details:**
+- **Auto-Generatie Logica:**
+  1. Laad typetabel data in memory: `{(week, dag): shift_type}`
+  2. Laad gebruiker werkposten: `{gebruiker_id: [(werkpost_id, prioriteit), ...]}`
+  3. Laad shift_codes mapping: `{(werkpost_id, dag_type, shift_type): code}`
+  4. Per gebruiker per datum: bereken shift_type uit typetabel
+  5. Bepaal dag_type uit datum (weekdag/zaterdag/zondag)
+  6. Loop door gebruiker's werkposten (op prioriteit) totdat match
+  7. Insert shift_code in planning (bescherm speciale codes!)
+
+- **Prioriteit Fallback:**
+  - Jan kent PAT (prio 1) en Interventie (prio 2)
+  - Typetabel zegt "N" op maandag
+  - PAT heeft geen nacht op weekdag → skip
+  - Interventie heeft wel nacht → gebruik "7201"
+
+**Openstaande Issues:**
+- Geen
+
+**Geleerde Lessen:**
+- ✅ Many-to-many relaties met prioriteit zijn krachtig voor multi-post scenarios
+- ✅ In-memory data caching voor performance bij grote datasets
+- ✅ Filters (naam + checkbox) maken UI's veel gebruiksvriendelijker
+- ✅ Preview dialogen geven gebruiker controle en vertrouwen
+
+**Volgende Stappen:**
+- Concept vs Gepubliceerd toggle in Planning Editor
+- Bulk operaties (copy week, paste, clear)
+- Validatie feedback integratie
+
+---
+
+### Sessie 21 Oktober 2025 (Deel 3) - Database Versie Beheer Systeem (v0.6.13)
+**Duur:** ~1 uur
+**Focus:** Centraal versie beheer systeem voor app en database compatibiliteit
+
+**Voltooid:**
+- ✅ **Config.py Versie Management**
+  - `APP_VERSION = "0.6.13"` - verhoogt bij elke wijziging
+  - `MIN_DB_VERSION = "0.6.12"` - verhoogt alleen bij DB schema wijzigingen
+  - Gescheiden versie nummers voor app en database
+  - Centrale versie bron voor hele applicatie
+
+- ✅ **Database Metadata Tabel (v0.6.13)**
+  - Nieuwe tabel: `db_metadata` (version_number, updated_at, migration_description)
+  - Seed functie: `seed_db_version()` initialiseert versie
+  - Helper functies: `get_db_version()`, `check_db_compatibility()`
+  - Automatische versie tracking voor alle nieuwe databases
+
+- ✅ **Versie Check bij App Start**
+  - `check_db_compatibility()` in main.py
+  - 3 scenario's gehandeld:
+    1. Geen versie info → oude database → error dialog
+    2. DB te oud (< MIN_DB_VERSION) → error dialog
+    3. DB nieuwer dan app → error dialog
+  - Bij incompatibiliteit: duidelijke foutmelding met contactinformatie
+  - Geen automatische migratie - handmatige upgrade vereist
+
+- ✅ **UI Versie Weergave**
+  - LoginScreen: App versie + DB versie onderaan (kleine grijze tekst)
+  - AboutDialog: App versie + DB versie in header
+  - Centrale import uit config.py (geen hardcoded versies meer)
+  - Dynamic versie display via `get_db_version()`
+
+- ✅ **Upgrade Script**
+  - `upgrade_to_v0_6_13.py` voor bestaande databases
+  - Voegt db_metadata tabel toe (SCHEMA WIJZIGING!)
+  - Initialiseert versie op 0.6.13 (huidige versie)
+  - Idempotent: kan meerdere keren gedraaid worden
+  - Windows console compatible (geen Unicode emoji's)
+
+- ✅ **Connection.py Updates**
+  - db_metadata tabel toegevoegd aan create_tables()
+  - seed_db_version() toegevoegd aan seed_data()
+  - get_db_version() - haalt huidige DB versie op
+  - check_db_compatibility() - controleert compatibiliteit
+
+**Technische Beslissingen:**
+- **Geen automatische migratie**: Bij incompatibiliteit toont app error en sluit af
+- **Handmatige upgrade**: Beheerder draait upgrade script, dan start app
+- **Gescheiden versies**: APP_VERSION voor alle changes, MIN_DB_VERSION alleen voor DB schema
+- **Centrale versie bron**: config.py is single source of truth
+- **User-friendly errors**: Duidelijke foutmeldingen met instructies
+
+**User Experience:**
+- Tester met oude database → error dialog met uitleg
+- Beheerder draait `upgrade_to_v0_6_13.py`
+- Database krijgt versie tracking
+- App start normaal, versies zichtbaar op loginscherm
+- About dialog toont beide versies
+
+**Versie Systeem Voorbeelden:**
+```
+Scenario 1 - GUI wijziging:
+  v0.6.13 → v0.6.14
+  APP_VERSION = "0.6.14"
+  MIN_DB_VERSION = "0.6.13" (blijft gelijk - geen schema wijziging)
+
+Scenario 2 - DB schema wijziging:
+  v0.6.14 → v0.6.15
+  APP_VERSION = "0.6.15"
+  MIN_DB_VERSION = "0.6.15" (gaat omhoog - wel schema wijziging)
+  Database krijgt: INSERT INTO db_metadata VALUES ("0.6.15", ...)
+```
+
+**Belangrijk:**
+- v0.6.13 is een DB schema wijziging (db_metadata tabel toegevoegd)
+- Daarom: APP_VERSION = MIN_DB_VERSION = "0.6.13"
+
+**Testing:**
+- ✅ Upgrade script werkt op bestaande v0.6.12 database
+- ✅ App start zonder errors na upgrade
+- ✅ Versies correct weergegeven op loginscherm
+- ✅ About dialog toont beide versies
+- ✅ Nieuwe database krijgt automatisch versie tracking
+
+**Nieuwe Bestanden:**
+- `upgrade_to_v0_6_13.py` - Upgrade script voor bestaande databases
+
+**Aangepaste Bestanden:**
+- `config.py` - APP_VERSION en MIN_DB_VERSION toegevoegd
+- `database/connection.py` - db_metadata tabel, versie functies
+- `main.py` - Versie check bij startup
+- `gui/screens/login_screen.py` - Versie weergave onderaan
+- `gui/dialogs/about_dialog.py` - Versie weergave in header
+- `gui/screens/verlof_saldo_beheer_screen.py` - UI layout fix (terug knop + jaar selector)
+- `CLAUDE.md` - Versie 0.6.13, version management sectie
+- `DEV_NOTES.md` - Deze sessie
+
+**UI/UX Improvements:**
+- ✅ **VerlofSaldoBeheerScreen Layout Consistency**
+  - Terug knop verplaatst van onderaan naar rechtsboven
+  - Jaar selector verplaatst van header naar toolbar (naast "Nieuw Jaar Aanmaken")
+  - Nu consistent met alle andere schermen in de applicatie
+
+**Known Issues:**
+Geen bekende issues.
+
+**VERSIE UPDATE CHECKLIST (v0.6.13+):**
+
+**Voor ELKE wijziging (GUI of DB):**
+1. ✅ Increment `APP_VERSION` in `config.py`
+2. ✅ Update versie in CLAUDE.md (line 69), DEVELOPMENT_GUIDE.md (line 5), DEV_NOTES.md (line 4), PROJECT_INFO.md (line 5 + footer)
+3. ✅ Voeg nieuwe feature toe aan PROJECT_INFO.md "WAT IS NIEUW" sectie
+4. ✅ Voeg sessie notities toe aan DEV_NOTES.md
+
+**EXTRA bij DB schema wijzigingen:**
+4. ✅ Increment ook `MIN_DB_VERSION` in config.py (zelfde als APP_VERSION)
+5. ✅ Update schema in `database/connection.py` (create_tables + seed functies)
+6. ✅ Maak upgrade script: `upgrade_to_vX_Y_Z.py`
+7. ✅ Update db_metadata tabel in upgrade script
+8. ✅ Test upgrade pad (oude DB → nieuwe versie)
+9. ✅ Test clean install pad (nieuwe DB)
+10. ✅ Documenteer schema wijzigingen in DEVELOPMENT_GUIDE.md
+
+**Quick check:**
+- GUI-only: APP_VERSION++, MIN_DB_VERSION blijft gelijk
+- DB schema: APP_VERSION++, MIN_DB_VERSION++ (beide gelijk)
+
+---
 
 ### Sessie 21 Oktober 2025 (Deel 2) - Theme Per Gebruiker (v0.6.12)
 **Duur:** ~1 uur
@@ -822,6 +1081,7 @@ Geen bekende issues.
 - [ ] 19 dagen per 28d cyclus check
 - [ ] Max 7 dagen tussen RX/CX check
 - [ ] Max 7 werkdagen reeks check
+- [ ] **BELANGRIJK: Feestdagen behandelen als zondag** (bijv. 7701 verwacht, niet 7101)
 - [ ] Visuele feedback in planning grid
 - [ ] Violation messages tooltip
 - [ ] Blokkeer publicatie bij violations
