@@ -11,10 +11,11 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from gui.styles import Styles, Colors, Fonts, Dimensions
+from database.connection import get_db_version
+from config import APP_VERSION
 from pathlib import Path
 import re
 
-VERSION = "0.6.4"
 BUILD_DATE = "oktober 2025"
 DEVELOPERS = "Ontwikkeld door:\n• Aerts Bob (Lead Developer - I-O.112)\n• Claude (AI Assistant - Anthropic)"
 
@@ -75,11 +76,20 @@ class AboutDialog(QDialog):
         title.setStyleSheet(f"color: {Colors.PRIMARY};")
         header_layout.addWidget(title)
 
-        version_label = QLabel(f"Versie {VERSION}")
+        version_label = QLabel(f"Versie {APP_VERSION}")
         version_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL))
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version_label.setStyleSheet(f"color: {Colors.TEXT_SECONDARY};")
         header_layout.addWidget(version_label)
+
+        # Database versie (indien beschikbaar)
+        db_versie = get_db_version()
+        if db_versie:
+            db_version_label = QLabel(f"Database: {db_versie}")
+            db_version_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+            db_version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            db_version_label.setStyleSheet(f"color: {Colors.TEXT_MUTED};")
+            header_layout.addWidget(db_version_label)
 
         build_label = QLabel(f"Build: {BUILD_DATE}")
         build_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
@@ -280,7 +290,7 @@ class AboutDialog(QDialog):
         layout.addSpacing(Dimensions.SPACING_MEDIUM)
 
         # Copyright
-        copyright_label = QLabel(f"© 2025 - Planning Tool v{VERSION}")
+        copyright_label = QLabel(f"© 2025 - Planning Tool v{APP_VERSION}")
         copyright_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_TINY))
         copyright_label.setStyleSheet(f"color: {Colors.TEXT_MUTED};")
         copyright_label.setAlignment(Qt.AlignmentFlag.AlignCenter)

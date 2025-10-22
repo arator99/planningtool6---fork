@@ -6,9 +6,12 @@ Dialogs voor typetabel beheer
 """
 from typing import Dict, Any
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QLineEdit, QSpinBox, QTextEdit, QMessageBox)
+                             QPushButton, QLineEdit, QSpinBox, QTextEdit,
+                             QMessageBox, QDateEdit)
+from PyQt6.QtCore import QDate
 from PyQt6.QtGui import QFont
-from gui.styles import Styles, Fonts, Dimensions
+from gui.styles import Styles, Fonts, Dimensions, Colors
+from datetime import datetime
 
 
 class NieuweTypetabelDialog(QDialog):
@@ -127,3 +130,124 @@ class NieuweTypetabelDialog(QDialog):
             'aantal_weken': self.weken_spin.value(),
             'opmerking': self.opmerking_input.toPlainText().strip()
         }
+
+
+class ActiveerTypetabelDialog(QDialog):
+    """Dialog voor activatie van concept typetabel"""
+
+    def __init__(self, parent, versie: Dict[str, Any], heeft_actieve: bool = False):
+        super().__init__(parent)
+
+        self.versie = versie
+        self.heeft_actieve = heeft_actieve
+
+        self.setWindowTitle("Typetabel Activeren")
+        self.setModal(True)
+        self.setMinimumWidth(600)
+
+        # Instance attributes
+        self.datum_input = QDateEdit()
+
+        self.init_ui()
+
+    def init_ui(self):
+        """Initialiseer UI"""
+        layout = QVBoxLayout(self)
+        layout.setSpacing(Dimensions.SPACING_LARGE)
+
+        # Title
+        title = QLabel(f"Activeren: {self.versie['versie_naam']}")
+        title.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_HEADING, QFont.Weight.Bold))
+        layout.addWidget(title)
+
+        # Waarschuwing als er al een actieve is
+        if self.heeft_actieve:
+            waarschuwing = QLabel(
+                "LET OP: Er is al een actieve typetabel!\n\n"
+                "Bij activatie wordt de huidige actieve typetabel gearchiveerd.\n"
+                "De nieuwe typetabel wordt vanaf de gekozen datum actief."
+            )
+            waarschuwing.setWordWrap(True)
+            waarschuwing.setStyleSheet(f"""
+                background-color: {Colors.WARNING_BG};
+                border: 2px solid {Colors.WARNING};
+                border-radius: 4px;
+                padding: 12px;
+                color: #000;
+            """)
+            layout.addWidget(waarschuwing)
+
+        # Info
+        info = QLabel(
+            f"Activeer deze typetabel om deze te gebruiken voor auto-generatie.\n\n"
+            f"Patroon: {self.versie['aantal_weken']} weken cyclus"
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(Styles.info_box())
+        layout.addWidget(info)
+
+        # Datum picker
+        layout.addWidget(QLabel("Actief vanaf datum:"))
+
+        datum_layout = QHBoxLayout()
+
+        self.datum_input.setCalendarPopup(True)
+        self.datum_input.setDisplayFormat("dd-MM-yyyy")
+        self.datum_input.setDate(QDate.currentDate())
+        self.datum_input.setStyleSheet(Styles.input_field())
+        datum_layout.addWidget(self.datum_input)
+
+        datum_info = QLabel("(Meestal een maandag)")
+        datum_info.setStyleSheet(f"color: {Colors.TEXT_SECONDARY};")
+        datum_layout.addWidget(datum_info)
+        datum_layout.addStretch()
+
+        layout.addLayout(datum_layout)
+
+        # Weekdag waarschuwing
+        self.weekdag_label = QLabel()
+        self.weekdag_label.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: {Fonts.SIZE_SMALL}px;")
+        layout.addWidget(self.weekdag_label)
+        self.update_weekdag_info()
+
+        # Connect datum change
+        self.datum_input.dateChanged.connect(self.update_weekdag_info)  # type: ignore
+
+        # Spacer
+        layout.addStretch()
+
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        annuleer_btn = QPushButton("Annuleren")
+        annuleer_btn.setStyleSheet(Styles.button_secondary())
+        annuleer_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
+        annuleer_btn.clicked.connect(self.reject)  # type: ignore
+        button_layout.addWidget(annuleer_btn)
+
+        activeer_btn = QPushButton("Activeren")
+        activeer_btn.setStyleSheet(Styles.button_success())
+        activeer_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
+        activeer_btn.clicked.connect(self.accept)  # type: ignore
+        button_layout.addWidget(activeer_btn)
+
+        layout.addLayout(button_layout)
+
+    def update_weekdag_info(self):
+        """Update weekdag informatie"""
+        datum = self.datum_input.date()
+        weekdag_nr = datum.dayOfWeek()  # 1=maandag, 7=zondag
+
+        dagen = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag']
+        weekdag_naam = dagen[weekdag_nr - 1]
+
+        if weekdag_nr == 1:
+            self.weekdag_label.setText(f"✓ {weekdag_naam} - Ideaal voor start typetabel!")
+        else:
+            self.weekdag_label.setText(f"ℹ️ {weekdag_naam} - Let op: meestal start je op maandag")
+
+    def get_datum(self) -> str:
+        """Haal gekozen datum op (ISO format)"""
+        qdate = self.datum_input.date()
+        return qdate.toString("yyyy-MM-dd")

@@ -2,15 +2,133 @@
 Roostersysteem voor Self-Rostering Teams
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.8 (Beta)
-**Release datum:** Oktober 2025
-**Status:** In actieve ontwikkeling - Rode Lijnen Config & UX verbeteringen
+**Huidige versie:** 0.6.14 (Beta)
+**Release datum:** 22 Oktober 2025
+**Status:** In actieve ontwikkeling - Werkpost Koppeling & Slimme Auto-Generatie
 
 ---
 
 ## WAT IS NIEUW
 
-### Versie 0.6.8 (Oktober 2025) ⭐ NIEUW
+### Versie 0.6.14 (22 Oktober 2025) ⭐ NIEUW
+- ✅ **Werkpost Koppeling Systeem**
+  - Nieuwe beheer functie: koppel gebruikers aan werkposten
+  - Grid interface met checkboxes (gebruikers × werkposten)
+  - Multi-post support met prioriteit (1 = eerste keuze, 2 = fallback, etc.)
+  - Filters: zoek op naam + toon reserves optie
+  - Reserves visueel onderscheiden met [RESERVE] label
+  - Locatie: Beheer tab → "Werkpost Koppeling"
+
+- ✅ **Slimme Auto-Generatie uit Typetabel**
+  - Planning Editor: knop "Auto-Genereren uit Typetabel" nu actief
+  - Intelligente code lookup: typetabel "V" → werkpost → shift_code "7101"
+  - Multi-post fallback: zoekt door werkposten tot match gevonden
+  - Beschermt verlof, ziekte en handmatig aangepaste shifts
+  - Preview met statistieken voor generatie
+  - Datum range selectie (standaard: huidige maand)
+
+- ✅ **Bug Fixes**
+  - Nieuwe werkpost: "Shifts resetten 12u rust regel" staat nu standaard UIT
+  - Speciale codes query error opgelost
+  - Kalender refresh na auto-generatie werkt correct
+
+**Workflow:**
+1. Configureer werkpost koppelingen (Beheer → Werkpost Koppeling)
+2. Vul typetabel in met shift types (V, L, N, dag)
+3. Ga naar Planning Editor → Auto-Genereren
+4. Selecteer datum bereik → Genereren
+5. Planning wordt automatisch ingevuld met juiste shift codes!
+
+### Versie 0.6.13 (21 Oktober 2025)
+- ✅ **Database Versie Beheer Systeem**
+  - Centrale versie configuratie in `config.py` (APP_VERSION en MIN_DB_VERSION)
+  - Automatische compatibiliteit check bij app start
+  - Database versie tracking via nieuwe `db_metadata` tabel
+  - Versie weergave op loginscherm (app + database versie)
+  - Versie weergave in About dialog
+  - Bij incompatibele database: duidelijke error met upgrade instructies
+  - Upgrade script: `upgrade_to_v0_6_13.py`
+
+- ✅ **UI Verbetering: Verlof Saldo Beheer Scherm**
+  - Terug knop verplaatst naar rechtsboven (consistent met andere schermen)
+  - Jaar selector verplaatst naar toolbar (logischere plaatsing bij acties)
+  - Uniformere gebruikerservaring door hele applicatie
+
+**Waarom belangrijk voor testers:**
+- Als je een oude database hebt, krijg je een duidelijke melding
+- Je weet altijd welke versie je draait (zie loginscherm)
+- Database upgrades zijn nu gecontroleerd en veilig
+- Bij problemen: app geeft aan dat je contact moet opnemen
+- Consistentere interface: alle schermen hebben terug knop rechtsboven
+
+### Versie 0.6.12 (21 Oktober 2025)
+- ✅ **Theme Voorkeur Per Gebruiker**
+  - Elke gebruiker kiest eigen light/dark mode voorkeur
+  - Opgeslagen in database (niet meer globaal JSON bestand)
+  - Login scherm blijft altijd light mode
+  - Theme wordt onthouden tussen sessies
+  - Database migratie: `migratie_theme_per_gebruiker.py`
+
+### Versie 0.6.11 (21 Oktober 2025)
+- ✅ **Shift Voorkeuren Systeem**
+  - Dashboard → Persoonlijk → Mijn Voorkeuren
+  - Stel prioriteit in voor shift types (Vroeg, Laat, Nacht, Typetabel)
+  - Auto-save functionaliteit (geen opslaan knop)
+  - Real-time validatie: voorkomt dubbele prioriteiten
+  - Input voor toekomstige automatische planning generatie
+  - Database migratie: `migratie_shift_voorkeuren.py`
+
+### Versie 0.6.10 (20 Oktober 2025)
+- ✅ **Verlof & KD Saldo Systeem - Volledig operationeel**
+  - Admin: Verlof & KD Saldo Beheer scherm (Dashboard > Beheer tab)
+  - Jaarlijks contingent per gebruiker (handmatig input voor deeltijders)
+  - Overdracht management: VV vervalt 1 mei, KD max 35 dagen
+  - "Nieuw Jaar Aanmaken" functie voor bulk setup
+  - Opmerking veld voor notities (bijv. "80% deeltijd", "65+ regime")
+  - Database migratie: `migratie_verlof_saldo.py`
+
+- ✅ **Teamlid: Saldo Widget**
+  - VerlofSaldoWidget in verlof aanvragen scherm (rechts naast formulier)
+  - Read-only weergave eigen VV en KD saldo
+  - Specifieke labels: "Overdracht uit vorig jaar" (VV) vs "Overdracht uit voorgaande jaren" (KD)
+  - Warning countdown voor vervaldatum overgedragen verlof (1 mei)
+  - Auto-refresh na nieuwe aanvraag
+
+- ✅ **Planner: Type Selectie bij Goedkeuring**
+  - VerlofTypeDialog: kies VV of KD bij goedkeuren
+  - Real-time saldo preview met kleurcodering (groen/geel/rood)
+  - Planning records gegenereerd met gekozen code
+  - Auto-sync saldo na goedkeuring
+  - Workflow: teamlid vraagt "verlof" → planner beslist VV of KD
+
+- ✅ **UI/UX Verbeteringen**
+  - Label gewijzigd: "Tot:" → "t/m:" (duidelijkheid over inclusief einddatum)
+  - Compactere formulier layout (reden veld horizontaal naast label)
+  - Betere font hiërarchie (SIZE_HEADING voor titels, SIZE_NORMAL voor labels)
+
+- ✅ **Term-based Systeem Uitbreiding**
+  - Nieuwe speciale code: KD met term 'kompensatiedag' (6e systeem term)
+  - Queries gebruiken terms ipv hardcoded codes
+  - Codes kunnen hernoemd worden zonder functionaliteit te breken
+
+### Versie 0.6.9 (20 Oktober 2025)
+- ✅ **Dark Mode (Nachtmodus)** - Later verbeterd in v0.6.12
+  - ThemeToggleWidget in dashboard met zon/maan iconen
+  - Dashboard rebuild strategie voor correcte styling
+  - Alleen beschikbaar in dashboard (design choice)
+
+- ✅ **Rode Lijnen Visualisatie**
+  - Visuele weergave 28-daagse HR cycli in grid kalenders
+  - Dikke rode linker border markeert periode start
+  - Tooltip met periode nummer
+  - Toegepast op Planner en Teamlid kalenders
+
+- ✅ **Bug Fixes**
+  - Calendar widget kolom weergave (zondag gedeeltelijk afgesneden)
+  - Feestdagen laden voor 3 jaren (vorig, huidig, volgend)
+  - Extended loading voor buffer dagen in kalenders
+
+### Versie 0.6.8 (Oktober 2025)
 - ✅ **Rode Lijnen Config Beheer**
   - Versioned configuratie systeem (actief_vanaf, actief_tot)
   - UI scherm voor beheer rode lijnen configuratie
@@ -285,17 +403,46 @@ Het systeem controleert op:
 
 ## DATABASE MIGRATIE
 
-### Voor bestaande databases (v0.6.5 → v0.6.6)
+### Meest Recente Migraties
 
+**v0.6.12 → v0.6.13: Database Versie Tracking** ⭐ NIEUW
 ```bash
-python migrate_typetabel_versioned.py
+python upgrade_to_v0_6_13.py
 ```
+- Maakt `db_metadata` tabel voor versie tracking
+- Initialiseert database versie op 0.6.13
+- Vanaf nu wordt database versie automatisch gecontroleerd bij app start
 
-**Wat doet dit:**
-- Maakt nieuwe typetabel_versies tabel
-- Maakt nieuwe typetabel_data tabel
-- Converteert oude data
-- Behoudt backup als typetabel_old_backup
+**LET OP:** Vanaf v0.6.13 heeft de app een versiebeheersysteem. Bij het starten wordt automatisch gecontroleerd of je database compatibel is. Als dat niet zo is, krijg je een duidelijke melding.
+
+**v0.6.11 → v0.6.12: Theme Per Gebruiker**
+```bash
+python migratie_theme_per_gebruiker.py
+```
+- Voegt `theme_voorkeur` kolom toe aan gebruikers tabel
+- Migreert oude globale theme naar alle gebruikers
+- Verwijdert oude `theme_preference.json` bestand
+
+**v0.6.10 → v0.6.11: Shift Voorkeuren**
+```bash
+python migratie_shift_voorkeuren.py
+```
+- Voegt `shift_voorkeuren` kolom toe aan gebruikers tabel
+- JSON format voor prioriteit mapping
+
+**v0.6.9 → v0.6.10: Verlof & KD Saldo**
+```bash
+python migratie_verlof_saldo.py
+```
+- Maakt `verlof_saldo` tabel voor VV en KD tracking
+- Voegt KD speciale code toe met term 'kompensatiedag'
+- Voegt `toegekende_code_term` kolom toe aan verlof_aanvragen
+
+### Eerdere Migraties
+
+**v0.6.7 → v0.6.8:** `python migratie_rode_lijnen_config.py`
+**v0.6.6 → v0.6.7:** `python migratie_systeem_termen.py`
+**v0.6.5 → v0.6.6:** `python migratie_typetabel_versioned.py`
 
 **Voor schone start:**
 Geen migratie nodig - automatisch correct aangemaakt.
@@ -378,5 +525,5 @@ Deze tool is voor **alle teams met self-rostering**, niet alleen interventie. He
 ---
 
 *Voor technische details: zie DEVELOPMENT_GUIDE.md*
-*Laatste update: 19 Oktober 2025*
-*Versie: 0.6.8*
+*Laatste update: 22 Oktober 2025*
+*Versie: 0.6.14*

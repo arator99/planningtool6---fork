@@ -36,6 +36,7 @@ class DashboardScreen(QWidget):
     verlof_aanvragen_clicked: pyqtSignal = pyqtSignal()  # Voor teamleden
     verlof_goedkeuring_clicked: pyqtSignal = pyqtSignal()  # Voor planners
     verlof_saldo_beheer_clicked: pyqtSignal = pyqtSignal()  # Voor admin - v0.6.10
+    werkpost_koppeling_clicked: pyqtSignal = pyqtSignal()  # Voor admin - v0.6.14
 
 
     def __init__(self, user_data: Dict[str, Any]):
@@ -240,6 +241,11 @@ class DashboardScreen(QWidget):
         ))
 
         scroll_layout.addWidget(self.create_menu_button(
+            "Werkpost Koppeling",
+            "Koppel gebruikers aan werkposten voor auto-generatie"
+        ))
+
+        scroll_layout.addWidget(self.create_menu_button(
             "Verlof & KD Saldo",
             "Beheer verlof en kompensatiedagen saldi"
         ))
@@ -417,6 +423,8 @@ class DashboardScreen(QWidget):
             self.hr_regels_clicked.emit()  # type: ignore
         elif title == "Shift Codes & Posten":
             self.shift_codes_clicked.emit()  # type: ignore
+        elif title == "Werkpost Koppeling":
+            self.werkpost_koppeling_clicked.emit()  # type: ignore
         elif title == "Typetabel":
             self.typedienst_clicked.emit()  # type: ignore
         elif title == "Rode Lijnen":

@@ -1,7 +1,7 @@
 # Planning Tool - Gebruikershandleiding
 
-**Versie:** 0.6.7
-**Laatst bijgewerkt:** Oktober 2025
+**Versie:** 0.6.12
+**Laatst bijgewerkt:** 21 Oktober 2025
 
 ---
 
@@ -45,14 +45,14 @@ Welkom bij de **Planning Tool**, een roosterapplicatie speciaal ontwikkeld voor 
 Na inloggen zie je het **Dashboard** met verschillende tabs:
 
 #### Voor Planners:
-- **Beheer** - Typetabellen, Shift codes, Gebruikers
-- **Planning** - Planning editor, Verlof goedkeuring
+- **Beheer** - Typetabellen, Shift codes, Gebruikers, Verlof & KD Saldo Beheer
+- **Planning** - Planning editor, Verlof goedkeuring (met VV/KD type selectie)
 - **Instellingen** - HR regels, Feestdagen, Rode lijnen
-- **Persoonlijk** - Voorkeuren, Wachtwoord wijzigen
+- **Persoonlijk** - **Mijn Voorkeuren** (shift voorkeuren, nieuw v0.6.11), Wachtwoord wijzigen, **Dark Mode** (nieuw v0.6.12)
 
 #### Voor Teamleden:
-- **Planning** - Mijn planning bekijken, Verlof aanvragen
-- **Persoonlijk** - Voorkeuren, Wachtwoord wijzigen
+- **Planning** - Mijn planning bekijken, Verlof aanvragen (met saldo weergave)
+- **Persoonlijk** - **Mijn Voorkeuren** (shift voorkeuren, nieuw v0.6.11), Wachtwoord wijzigen, **Dark Mode** (nieuw v0.6.12)
 
 ---
 
@@ -80,8 +80,9 @@ Na inloggen zie je het **Dashboard** met verschillende tabs:
 
 **Persoonlijke planning beheer:**
 - Eigen planning bekijken
-- Verlof aanvragen
-- Voorkeuren instellen
+- Verlof aanvragen (met saldo weergave)
+- Shift voorkeuren instellen (v0.6.11)
+- Dark mode kiezen (v0.6.12)
 - Wachtwoord wijzigen
 
 ---

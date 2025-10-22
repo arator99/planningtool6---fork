@@ -9,8 +9,9 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 import bcrypt
-from database.connection import get_connection
+from database.connection import get_connection, get_db_version
 from gui.styles import Styles, Colors, Fonts, Dimensions
+from config import APP_VERSION
 
 
 class LoginScreen(QWidget):
@@ -82,6 +83,25 @@ class LoginScreen(QWidget):
 
         main_layout.addLayout(h_layout)
         main_layout.addStretch()
+
+        # Versie informatie onderaan (v0.6.13)
+        versie_layout = QHBoxLayout()
+        versie_layout.setContentsMargins(20, 0, 20, 20)
+
+        app_versie_label = QLabel(f"Versie {APP_VERSION}")
+        app_versie_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: {Fonts.SIZE_SMALL}px;")
+        versie_layout.addWidget(app_versie_label)
+
+        versie_layout.addStretch()
+
+        # Database versie (indien beschikbaar)
+        db_versie = get_db_version()
+        if db_versie:
+            db_versie_label = QLabel(f"Database: {db_versie}")
+            db_versie_label.setStyleSheet(f"color: {Colors.TEXT_MUTED}; font-size: {Fonts.SIZE_SMALL}px;")
+            versie_layout.addWidget(db_versie_label)
+
+        main_layout.addLayout(versie_layout)
 
         self.setLayout(main_layout)
 

@@ -484,7 +484,7 @@ class ShiftCodesScreen(QWidget):
 
                 cursor.execute("""
                     INSERT INTO werkposten (naam, beschrijving, telt_als_werkdag, reset_12u_rust, breekt_werk_reeks)
-                    VALUES (?, ?, 1, 1, 0)
+                    VALUES (?, ?, 1, 0, 0)
                 """, (data['naam'], data['beschrijving']))
 
                 werkpost_id = cursor.lastrowid

@@ -46,7 +46,7 @@ class VerlofSaldoBeheerScreen(QWidget):
             Dimensions.SPACING_LARGE
         )
 
-        # Header
+        # Header met titel en terug knop
         header_layout = QHBoxLayout()
 
         title = QLabel("Verlof & KD Saldo Beheer")
@@ -56,10 +56,32 @@ class VerlofSaldoBeheerScreen(QWidget):
 
         header_layout.addStretch()
 
+        # Terug knop rechtsboven (consistent met andere schermen)
+        terug_btn = QPushButton("Terug")
+        terug_btn.setFixedWidth(120)
+        terug_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
+        terug_btn.setStyleSheet(Styles.button_secondary())
+        terug_btn.clicked.connect(self.router)  # type: ignore
+        header_layout.addWidget(terug_btn)
+
+        layout.addLayout(header_layout)
+
+        # Info text
+        info_text = QLabel(
+            "Beheer verlof en kompensatiedagen saldi per gebruiker. "
+            "Opgenomen dagen worden automatisch berekend uit goedgekeurde aanvragen."
+        )
+        info_text.setWordWrap(True)
+        info_text.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; padding: 8px;")
+        layout.addWidget(info_text)
+
+        # Toolbar met jaar selector
+        toolbar = QHBoxLayout()
+
         # Jaar selector
         jaar_label = QLabel("Jaar:")
-        jaar_label.setStyleSheet(f"color: {Colors.TEXT_PRIMARY};")
-        header_layout.addWidget(jaar_label)
+        jaar_label.setStyleSheet(f"color: {Colors.TEXT_PRIMARY}; font-weight: bold;")
+        toolbar.addWidget(jaar_label)
 
         self.jaar_combo = QComboBox()
         self.jaar_combo.setStyleSheet(Styles.input_field())
@@ -73,21 +95,9 @@ class VerlofSaldoBeheerScreen(QWidget):
                 self.jaar_combo.setCurrentIndex(self.jaar_combo.count() - 1)
 
         self.jaar_combo.currentIndexChanged.connect(self.on_jaar_changed)  # type: ignore
-        header_layout.addWidget(self.jaar_combo)
+        toolbar.addWidget(self.jaar_combo)
 
-        layout.addLayout(header_layout)
-
-        # Info text
-        info_text = QLabel(
-            "Beheer verlof en kompensatiedagen saldi per gebruiker. "
-            "Opgenomen dagen worden automatisch berekend uit goedgekeurde aanvragen."
-        )
-        info_text.setWordWrap(True)
-        info_text.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; padding: 8px;")
-        layout.addWidget(info_text)
-
-        # Toolbar
-        toolbar = QHBoxLayout()
+        toolbar.addSpacing(Dimensions.SPACING_LARGE)
 
         nieuw_jaar_btn = QPushButton("Nieuw Jaar Aanmaken")
         nieuw_jaar_btn.setStyleSheet(Styles.button_primary())
@@ -138,13 +148,6 @@ class VerlofSaldoBeheerScreen(QWidget):
         self.status_label = QLabel("")
         self.status_label.setStyleSheet(f"color: {Colors.TEXT_SECONDARY};")
         layout.addWidget(self.status_label)
-
-        # Terug knop
-        terug_btn = QPushButton("Terug naar Dashboard")
-        terug_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
-        terug_btn.setStyleSheet(Styles.button_secondary())
-        terug_btn.clicked.connect(self.router)  # type: ignore
-        layout.addWidget(terug_btn)
 
     def on_jaar_changed(self):
         """Jaar geselecteerd gewijzigd"""

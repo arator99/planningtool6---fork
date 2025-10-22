@@ -79,7 +79,10 @@ class TypetabelEditorDialog(QDialog):
         # Uitleg
         if not self.readonly:
             uitleg = QLabel(
-                "Vul hieronder het patroon in. Gebruik codes zoals V1, V2, L1, L2, N1, RX, CX, etc. "
+                "Vul hieronder het patroon in met 7 codes:\n"
+                "• V (vroeg), L (laat), N (nacht), D (dag) - worden automatisch gemapt naar werkpost codes\n"
+                "• RX (rustdag weekdag), CX (compensatiedag) - vaste codes\n"
+                "• T (thuisdag/buffer) - flexibel inzetbaar bij verlof/gaten\n"
                 "Dit patroon herhaalt zich voor alle personen op basis van hun startweek."
             )
             uitleg.setWordWrap(True)
@@ -205,13 +208,9 @@ class TypetabelEditorDialog(QDialog):
                     combo.setEditable(True)
                     combo.setStyleSheet(Styles.input_field())
 
-                    # Vul met veelgebruikte codes
+                    # Vul met typetabel codes (7 types)
                     standaard_codes = [
-                        '', 'V', 'L', 'N', 'RX', 'CX',
-                        'V1', 'V2', 'V3', 'V4',
-                        'L1', 'L2', 'L3', 'L4',
-                        'N1', 'N2', 'N3', 'N4',
-                        'VV', 'VD', 'DA', 'Z'
+                        '', 'V', 'L', 'N', 'D', 'RX', 'CX', 'T'
                     ]
                     combo.addItems(standaard_codes)
 

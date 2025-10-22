@@ -164,12 +164,15 @@ class TypetabelBeheerScreen(QWidget):
                 card = self.create_versie_card(versie, "concept")
                 self.scroll_layout.addWidget(card)
 
-        # Archief (collapsed)
+        # Archief
         if self.archief_versies:
-            archief_label = QLabel(f"Archief: ({len(self.archief_versies)} oude versies)")
-            archief_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL))
-            archief_label.setStyleSheet(f"color: {Colors.TEXT_SECONDARY};")
+            archief_label = QLabel(f"Archief: ({len(self.archief_versies)} versies)")
+            archief_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_HEADING, QFont.Weight.Bold))
             self.scroll_layout.addWidget(archief_label)
+
+            for versie in self.archief_versies:
+                card = self.create_versie_card(versie, "archief")
+                self.scroll_layout.addWidget(card)
 
         # Als geen versies: info
         if not self.actieve_versies and not self.concept_versies:
@@ -318,6 +321,14 @@ class TypetabelBeheerScreen(QWidget):
             verwijder_btn.clicked.connect(lambda checked, v=versie: self.verwijder_versie(v))  # type: ignore
             buttons_layout.addWidget(verwijder_btn)
 
+        else:  # archief
+            bekijk_btn = QPushButton("Bekijken")
+            bekijk_btn.setStyleSheet(Styles.button_secondary(Dimensions.BUTTON_HEIGHT_TINY))
+            bekijk_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_TINY)
+            bekijk_btn.clicked.connect(
+                lambda checked, v=versie: self.bekijk_typetabel(v, readonly=True))  # type: ignore
+            buttons_layout.addWidget(bekijk_btn)
+
         buttons_layout.addStretch()
         layout.addLayout(buttons_layout)
 
@@ -444,13 +455,83 @@ class TypetabelBeheerScreen(QWidget):
 
     def activeer_versie(self, versie: Dict[str, Any]):
         """Activeer concept typetabel"""
-        # TODO: Implementeer activatie flow met datum picker en validatie
-        QMessageBox.information(
-            self,
-            "Nog niet geïmplementeerd",
-            "Activatie flow komt in volgende sessie!\n\n"
-            "Dan kan je een startdatum kiezen en validaties uitvoeren."
-        )
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # Validatie 1: Check of typetabel compleet is (geen lege cellen)
+            cursor.execute("""
+                SELECT COUNT(*) as cnt
+                FROM typetabel_data
+                WHERE versie_id = ? AND (shift_type IS NULL OR shift_type = '')
+            """, (versie['id'],))
+
+            lege_cellen = cursor.fetchone()['cnt']
+
+            if lege_cellen > 0:
+                QMessageBox.warning(
+                    self,
+                    "Typetabel Incompleet",
+                    f"Deze typetabel is nog niet compleet!\n\n"
+                    f"Er zijn {lege_cellen} lege cellen.\n\n"
+                    f"Vul eerst alle cellen in voordat je activeert."
+                )
+                conn.close()
+                return
+
+            # Check of er al een actieve typetabel is
+            cursor.execute("""
+                SELECT COUNT(*) as cnt FROM typetabel_versies WHERE status = 'actief'
+            """)
+            heeft_actieve = cursor.fetchone()['cnt'] > 0
+
+            conn.close()
+
+            # Toon activatie dialog
+            from gui.dialogs.typetabel_dialogs import ActiveerTypetabelDialog
+
+            dialog = ActiveerTypetabelDialog(self, versie, heeft_actieve)
+            if not dialog.exec():
+                return
+
+            # Haal gekozen datum op
+            actief_vanaf = dialog.get_datum()
+
+            # Voer activatie uit
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # Stap 1: Archiveer bestaande actieve typetabel(len)
+            if heeft_actieve:
+                cursor.execute("""
+                    UPDATE typetabel_versies
+                    SET status = 'archief', actief_tot = ?
+                    WHERE status = 'actief'
+                """, (datetime.now().date().isoformat(),))
+
+            # Stap 2: Activeer nieuwe typetabel
+            cursor.execute("""
+                UPDATE typetabel_versies
+                SET status = 'actief', actief_vanaf = ?
+                WHERE id = ?
+            """, (actief_vanaf, versie['id']))
+
+            conn.commit()
+            conn.close()
+
+            QMessageBox.information(
+                self,
+                "Geactiveerd",
+                f"Typetabel '{versie['versie_naam']}' is geactiveerd!\n\n"
+                f"Actief vanaf: {actief_vanaf}\n\n"
+                f"Deze typetabel wordt nu gebruikt bij auto-generatie."
+            )
+
+            # Reload data om nieuwe status te tonen
+            self.load_data()
+
+        except sqlite3.Error as e:
+            QMessageBox.critical(self, "Database Fout", f"Kon niet activeren:\n{e}")
 
     def verwijder_versie(self, versie: Dict[str, Any]):
         """Verwijder concept typetabel"""
