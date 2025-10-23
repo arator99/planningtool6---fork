@@ -498,10 +498,8 @@ class PlannerGridKalender(GridKalenderBase):
             notitie = self.planning_data[datum_str][gebruiker_id].get('notitie', '')
             heeft_notitie = bool(notitie and notitie.strip())
 
-        # Voeg indicator toe als er een notitie is
+        # Display text (zonder notitie indicator - die komt via CSS)
         display_text = shift_code
-        if heeft_notitie:
-            display_text = f"{shift_code} *" if shift_code else "*"
 
         # Bepaal achtergrond en overlay
         achtergrond = self.get_datum_achtergrond(datum_str)
@@ -519,16 +517,27 @@ class PlannerGridKalender(GridKalenderBase):
         cel = EditableLabel(display_text, datum_str, gebruiker_id, self)
         cel.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL, QFont.Weight.Bold))
 
-        # Stylesheet met optionele rode lijn
+        # Stylesheet met optionele rode lijn en notitie indicator
         base_style = self.create_cel_stylesheet(achtergrond, overlay)
+
+        # Rode lijn indicator (linker border)
         if is_rode_lijn_start:
-            # Voeg rode linker border toe
             base_style = base_style.replace(
                 "border: 1px solid",
                 "border: 1px solid"
             ).replace(
                 "qproperty-alignment: AlignCenter;",
                 "border-left: 4px solid #dc3545;\n                    qproperty-alignment: AlignCenter;"
+            )
+
+        # Notitie indicator (rechter boven corner accent)
+        if heeft_notitie:
+            base_style = base_style.replace(
+                "border: 1px solid",
+                "border: 1px solid"
+            ).replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-top: 3px solid #17a2b8;\n                    border-right: 3px solid #17a2b8;\n                    qproperty-alignment: AlignCenter;"
             )
 
         if is_buffer:
@@ -542,6 +551,9 @@ class PlannerGridKalender(GridKalenderBase):
             periode_nr = self.rode_lijnen_starts[datum_str]
             rode_lijn_tooltip = f"Start Rode Lijn Periode {periode_nr}"
             tooltip = f"{tooltip}\n{rode_lijn_tooltip}" if tooltip else rode_lijn_tooltip
+        if heeft_notitie:
+            notitie_tooltip = "Heeft notitie (klik rechts -> Notitie bewerken)"
+            tooltip = f"{tooltip}\n{notitie_tooltip}" if tooltip else notitie_tooltip
         if tooltip:
             cel.setToolTip(tooltip)
 
