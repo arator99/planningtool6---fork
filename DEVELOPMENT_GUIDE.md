@@ -3,7 +3,21 @@ Planning Tool - Technische Documentatie voor Ontwikkelaars
 
 ## VERSIE INFORMATIE
 **Huidige versie:** 0.6.15 (Beta)
-**Laatste update:** 22 Oktober 2025
+**Laatste update:** 23 Oktober 2025
+
+---
+
+## INHOUDSOPGAVE
+1. [Versie Beheer Systeem](#versie-beheer-systeem-v0613)
+2. [Technische Architectuur](#technische-architectuur)
+3. [Database Schema](#database-schema)
+4. [PyQt6 Best Practices](#pyqt6-best-practices)
+5. [Typetabel Systeem](#typetabel-systeem)
+6. [Shift Codes Systeem](#shift-codes-systeem)
+7. [Design Beslissingen](#design-beslissingen)
+8. [Known Issues](#known-issues)
+9. [Code Templates](#code-templates)
+10. [Dashboard & Main.py](#dashboard--mainpy)
 
 ---
 
@@ -21,27 +35,27 @@ Sinds v0.6.13 heeft de applicatie een centraal versiebeheersysteem:
 **Voor ELKE wijziging:**
 ```python
 # 1. Update config.py
-APP_VERSION = "0.6.14"  # Altijd verhogen
+APP_VERSION = "0.6.16"  # Altijd verhogen
 ```
 
 **Bij DB schema wijzigingen:**
 ```python
 # 1. Update beide versies in config.py
-APP_VERSION = "0.6.14"
-MIN_DB_VERSION = "0.6.14"  # Zelfde als APP_VERSION
+APP_VERSION = "0.6.16"
+MIN_DB_VERSION = "0.6.16"  # Zelfde als APP_VERSION
 
 # 2. Update connection.py
 def create_tables(cursor):
     # Voeg nieuwe tabel/kolom toe
 
 # 3. Maak upgrade script
-# upgrade_to_v0_6_14.py
+# upgrade_to_v0_6_16.py
 
 # 4. Update db_metadata
 cursor.execute("""
     INSERT INTO db_metadata (version_number, migration_description)
     VALUES (?, ?)
-""", ("0.6.14", "Beschrijving van wijziging"))
+""", ("0.6.16", "Beschrijving van wijziging"))
 ```
 
 ### Database Compatibiliteit
@@ -57,7 +71,7 @@ from database.connection import get_db_version, check_db_compatibility
 from config import APP_VERSION, MIN_DB_VERSION
 
 # Haal DB versie op
-db_version = get_db_version()  # Returns "0.6.13" of None
+db_version = get_db_version()  # Returns "0.6.15" of None
 
 # Check compatibiliteit
 is_ok, db_ver, error_msg = check_db_compatibility()
@@ -70,411 +84,28 @@ if not is_ok:
 **Scenario 1: GUI wijziging (button layout aanpassing)**
 ```python
 # config.py
-APP_VERSION = "0.6.14"      # ✅ Verhoogd
-MIN_DB_VERSION = "0.6.13"   # ✅ Blijft gelijk (geen DB wijziging)
+APP_VERSION = "0.6.16"      # ✅ Verhoogd
+MIN_DB_VERSION = "0.6.15"   # ✅ Blijft gelijk (geen DB wijziging)
 ```
 
 **Scenario 2: DB schema wijziging (nieuwe kolom)**
 ```python
 # config.py
-APP_VERSION = "0.6.15"      # ✅ Verhoogd
-MIN_DB_VERSION = "0.6.15"   # ✅ Ook verhoogd (DB wijziging!)
+APP_VERSION = "0.6.16"      # ✅ Verhoogd
+MIN_DB_VERSION = "0.6.16"   # ✅ Ook verhoogd (DB wijziging!)
 
 # connection.py - create_tables()
 cursor.execute("""
     ALTER TABLE gebruikers ADD COLUMN nieuwe_kolom TEXT
 """)
 
-# upgrade_to_v0_6_15.py
+# upgrade_to_v0_6_16.py
 cursor.execute("ALTER TABLE gebruikers ADD COLUMN nieuwe_kolom TEXT")
 cursor.execute("""
     INSERT INTO db_metadata (version_number, migration_description)
-    VALUES ('0.6.15', 'Nieuwe kolom toegevoegd aan gebruikers')
+    VALUES ('0.6.16', 'Nieuwe kolom toegevoegd aan gebruikers')
 """)
 ```
-
----
-
-## NIEUWE FEATURES IN 0.6.15
-
-### Planning Editor: Concept vs Gepubliceerd Toggle
-Volledig status management systeem voor planning met zichtbaarheidscontrole voor teamleden.
-
-**Nieuwe Functionaliteit:**
-- Status tracking per maand (concept/gepubliceerd)
-- Dynamische UI met visuele indicatoren
-- Teamleden zien alleen gepubliceerde planning
-- Planners kunnen altijd wijzigen (ook na publicatie)
-
-**Database Wijzigingen:**
-- GEEN schema wijzigingen (status kolom bestaat al sinds v0.6.4)
-- Gebruikt bestaande `planning.status` kolom
-
-**Code Wijzigingen:**
-- `gui/screens/planning_editor_screen.py`:
-  - Nieuwe methoden: `load_maand_status()`, `publiceer_planning()`, `terug_naar_concept()`
-  - Dynamic UI update op basis van status
-  - Bevestiging dialogs voor status changes
-
-- `gui/widgets/planner_grid_kalender.py`:
-  - Nieuwe signal: `maand_changed` voor status reload triggers
-  - Emit bij `refresh_data()` voor maand navigatie
-
-- `gui/widgets/grid_kalender_base.py`:
-  - Parameter `alleen_gepubliceerd: bool = False` toegevoegd aan `load_planning_data()`
-  - WHERE clause filter: `AND p.status = 'gepubliceerd'` wanneer alleen_gepubliceerd=True
-
-- `gui/widgets/teamlid_grid_kalender.py`:
-  - Roept `load_planning_data(..., alleen_gepubliceerd=True)` aan
-  - Teamleden zien ALLEEN gepubliceerde planning
-
-**UI/UX Features:**
-- **Concept modus**: Geel warning info box + "Publiceren" knop (groen)
-- **Gepubliceerd modus**: Groen success info box + "Terug naar Concept" knop (oranje)
-- Bevestiging dialogs bij status wijziging
-- Auto-reload status bij maand navigatie
-
-**Workflow:**
-1. Planner maakt planning → automatisch status 'concept'
-2. Teamleden zien NIETS (verborgen voor teamleden)
-3. Planner klikt "Publiceren" → alle records van maand krijgen status 'gepubliceerd'
-4. Teamleden kunnen planning nu bekijken
-5. Planner kan nog steeds wijzigingen maken (zieken, last-minute, etc.)
-6. Optioneel: "Terug naar Concept" verbergt planning weer voor teamleden
-
-### Bug Fixes en Verbeteringen
-
-**1. Feestdag Specifieke Error Messages**
-- Duidelijke foutmeldingen wanneer verkeerde code op feestdag ingevoerd
-- `get_feestdag_naam()` helper methode
-- Laadt feestdag namen bij `load_feestdagen_extended()`
-- Specifieke messages: "Deze datum is een feestdag (Kerstmis). Op feestdagen moeten zondagdiensten worden gebruikt."
-
-**2. Filter State Preservation**
-- **Fix:** Filter blijft behouden bij maand navigatie in kalenders
-- Smart merge logica in `load_gebruikers()`
-- Check bestaande filter, behoud settings, update alleen voor nieuwe/verwijderde gebruikers
-- Verwijderd: oude `_filter_initialized` flag pattern
-
-**3. Rode Lijnen Auto-Regeneratie**
-- **Fix:** Rode lijnen worden automatisch hertekend na config wijziging
-- Nieuwe functie: `regenereer_rode_lijnen_vanaf()` in data_ensure_service
-- Workflow: DELETE oude periodes → INSERT nieuwe periodes met nieuwe interval
-- Aangeroepen na config opslaan in rode_lijnen_beheer_screen
-
-**4. UI Layout: Naam Kolom Width**
-- **Fix:** Kolom verbreed van 200px naar 280px voor lange namen (28+ karakters)
-- Toegepast op beide kalenders (planner + teamlid)
-- Naam header + data cellen
-
-**Bestanden Gewijzigd:**
-- `gui/screens/planning_editor_screen.py` - Status management
-- `gui/widgets/planner_grid_kalender.py` - Signal + error messages + naam width
-- `gui/widgets/grid_kalender_base.py` - Filter preservation + alleen_gepubliceerd parameter
-- `gui/widgets/teamlid_grid_kalender.py` - Naam width + gepubliceerd filter
-- `services/data_ensure_service.py` - Rode lijnen regeneratie
-- `gui/screens/rode_lijnen_beheer_screen.py` - Regeneratie aanroep
-
----
-
-## NIEUWE FEATURES IN 0.6.14
-
-### Werkpost Koppeling & Slimme Auto-Generatie
-Many-to-many koppeling tussen gebruikers en werkposten met intelligente auto-generatie van planning uit typetabel.
-
-**Nieuwe Bestanden:**
-- `migratie_gebruiker_werkposten.py` - Migratie script voor v0.6.13 → v0.6.14
-- `gui/screens/werkpost_koppeling_screen.py` - Grid UI voor werkpost koppelingen
-- `gui/dialogs/auto_generatie_dialog.py` - Dialog voor slimme auto-generatie
-
-**Database Wijzigingen:**
-- Nieuwe tabel: `gebruiker_werkposten` (many-to-many met prioriteit)
-- Index: `idx_gebruiker_werkposten_gebruiker` voor performance
-
-**Code Wijzigingen:**
-- `database/connection.py` - Schema updated met gebruiker_werkposten tabel
-- `gui/dialogs/auto_generatie_dialog.py` - Slimme code lookup algoritme:
-  - Laadt typetabel data (abstract: "V", "L", "N")
-  - Laadt gebruiker werkposten mapping met prioriteit
-  - Laadt shift_codes mapping per werkpost
-  - Algoritme: loop door werkposten (op prioriteit) totdat shift_code match
-  - Beschermt speciale codes en handmatige wijzigingen
-- `gui/screens/dashboard_screen.py` - "Werkpost Koppeling" menu item toegevoegd aan Beheer tab
-- `main.py` - Handler voor werkpost koppeling scherm
-- `gui/screens/shift_codes_screen.py` - Bug fix: nieuwe werkpost reset_12u standaard uit (0 ipv 1)
-
-**UI/UX Features:**
-- Grid layout: gebruikers (Y-as) × werkposten (X-as)
-- Checkboxes om werkpost koppelingen te maken
-- Prioriteit spinboxes voor multi-post support
-- Filters: naam zoeken + toon reserves checkbox
-- Reserves visueel onderscheiden met [RESERVE] label en grijze achtergrond
-
-**Auto-Generatie Logica:**
-1. Typetabel bevat abstract shift types ("V" = vroeg, "L" = laat, etc.)
-2. Bij generatie: bereken dag_type uit datum (weekdag/zaterdag/zondag)
-3. Haal gebruiker's werkposten op (gesorteerd op prioriteit)
-4. Loop door werkposten totdat match: (werkpost_id, dag_type, shift_type) → shift_code
-5. Resultaat: typetabel "V" + maandag + werkpost PAT → shift_code "7101"
-
-**Voorbeeld Multi-Post Scenario:**
-- Jan kent: PAT (prioriteit 1), Interventie (prioriteit 2)
-- Typetabel: "N" (nacht) op maandag
-- PAT heeft geen nacht op weekdag → skip naar volgende werkpost
-- Interventie heeft wel nacht op weekdag = "7201" → gebruik deze code
-
-**Bescherming:**
-- Speciale codes (VV, KD, RX, etc.) worden NIET overschreven
-- Handmatig aangepaste shifts blijven behouden
-- Alleen lege cellen en typetabel-shifts worden ingevuld
-
----
-
-## NIEUWE FEATURES IN 0.6.13
-
-### Database Versie Beheer Systeem
-Volledig versiebeheersysteem voor app en database compatibiliteit.
-
-**Nieuwe Bestanden:**
-- `upgrade_to_v0_6_13.py` - Upgrade script voor bestaande databases
-- `detect_db_version.py` - Database versie detectie tool
-- `migrate_v0_6_4_to_v0_6_13.py` - Cumulatief migratie script met schema conversies
-
-**Database Wijzigingen:**
-- Nieuwe tabel: `db_metadata` (version_number, updated_at, migration_description)
-
-**Code Wijzigingen:**
-- `config.py` - APP_VERSION en MIN_DB_VERSION constanten
-- `database/connection.py` - Versie functies toegevoegd
-- `main.py` - Versie check bij startup
-- `gui/screens/login_screen.py` - Versie weergave
-- `gui/dialogs/about_dialog.py` - Versie weergave
-
-**UI/UX Verbeteringen:**
-- `gui/screens/verlof_saldo_beheer_screen.py` - Layout consistency fix:
-  - Terug knop rechtsboven (uniform met andere schermen)
-  - Jaar selector in toolbar naast acties (logischere groepering)
-
----
-
-## NIEUWE FEATURES IN 0.6.9
-
-### Bug Fix: Calendar Widget Kolom Weergave
-Verlof aanvragen kalender toont nu correct alle 7 kolommen (zondag niet meer afgesneden).
-
-**Fix:**
-- `min-width: 36px` en `min-height: 28px` toegevoegd aan `QAbstractItemView::item`
-- `setMinimumWidth(300)` voor gehele kalender widget
-- Toegepast op beide start_datum en eind_datum kalenders
-
-**Code:**
-- `gui/screens/verlof_aanvragen_screen.py` - Calendar widget styling (regel 127-184, 197-254)
-
-### Bug Fix: Feestdagen Niet Herkend in Grid Kalender
-Feestdagen van vorig/volgend jaar worden nu correct geladen voor buffer dagen.
-
-**Fix:**
-- Nieuwe methode `load_feestdagen_extended()` laadt 3 jaren (vorig, huidig, volgend)
-- Auto-generatie via `ensure_jaar_data()` service
-- Toegepast op beide PlannerGridKalender en TeamlidGridKalender
-
-**Code:**
-- `gui/widgets/planner_grid_kalender.py` - load_feestdagen_extended() (regel 324-345)
-
-### Dark Mode (Nachtmodus)
-Volledige dark mode ondersteuning met visuele theme toggle in dashboard.
-
-**Architectuur:**
-- **ThemeManager class**: Singleton pattern voor theme state (`_current_theme`)
-- **Colors class**: Dynamische palette met `_LIGHT_THEME` en `_DARK_THEME` dictionaries
-- **ThemeToggleWidget**: Visuele component met zon/maan iconen en schuifknop
-- **Dashboard rebuild**: Bij theme toggle wordt dashboard opnieuw opgebouwd voor correcte styling
-- **Persistence**: Theme voorkeur opgeslagen in `data/theme_preference.json`
-
-**Thema Kleuren:**
-| Element | Light Mode | Dark Mode |
-|---------|-----------|-----------|
-| BG_WHITE | #ffffff | #1e1e1e |
-| TEXT_PRIMARY | #212529 | #e0e0e0 |
-| PRIMARY | #007bff | #4a9eff |
-| BORDER_DARK | #dee2e6 | #3d4349 |
-| TABLE_HEADER_BG | #f8f9fa | #2b3035 |
-| MENU_BUTTON_BG | #ffffff | #2b3035 |
-
-**Code:**
-- `gui/styles.py` - ThemeManager en Colors classes (regel 8-103)
-- `main.py` - Theme loading/saving/apply (regel 240-311)
-- `gui/screens/dashboard_screen.py` - Theme toggle integratie (regel 98-120)
-- `gui/widgets/theme_toggle_widget.py` - NIEUW bestand (volledige implementatie)
-- `gui/dialogs/handleiding_dialog.py` - Theme toggle info (regel 95-106)
-
-**Gebruik:**
-```python
-from gui.styles import ThemeManager, Colors
-
-# Check huidige theme
-current = ThemeManager.get_theme()  # 'light' of 'dark'
-
-# Toggle theme
-new_theme = ThemeManager.toggle_theme()
-
-# Set theme
-ThemeManager.set_theme('dark')
-
-# Gebruik dynamische kleuren
-background = Colors.BG_WHITE  # Past automatisch aan bij theme switch
-```
-
-**Bekende Beperkingen:**
-- Theme toggle alleen beschikbaar in dashboard
-- QCalendarWidget behouden light mode styling (Qt limitation)
-
-### Rode Lijnen Visualisatie in Grid Kalenders
-28-daagse HR cycli worden nu visueel weergegeven met rode verticale lijnen.
-
-**Functionaliteit:**
-- Dikke rode linker border (4px, #dc3545) markeert periode start
-- Doorlopende lijn van datum header tot alle data cellen
-- Tooltip toont periode nummer: "Start Rode Lijn Periode X"
-- Dictionary lookup voor O(1) performance
-- Timestamp stripping fix (2024-07-28T00:00:00 → 2024-07-28)
-
-**Architectuur:**
-- `load_rode_lijnen()` methode laadt alle periode start datums in dictionary
-- `{datum_str: periode_nummer}` mapping voor snelle lookup
-- Border styling wordt toegevoegd in `build_grid()` en `create_editable_cel()`/`create_shift_cel()`
-
-**Code:**
-- `gui/widgets/planner_grid_kalender.py`:
-  - `load_rode_lijnen()` methode (regel 347-369)
-  - `load_initial_data()` aanroep (regel 312)
-  - `build_grid()` datum headers check (regel 414-453)
-  - `create_editable_cel()` data cellen styling (regel 499-516)
-
-- `gui/widgets/teamlid_grid_kalender.py`:
-  - Import `get_connection` (regel 15)
-  - `load_rode_lijnen()` methode (regel 139-161)
-  - `load_initial_data()` aanroep (regel 124)
-  - `build_grid()` datum headers check (regel 203-231)
-  - `create_shift_cel()` data cellen styling (regel 270-284)
-
-**Gebruik:**
-```python
-# In grid kalender widget
-self.rode_lijnen_starts: Dict[str, int] = {}  # {datum_str: periode_nr}
-
-# Check of datum start van periode is
-is_rode_lijn_start = datum_str in self.rode_lijnen_starts
-
-# Voeg rode border toe aan styling
-if is_rode_lijn_start:
-    periode_nr = self.rode_lijnen_starts[datum_str]
-    style += "border-left: 4px solid #dc3545;"
-    tooltip = f"Start Rode Lijn Periode {periode_nr}"
-```
-
-**Database Query:**
-```sql
-SELECT start_datum, eind_datum, periode_nummer
-FROM rode_lijnen
-ORDER BY start_datum
-```
-
----
-
-## NIEUWE FEATURES IN 0.6.8
-
-### Rode Lijnen Config Beheer
-Implementatie van versioned configuratie systeem voor HR cyclus (rode lijnen) met UI voor beheer.
-
-**Nieuwe Bestanden:**
-- `migratie_rode_lijnen_config.py` - Database migratie script
-- `gui/screens/rode_lijnen_beheer_screen.py` - Beheer scherm
-- `gui/dialogs/rode_lijnen_config_dialog.py` - Configuratie dialog
-
-**Database Wijzigingen:**
-- `rode_lijnen_config` tabel toegevoegd (start_datum, interval_dagen, actief_vanaf, actief_tot, is_actief)
-- Versioned systeem zoals HR regels
-
-**Code Wijzigingen:**
-- `services/data_ensure_service.py` - Gebruikt nu config tabel ipv hardcoded waarden
-- `database/connection.py` - Seed functie voor rode_lijnen_config
-
-### UX Verbeteringen
-**Window Management:**
-- Auto-maximize na login (main.py:147)
-- Centreren bij logout (main.py:174)
-
-**Handleiding Systeem:**
-- Tab-based handleiding met 3 tabs (gui/dialogs/handleiding_dialog.py)
-- Globaal F1 shortcut (main.py:92)
-- Handleiding knop op dashboard (gui/screens/dashboard_screen.py)
-
-**Filter State Preservation:**
-- Filter blijft behouden bij maand navigatie (gui/widgets/planner_grid_kalender.py:107, teamlid_grid_kalender.py:114)
-- `_filter_initialized` flag pattern
-
-**Layout Fixes:**
-- Mijn Planning scherm HBoxLayout met codes sidebar (gui/screens/mijn_planning_screen.py:47)
-- Grid stretching opgelost met stretch factors (3:1 ratio)
-
-**Keyboard Shortcuts:**
-- F1: Globale handleiding
-- F2: Shift codes helper in Planning Editor (was F1)
-
----
-
-## NIEUWE FEATURES IN 0.6.7
-
-### Term-based Systeem voor Speciale Codes
-Implementatie van flexibel systeem waarbij codes aangepast kunnen worden maar systeemfuncties beschermd blijven via termen.
-
-**Nieuwe Bestanden:**
-- `migratie_systeem_termen.py` - Database migratie script
-- `services/term_code_service.py` - Term-to-code mapping met cache
-
-**Database Wijzigingen:**
-- `speciale_codes.term` kolom toegevoegd (nullable, unique index)
-- 5 verplichte termen: verlof, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting
-- Codes kunnen wijzigen (VV→VL) maar termen blijven behouden
-
-**Code Wijzigingen:**
-- `shift_codes_screen.py` - Verwijder-knop disabled voor systeemcodes
-- `verlof_goedkeuring_screen.py` - Gebruikt TermCodeService.get_code_for_term()
-- `grid_kalender_base.py` - Dynamische kleuren op basis van termen
-- `speciale_code_dialog.py` - Waarschuwing voor systeemcodes
-
-**Bugfix:** Verlofcode (VV) kan niet meer per ongeluk verwijderd worden, waardoor verlofgoedkeuring altijd blijft werken.
-
----
-
-## NIEUWE FEATURES IN 0.6.6
-
-### Typetabel Beheer Systeem
-Complete implementatie van versioned typetabel systeem met status lifecycle (Concept/Actief/Archief), flexibel aantal weken (1-52), en multi-post support via shift codes met post nummers (V1, V2, L1, L2, etc.).
-
-**Nieuwe Bestanden:**
-- `migrate_typetabel_versioned.py` - Database migratie script
-- `gui/screens/typetabel_beheer_screen.py` - Hoofdscherm
-- `gui/dialogs/typetabel_dialogs.py` - NieuweTypetabelDialog
-- `gui/dialogs/typetabel_editor_dialog.py` - Grid editor
-
-**Database Wijzigingen:**
-- Nieuwe tabellen: `typetabel_versies`, `typetabel_data`
-- Oude tabel wordt `typetabel_old_backup` na migratie
-- `connection.py` seed functie aangepast
-
----
-
-## INHOUDSOPGAVE
-1. [Technische Architectuur](#technische-architectuur)
-2. [Database Schema](#database-schema)
-3. [PyQt6 Best Practices](#pyqt6-best-practices)
-4. [Typetabel Systeem](#typetabel-systeem)
-5. [Shift Codes Systeem](#shift-codes-systeem)
-6. [Known Issues](#known-issues)
-7. [Code Templates](#code-templates)
-8. [Dashboard & Main.py](#dashboard--mainpy)
 
 ---
 
@@ -509,11 +140,11 @@ root/
 │   └── widgets/               # Herbruikbare widgets
 ├── services/
 │   ├── data_ensure_service.py     # Auto-generatie
-│   └── term_code_service.py       # Term-code mapping (v0.6.7)
+│   ├── term_code_service.py       # Term-code mapping
+│   └── verlof_saldo_service.py    # Verlof & KD saldo
 ├── data/
 │   └── planning.db
-├── migratie_systeem_termen.py      # v0.6.7
-├── migrate_typetabel_versioned.py  # v0.6.6
+├── migratie_*.py              # Database migraties
 ├── main.py
 └── config.py
 ```
@@ -521,16 +152,32 @@ root/
 ### Styling Systeem
 Gebruik ALTIJD centrale styling:
 ```python
-from gui.styles import Styles, Colors, Fonts, Dimensions, TableConfig
+from gui.styles import Styles, Colors, Fonts, Dimensions, TableConfig, ThemeManager
 
 btn.setStyleSheet(Styles.button_primary())
 TableConfig.setup_table_widget(self.tabel, row_height=50)
 input.setStyleSheet(Styles.input_field())
+
+# Theme-aware colors (v0.6.9)
+background = Colors.BG_WHITE  # Adapteert automatisch aan theme
+text_color = Colors.TEXT_PRIMARY
 ```
 
 ---
 
 ## DATABASE SCHEMA
+
+### Versie Beheer
+
+#### db_metadata (v0.6.13)
+```sql
+CREATE TABLE db_metadata (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    version_number TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    migration_description TEXT
+)
+```
 
 ### Typetabel Systeem (v0.6.6)
 
@@ -568,6 +215,7 @@ CREATE TABLE typetabel_data (
 ```
 
 ### Gebruikers
+
 ```sql
 CREATE TABLE gebruikers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -587,11 +235,7 @@ CREATE TABLE gebruikers (
 )
 ```
 
-**Nieuwe kolommen (v0.6.11 en v0.6.12):**
-- `shift_voorkeuren`: JSON string met shift prioriteiten (bijv. `{"1": "vroeg", "2": "typetabel"}`)
-- `theme_voorkeur`: Light/dark mode voorkeur per gebruiker
-
-### Werkposten & Shift Codes (v0.6.4)
+### Werkposten & Shift Codes
 
 #### werkposten
 ```sql
@@ -608,13 +252,13 @@ CREATE TABLE werkposten (
 )
 ```
 
-#### gebruiker_werkposten (v0.6.14 - NIEUW)
+#### gebruiker_werkposten (v0.6.14)
 ```sql
 CREATE TABLE gebruiker_werkposten (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     gebruiker_id INTEGER NOT NULL,
     werkpost_id INTEGER NOT NULL,
-    prioriteit INTEGER DEFAULT 1,         -- Voor multi-post: 1=eerste keuze, 2=fallback
+    prioriteit INTEGER DEFAULT 1,         -- 1=eerste keuze, 2=fallback
     aangemaakt_op TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(gebruiker_id, werkpost_id),
     FOREIGN KEY (gebruiker_id) REFERENCES gebruikers(id) ON DELETE CASCADE,
@@ -624,18 +268,6 @@ CREATE TABLE gebruiker_werkposten (
 CREATE INDEX idx_gebruiker_werkposten_gebruiker
 ON gebruiker_werkposten(gebruiker_id, prioriteit);
 ```
-
-**Doel:**
-- Many-to-many koppeling tussen gebruikers en werkposten
-- Ondersteunt multi-post scenario's (bijv. gebruiker kent PAT én Interventie)
-- Prioriteit bepaalt volgorde bij slimme auto-generatie
-
-**Gebruik in Auto-Generatie:**
-1. Typetabel zegt "V" (shift_type = vroeg)
-2. Datum bepaalt dag_type (weekdag/zaterdag/zondag)
-3. Haal gebruiker's werkposten op (gesorteerd op prioriteit)
-4. Loop door werkposten totdat match gevonden in shift_codes
-5. Resultaat: concrete shift_code (bijv. "7101")
 
 #### shift_codes
 ```sql
@@ -656,23 +288,21 @@ CREATE TABLE shift_codes (
 ```sql
 CREATE TABLE speciale_codes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code_naam TEXT UNIQUE NOT NULL,    -- VV, RX, KD, DA, etc. (v0.6.7: hernoemd van 'code')
+    code_naam TEXT UNIQUE NOT NULL,
     beschrijving TEXT,
     kleur TEXT,
     telt_als_werkdag BOOLEAN DEFAULT 0,
     reset_12u_rust BOOLEAN DEFAULT 1,
     breekt_werk_reeks BOOLEAN DEFAULT 0,
-    term TEXT,                          -- v0.6.7: verlof, kompensatiedag, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting
+    term TEXT,                          -- v0.6.7: verlof, kompensatiedag, zondagrust, etc.
     is_actief BOOLEAN DEFAULT 1,
     aangemaakt_op TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    gedeactiveerd_op TIMESTAMP
+    gedeactiveerd_on TIMESTAMP
 )
 ```
 
-**Schema wijzigingen:**
-- v0.6.4: Oude schema met `code` (TEXT) + `naam` (TEXT) gescheiden
-- v0.6.7: Geconsolideerd naar `code_naam` (TEXT) + toegevoegd `term` (TEXT) kolom
-- v0.6.10: Toegevoegd `kleur` kolom voor UI weergave
+**Verplichte termen (v0.6.10):**
+- verlof, kompensatiedag, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting
 
 ### Planning & Verlof
 
@@ -710,16 +340,16 @@ CREATE TABLE verlof_aanvragen (
 )
 ```
 
-#### verlof_saldo (v0.6.10 - NIEUW)
+#### verlof_saldo (v0.6.10)
 ```sql
 CREATE TABLE verlof_saldo (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     gebruiker_id INTEGER NOT NULL,
     jaar INTEGER NOT NULL,
-    verlof_totaal REAL NOT NULL DEFAULT 0,        -- v0.6.4-0.6.9: vv_contingent
-    verlof_overgedragen REAL NOT NULL DEFAULT 0,  -- v0.6.4-0.6.9: vv_overgedragen
-    verlof_opgenomen REAL NOT NULL DEFAULT 0,     -- v0.6.4-0.6.9: vv_opgenomen
-    kd_totaal REAL NOT NULL DEFAULT 0,            -- v0.6.4-0.6.9: kd_contingent
+    verlof_totaal REAL NOT NULL DEFAULT 0,
+    verlof_overgedragen REAL NOT NULL DEFAULT 0,
+    verlof_opgenomen REAL NOT NULL DEFAULT 0,
+    kd_totaal REAL NOT NULL DEFAULT 0,
     kd_overgedragen REAL NOT NULL DEFAULT 0,
     kd_opgenomen REAL NOT NULL DEFAULT 0,
     opmerking TEXT,
@@ -730,12 +360,7 @@ CREATE TABLE verlof_saldo (
 )
 ```
 
-**Schema wijzigingen:**
-- v0.6.10: Tabel toegevoegd voor verlof & KD saldo tracking
-- Oude databases (pre-v0.6.10) gebruikten kolommen: `vv_*` en `kd_contingent`
-- v0.6.10+: Geünificeerde naamgeving: `verlof_*` en `kd_totaal`
-
-### HR Regels & Rode Lijnen (v0.6.8)
+### HR Regels & Rode Lijnen
 
 #### hr_regels
 ```sql
@@ -751,12 +376,7 @@ CREATE TABLE hr_regels (
 )
 ```
 
-**Versioning Pattern:**
-- `actief_vanaf`: Wanneer regel actief wordt
-- `actief_tot`: Wanneer regel niet meer actief is (nullable)
-- `is_actief`: Huidige status (1=actief, 0=archief)
-
-#### rode_lijnen_config
+#### rode_lijnen_config (v0.6.8)
 ```sql
 CREATE TABLE rode_lijnen_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -767,13 +387,6 @@ CREATE TABLE rode_lijnen_config (
     is_actief BOOLEAN DEFAULT 1
 )
 ```
-
-**Data Ensure Service:**
-- `data_ensure_service.py` haalt actieve config uit tabel
-- Genereert rode_lijnen tabel op basis van config
-- Uitbreidbaar naar toekomst met `extend_rode_lijnen_tot()`
-
-### Overige Tabellen
 
 #### feestdagen
 ```sql
@@ -796,45 +409,6 @@ CREATE TABLE rode_lijnen (
 )
 ```
 
-**Generatie:**
-- Automatisch gegenereerd via `data_ensure_service.py`
-- Gebruikt config uit `rode_lijnen_config` tabel
-- Uitbreidbaar naar toekomst met configurable interval
-
-### Database Migraties
-
-**v0.6.8 - Rode Lijnen Config:**
-```bash
-python migratie_rode_lijnen_config.py
-```
-
-**Wat doet het:**
-1. Check of rode_lijnen_config tabel al bestaat
-2. Maak tabel met versioning columns
-3. Seed default config (2024-07-28, interval 28 dagen)
-4. Safe & idempotent
-
-**v0.6.7 - Term-based Systeem:**
-```bash
-python migratie_systeem_termen.py
-```
-
-**v0.6.6 - Typetabel Versioned:**
-```bash
-python migrate_typetabel_versioned.py
-```
-
-**Wat doet het:**
-1. Check of nieuwe tabellen al bestaan
-2. Maak `typetabel_versies` en `typetabel_data`
-3. Migreer oude `typetabel` data
-4. Hernoem oude naar `typetabel_old_backup`
-5. Safe & idempotent (kan meerdere keren)
-
-**Voor schone database:**
-- `connection.py` seed is bijgewerkt
-- Maakt automatisch versioned structuur aan
-
 ---
 
 ## PYQT6 BEST PRACTICES
@@ -846,7 +420,7 @@ python migrate_typetabel_versioned.py
 class MyWidget(QWidget):
     my_signal: pyqtSignal = pyqtSignal()
     data_signal: pyqtSignal = pyqtSignal(dict)
-    
+
     def __init__(self):
         super().__init__()
 ```
@@ -912,7 +486,7 @@ class MyScreen(QWidget):
     def __init__(self, router: Callable):
         super().__init__()
         self.router = router
-        
+
         terug_btn = QPushButton("Terug")
         terug_btn.clicked.connect(self.router)  # type: ignore
 ```
@@ -973,7 +547,7 @@ N1 = Nacht Post 1
 **Nieuwe typetabel maken:**
 ```python
 cursor.execute("""
-    INSERT INTO typetabel_versies 
+    INSERT INTO typetabel_versies
     (versie_naam, aantal_weken, status, laatste_wijziging)
     VALUES (?, ?, 'concept', ?)
 """, (naam, aantal_weken, datetime.now().isoformat()))
@@ -984,7 +558,7 @@ versie_id = cursor.lastrowid
 for week in range(1, aantal_weken + 1):
     for dag in range(1, 8):
         cursor.execute("""
-            INSERT INTO typetabel_data 
+            INSERT INTO typetabel_data
             (versie_id, week_nummer, dag_nummer, shift_type)
             VALUES (?, ?, ?, NULL)
         """, (versie_id, week, dag))
@@ -1009,7 +583,7 @@ cursor.execute("""
 """, (nieuwe_id, oude_versie_id))
 ```
 
-**Activeren (TODO - Volgende sessie):**
+**Activeren:**
 ```python
 # Transactie voor atomaire operatie
 cursor.execute("BEGIN TRANSACTION")
@@ -1020,80 +594,25 @@ try:
         SET status = 'archief', actief_tot = ?
         WHERE status = 'actief'
     """, (startdatum,))
-    
+
     # Nieuw → actief
     cursor.execute("""
         UPDATE typetabel_versies
         SET status = 'actief', actief_vanaf = ?
         WHERE id = ?
     """, (startdatum, versie_id))
-    
+
     cursor.execute("COMMIT")
 except:
     cursor.execute("ROLLBACK")
     raise
 ```
 
-### Auto-Generatie uit Typetabel (TODO)
-
-```python
-def genereer_shift_voor_datum(gebruiker_id: int, datum: str) -> Optional[str]:
-    """Genereer shift code o.b.v. actieve typetabel"""
-    
-    # Haal gebruiker startweek op
-    cursor.execute("""
-        SELECT startweek_typedienst FROM gebruikers WHERE id = ?
-    """, (gebruiker_id,))
-    startweek = cursor.fetchone()['startweek_typedienst']
-    
-    # Haal actieve typetabel op
-    cursor.execute("""
-        SELECT id, aantal_weken, actief_vanaf
-        FROM typetabel_versies WHERE status = 'actief'
-    """)
-    typetabel = cursor.fetchone()
-    
-    # Bereken week in cyclus
-    datum_obj = datetime.fromisoformat(datum)
-    actief_vanaf = datetime.fromisoformat(typetabel['actief_vanaf'])
-    dagen_verschil = (datum_obj - actief_vanaf).days
-    
-    # Met startweek offset
-    week_in_cyclus = ((dagen_verschil // 7 + startweek - 1) % typetabel['aantal_weken']) + 1
-    dag_nummer = datum_obj.isoweekday()
-    
-    # Haal shift code op
-    cursor.execute("""
-        SELECT shift_type FROM typetabel_data
-        WHERE versie_id = ? AND week_nummer = ? AND dag_nummer = ?
-    """, (typetabel['id'], week_in_cyclus, dag_nummer))
-    
-    result = cursor.fetchone()
-    return result['shift_type'] if result else None
-```
-
-### Integratie met GebruikersBeheer (TODO)
-
-```python
-def get_max_startweek() -> int:
-    """Haal max startweek uit actieve typetabel"""
-    cursor.execute("""
-        SELECT aantal_weken FROM typetabel_versies WHERE status = 'actief'
-    """)
-    result = cursor.fetchone()
-    return result['aantal_weken'] if result else 6
-
-# Bij gebruiker bewerken
-max_week = get_max_startweek()
-startweek_spin.setMaximum(max_week)
-startweek_label.setText(f"Startweek (1-{max_week}):")
-```
-
 ---
 
 ## SHIFT CODES SYSTEEM
 
-### Architectuur (v0.6.4, updated v0.6.7)
+### Architectuur
 
 Twee-laags systeem:
 1. **Werkposten**: Team-specifieke shift codes
@@ -1103,21 +622,9 @@ Twee-laags systeem:
 
 Speciale codes hebben nu een optioneel `term` veld voor systeemfuncties:
 
-**Database structuur:**
-```sql
-CREATE TABLE speciale_codes (
-    id INTEGER PRIMARY KEY,
-    code TEXT UNIQUE NOT NULL,     -- Kan wijzigen (VV → VL)
-    naam TEXT NOT NULL,
-    term TEXT UNIQUE,               -- Fixed (verlof, zondagrust, etc.)
-    telt_als_werkdag BOOLEAN,
-    reset_12u_rust BOOLEAN,
-    breekt_werk_reeks BOOLEAN
-);
-```
-
 **Verplichte termen (beschermd):**
 - `verlof` - Gebruikt bij verlof goedkeuring
+- `kompensatiedag` - Gebruikt voor KD tracking (v0.6.10)
 - `zondagrust` - Gebruikt voor RX regels
 - `zaterdagrust` - Gebruikt voor CX regels
 - `ziek` - Gebruikt voor ziekteregistratie
@@ -1152,32 +659,9 @@ Flexibele parser accepteert:
 "22:00-06:00" → "22:00" tot "06:00"  # Over middernacht
 ```
 
-**Implementatie:**
-```python
-def parse_tijd(tijd_str: str) -> Tuple[str, str]:
-    tijd_clean = tijd_str.replace(' ', '')
-    parts = tijd_clean.split('-')
-    
-    # Parse start
-    if ':' in parts[0]:
-        start_parts = parts[0].split(':')
-        start_uur = f"{start_parts[0].zfill(2)}:{start_parts[1].zfill(2)}"
-    else:
-        start_uur = f"{parts[0].zfill(2)}:00"
-    
-    # Parse eind (zelfde logica)
-    if ':' in parts[1]:
-        eind_parts = parts[1].split(':')
-        eind_uur = f"{eind_parts[0].zfill(2)}:{eind_parts[1].zfill(2)}"
-    else:
-        eind_uur = f"{parts[1].zfill(2)}:00"
-    
-    return start_uur, eind_uur
-```
-
 ### Code Eigenschappen
 
-**Op werkpost niveau (gelden voor alle shifts):**
+**Op werkpost niveau:**
 - `telt_als_werkdag`: Telt mee voor 19 dagen/28d regel
 - `reset_12u_rust`: Reset de 12u rust periode
 - `breekt_werk_reeks`: Breekt reeks werkdagen
@@ -1196,43 +680,107 @@ telt_als_werkdag=0, reset_12u=1, breekt=1
 
 ---
 
+## DESIGN BESLISSINGEN
+
+### Typetabel Architectuur (v0.6.6)
+**Beslissing:** Versioned systeem met status lifecycle
+**Reden:**
+- Trial & error workflow: Meerdere concepten naast elkaar
+- Harde cutover datum: Actief tot X, nieuwe vanaf X
+- Geschiedenis bewaren: Archief voor audit trail
+- Simpel: Geen complexe gebruiker ↔ typetabel koppeling
+
+**Status Lifecycle:**
+```
+CONCEPT → (valideer + activeer) → ACTIEF → (bij vervanging) → ARCHIEF
+```
+
+### Shift Codes in Typetabel
+**Beslissing:** Post nummer in code (V1, V2, L1, L2, etc.)
+**Reden:**
+- Alle teamleden kunnen alle posten bemannen
+- Post info zit IN de shift code zelf
+- Geen aparte post kolom nodig
+- Simpel en flexibel
+
+**Voorbeelden:**
+- Interventie (1 post): V, L, N, RX, CX
+- Officieren (2 posten): V1, V2, L1, L2, N1, RX, CX
+- Supervisors (4 posten): V1-V4, L1-L4, N1-N4, RX, CX
+
+### Werkpost Koppeling (v0.6.14)
+**Beslissing:** Many-to-many met prioriteit
+**Reden:**
+- Multi-post scenario's ondersteunen
+- Fallback mechanisme voor auto-generatie
+- Flexibiliteit voor cross-training
+- Eenvoudige grid UI
+
+**Auto-Generatie Logica:**
+1. Typetabel: abstract shift type ("V", "L", "N")
+2. Datum: bepaalt dag_type (weekdag/zaterdag/zondag)
+3. Gebruiker werkposten: gesorteerd op prioriteit
+4. Loop door werkposten tot match: (werkpost, dag_type, shift_type) → shift_code
+5. Resultaat: concrete code (bijv. "7101")
+
+### Shift Codes Systeem (v0.6.4)
+**Beslissing:** Twee-laags systeem (werkposten + speciale codes)
+**Reden:**
+- Werkposten: Team-specifieke codes, flexibel per organisatie
+- Speciale codes: Globaal, altijd beschikbaar (VV, RX, DA, etc.)
+- Eigenschappen op werkpost niveau (simpeler beheer)
+- Multi-team support zonder complexiteit
+
+### Tijd Notatie Parsing (v0.6.4)
+**Beslissing:** Flexibele parser met meerdere formaten
+**Reden:**
+- Gebruikers willen snel invoeren (6-14 sneller dan 06:00-14:00)
+- Ondersteuning halve uren/kwartieren noodzakelijk
+- Automatische normalisatie naar HH:MM in database
+
+### Grid Editor vs Formulier
+**Beslissing:** Grid editor (3x4) voor shift codes
+**Reden:**
+- Overzichtelijk alle shifts per werkpost
+- Snel bulk invoeren
+- Visuele structuur (dag types × shift types)
+- Copy/paste mogelijk (toekomstig)
+
+### Eigenschappen Niveau
+**Beslissing:** Eigenschappen op werkpost niveau (niet per shift)
+**Reden:**
+- Simpeler beheer
+- Meestal gelden regels voor alle shifts van een team
+- Uitzonderingen zeldzaam
+- Database normalisatie
+
+### Soft Delete Pattern
+**Beslissing:** is_actief flag + gedeactiveerd_op timestamp
+**Reden:**
+- Data behoud voor rapportage
+- Historische planning blijft intact
+- Heractivatie mogelijk
+- Audit trail
+
+### Theme Per Gebruiker (v0.6.12)
+**Beslissing:** Database opslag per gebruiker ipv globaal JSON
+**Reden:**
+- Consistenter met rest van applicatie
+- Elke gebruiker eigen voorkeur
+- Login scherm altijd light (standaard look)
+- Geen file locking issues bij multi-user
+
+### Planning Status (v0.6.15)
+**Beslissing:** Concept vs Gepubliceerd per maand
+**Reden:**
+- Planners kunnen experimenteren zonder teamleden te verwarren
+- Per maand granulariteit (niet globaal of per week)
+- Planners kunnen altijd wijzigen (ook gepubliceerd)
+- Teamleden zien alleen gepubliceerde planning
+
+---
+
 ## KNOWN ISSUES
-
-### ✅ OPGELOST
-
-**Filter State Reset (v0.6.8)** 🆕
-- **Probleem:** Filter verdween bij maand navigatie in kalenders
-- **Fix:** `_filter_initialized` flag pattern
-- **Impact:** Filter blijft behouden bij navigatie
-- **Locaties:** planner_grid_kalender.py:107, teamlid_grid_kalender.py:114
-
-**Grid Stretching Full-screen (v0.6.8)** 🆕
-- **Probleem:** Grid werd uitgerekt met witruimte op full-screen
-- **Fix:** HBoxLayout met stretch factors (3:1 ratio) + codes sidebar
-- **Locatie:** mijn_planning_screen.py:47
-
-**F1 Shortcut Conflict (v0.6.8)** 🆕
-- **Probleem:** F1 in Planning Editor botste met globale handleiding
-- **Fix:** Shift codes helper verplaatst naar F2
-- **Locatie:** planning_editor_screen.py:300
-
-**Verlofcode Verwijderbaar (v0.6.7)**
-- **Probleem:** VV kon verwijderd worden, verlofgoedkeuring crashte daarna
-- **Fix:** Term-based systeem met beschermde codes
-- **Impact:** Systeemcodes (verlof, zondagrust, etc.) zijn nu beschermd
-- **Locaties:** shift_codes_screen.py, verlof_goedkeuring_screen.py, term_code_service.py
-
-**Typetabel Seed Conflict (v0.6.6)**
-- **Fix:** connection.py seed aangepast voor versioned systeem
-- **Impact:** Schone database start werkt correct
-
-**Admin in Kalenders (v0.6.4)**
-- **Fix:** `WHERE gebruikersnaam != 'admin'` filter
-- **Locatie:** grid_kalender_base.py
-
-**Button Width Toggle (v0.6.4)**
-- **Fix:** Uniform 96px voor Activeren/Deactiveren
-- **Locaties:** gebruikersbeheer_screen.py, shift_codes_screen.py
 
 ### 🟡 BEKEND
 
@@ -1240,6 +788,14 @@ telt_als_werkdag=0, reset_12u=1, breekt=1
 - **Probleem:** Trage DB toegang op netwerkschijf
 - **Impact:** Lichte vertraging bij opstarten
 - **Workaround:** Database caching overwegen
+
+**Theme Beperkingen (v0.6.9)**
+- QCalendarWidget behouden light mode styling (Qt limitation)
+- Theme toggle alleen beschikbaar in dashboard
+
+**Verlof Saldo (v0.6.10)**
+- Geen automatische cleanup overgedragen verlof op 1 mei
+- Geen notificatie systeem voor vervaldatum warnings
 
 ---
 
@@ -1261,15 +817,15 @@ class MijnScherm(QWidget):
         self.data: List[Dict[str, Any]] = []
         self.init_ui()
         self.load_data()
-    
+
     def init_ui(self):
         layout = QVBoxLayout(self)
         # Setup UI...
-        
+
         terug_btn = QPushButton("Terug")
         terug_btn.clicked.connect(self.router)  # type: ignore
         layout.addWidget(terug_btn)
-    
+
     def load_data(self):
         try:
             conn = get_connection()
@@ -1296,15 +852,15 @@ class MijnDialog(QDialog):
         self.setModal(True)
         self.input: QLineEdit = QLineEdit()
         self.init_ui()
-    
+
     def init_ui(self):
         layout = QVBoxLayout(self)
         # Setup UI...
-        
+
         opslaan_btn = QPushButton("Opslaan")
         opslaan_btn.clicked.connect(self.accept)  # type: ignore
         layout.addWidget(opslaan_btn)
-    
+
     def get_data(self) -> Dict[str, Any]:
         return {'field': self.input.text().strip()}
 ```
@@ -1320,7 +876,7 @@ class MijnDialog(QDialog):
 class DashboardScreen(QWidget):
     # Signals als class attributes
     gebruikers_clicked = pyqtSignal()
-    typedienst_clicked = pyqtSignal()  # Voor typetabel
+    typedienst_clicked = pyqtSignal()
     shift_codes_clicked = pyqtSignal()
     # etc...
 ```
@@ -1329,11 +885,11 @@ class DashboardScreen(QWidget):
 ```python
 def show_dashboard(self):
     dashboard = DashboardScreen(self.current_user)
-    
+
     # Connect alle signals
     dashboard.typedienst_clicked.connect(self.on_typedienst_clicked)  # type: ignore
     # etc...
-    
+
     self.stack.addWidget(dashboard)
     self.stack.setCurrentWidget(dashboard)
 
@@ -1381,132 +937,79 @@ def on_nieuw_scherm_clicked(self):
 
 ---
 
-## VERSIE GESCHIEDENIS
+## LESSEN GELEERD
 
-### v0.6.15 (22 Oktober 2025) - HUIDIG
-**Planning Editor: Concept vs Gepubliceerd + Bug Fixes**
-- Concept vs Gepubliceerd toggle systeem
-- Teamleden zien alleen gepubliceerde planning
-- Feestdag specifieke error messages
-- Filter state preservation fix
-- Rode lijnen auto-regeneratie fix
-- Naam kolom width verbreed (280px)
+### PyQt6 Specifiek
+1. **Signals moeten class attributes zijn** - Niet in `__init__` definiëren
+2. **Instance attributes in `__init__`** - PyCharm warnings voorkomen
+3. **Button widths consistent** - Zelfde width voor toggle buttons (96px)
+4. **TableWidget cleanup** - Gebruik TableConfig.setup_table_widget()
+5. **Unicode voorzichtig** - Emoji's in buttons crashen op Windows
+6. **Type ignore voor signals** - Bij connect() en emit()
 
-### v0.6.14 (22 Oktober 2025)
-**Werkpost Koppeling & Slimme Auto-Generatie**
-- Many-to-many werkpost koppeling met prioriteit
-- Slimme auto-generatie uit typetabel
-- Multi-post support met fallback
-- Database: gebruiker_werkposten tabel
+### Database
+1. **Migratie scripts essentieel** - Check schema, pas aan indien nodig
+2. **Seed functies up-to-date houden** - Anders mismatch bij schone start
+3. **Foreign keys enable** - PRAGMA foreign_keys = ON
+4. **Row factory** - sqlite3.Row voor dict access
+5. **Prepared statements** - Altijd ? placeholders gebruiken
+6. **Soft delete beter dan hard delete** - Data behoud + audit trail
+7. **CASCADE delete** - Automatic cleanup bij parent delete
 
-### v0.6.13 (21 Oktober 2025)
-**Database Versie Beheer Systeem & UI Verbeteringen**
-- Centraal versiebeheersysteem (config.py: APP_VERSION en MIN_DB_VERSION)
-- Database versie tracking via db_metadata tabel
-- Automatische compatibiliteit check bij app start
-- Versie weergave op loginscherm en About dialog
-- Database versie detectie tool (detect_db_version.py)
-- Cumulatief migratie script met schema conversies (migrate_v0_6_4_to_v0_6_13.py)
-- UI consistency fix: verlof_saldo_beheer_screen layout
+### UI/UX
+1. **Consistency is key** - Zelfde patterns overal
+2. **Feedback direct** - Geen silent fails
+3. **Validatie vroeg** - Voor database operaties
+4. **Confirmatie bij destructieve acties** - Voorkom ongelukken
+5. **Overzicht belangrijk** - Grid views beter dan lange lijsten
+6. **Snelkoppelingen waarderen** - Users type sneller dan ze klikken
 
-### v0.6.12 (21 Oktober 2025)
-**Theme Per Gebruiker**
-- Theme voorkeur van globaal naar per gebruiker
-- Database kolom: gebruikers.theme_voorkeur
-- Login scherm blijft light mode
-- Logout reset naar light mode
+### Architectuur
+1. **Scheiding concerns** - GUI, Business Logic, Database apart
+2. **Router pattern werkt goed** - Callback voor navigatie
+3. **Centrale styling vermijdt duplicate code**
+4. **Services voor herbruikbare logica**
+5. **Inheritance voor widgets** - Base class + specifieke implementaties
+6. **Versioning voor belangrijke data** - Zoals typetabellen
 
-### v0.6.11 (21 Oktober 2025)
-**Shift Voorkeuren Systeem**
-- Shift voorkeuren per gebruiker (prioriteit mapping)
-- Auto-save functionaliteit met real-time validatie
-- Database kolom: gebruikers.shift_voorkeuren (JSON)
-- VoorkeurenScreen implementatie
+### Development Process
+1. **Kleine stappen** - Feature per feature implementeren
+2. **Test frequent** - Direct testen na changes
+3. **Debug prints helpen** - Bij complexe bugs
+4. **Documentation tijdens development** - Niet achteraf
+5. **Git commits frequent** - Bij werkende staat
 
-### v0.6.10 (20 Oktober 2025)
-**Verlof & KD Saldo Systeem**
-- Complete saldo tracking voor VV en KD
-- Admin beheer: contingent input, overdracht, nieuw jaar bulk aanmaken
-- Teamlid: saldo widget in verlof aanvragen scherm
-- Planner: type selectie (VV/KD) bij goedkeuring met saldo preview
-- Nieuwe tabel: verlof_saldo
-- Nieuwe speciale code: KD met term 'kompensatiedag'
+### Code Quality
+1. **Linting essentieel** - Gebruik ruff voor code quality checks
+2. **Fix linting issues** - Voorkom tech debt accumulation
+3. **Specifieke exceptions** - Nooit bare `except:`, altijd specifieke errors
+4. **Cleanup unused code** - Verwijder unused imports en variables
+5. **Context managers** - Gebruik `with` blocks voor resource cleanup
+6. **Type hints** - Verbeter code readability en IDE support
 
-### v0.6.9 (20 Oktober 2025)
-**Dark Mode & Rode Lijnen Visualisatie**
-- Dark mode met theme toggle (later verbeterd in v0.6.12)
-- Rode lijnen visualisatie in grid kalenders
-- Bug fixes: calendar widget kolommen, feestdagen extended loading
+#### Ruff Usage
+```bash
+# Check voor issues
+ruff check .
 
-### v0.6.8 (19 Oktober 2025)
-**Rode Lijnen Config & UX Verbeteringen**
-- Versioned rode lijnen configuratie beheer
-- Auto-maximize window na login
-- Tab-based handleiding systeem (F1)
-- Filter state preservation bij navigatie
-- Grid stretching fix + codes sidebar
-- Keyboard shortcuts (F1/F2)
-- Historiek standaard zichtbaar
+# Auto-fix safe issues
+ruff check --fix .
 
-### v0.6.7 (19 Oktober 2025)
-**Term-based Systeem voor Speciale Codes**
-- Systeemcodes beschermd tegen verwijdering
-- TermCodeService met cache
-- Dynamische code mapping via termen
-- Database migratie + UI updates
+# Format code
+ruff format .
+```
 
-### v0.6.6 (18 Oktober 2025)
-**Typetabel Beheer Systeem**
-- Versioned typetabellen (Concept/Actief/Archief)
-- Grid editor voor patronen
-- Kopiëren, verwijderen functionaliteit
-- Database migratie + seed update
-- Multi-post support (V1, V2, L1, etc.)
-
-### v0.6.5 (16 Oktober 2025)
-**Planning Editor & Verlof**
-- Planning Editor eerste iteratie
-- Editable cellen in kalender
-- Verlof aanvragen/goedkeuring schermen
-
-### v0.6.4 (15 Oktober 2025)
-**Shift Codes Systeem**
-- Werkposten met multi-team support
-- Speciale codes beheer
-- Flexibele tijd parsing
-- Grid editor
-
-### v0.6.3 (14 Oktober 2025)
-**Feestdagen & Kalenders**
-- Feestdagen verbeterd (variabel/vast)
-- Paasberekening
-- Grid Kalender widgets
-- Database migratie systeem
-
-### v0.6.0-0.6.2
-- Login systeem
-- Dashboard
-- Gebruikersbeheer
-- Database redesign
-- Centrale styling
+**Common Issues:**
+- **F401**: Unused imports → Verwijder
+- **F541**: Onnodige f-string prefix → Verwijder `f` prefix
+- **E722**: Bare except → Gebruik `except ValueError:` of specifieke error
+- **F841**: Unused variable → Verwijder of prefix met `_` als documentatie
 
 ---
 
-## DEPLOYMENT (TODO)
+*Voor versie geschiedenis en release notes, zie PROJECT_INFO.md*
+*Voor recente development sessies, zie DEV_NOTES.md*
+*Voor historische sessies, zie DEV_NOTES_ARCHIVE.md*
 
-**Voor Release 1.0:**
-- PyInstaller .exe build
-- Netwerkschijf deployment guide
-- Backup strategie
-- Multi-user testing
-- Performance optimalisatie
-
-**Zie DEV_NOTES.md voor deployment checklist**
-
----
-
-*Laatste update: 22 Oktober 2025*
+*Laatste update: 23 Oktober 2025*
 *Versie: 0.6.15*
-
-*Voor user-facing documentatie, zie PROJECT_INFO.md*
-*Voor development logs, zie DEV_NOTES.md*

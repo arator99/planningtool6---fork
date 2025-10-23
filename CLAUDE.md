@@ -5,14 +5,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## IMPORTANT: Session Workflow
 
 **AT THE START OF EACH SESSION:**
-1. **READ `DEV_NOTES.md` FIRST** - Contains current development status, recent changes, known issues, and next priorities
-2. **READ `DEVELOPMENT_GUIDE.md` SECOND** - Contains technical architecture, coding patterns, and implementation details (~800 lines)
-3. **UNDERSTAND CURRENT STATE** - Check versie nummer, status, en openstaande taken before starting work
+1. **CLEAR `SESSION_LOG.md`** - Start met nieuwe sessie template voor crash recovery
+2. **WRITE SESSION GOALS** - Noteer planning en doelen in SESSION_LOG.md
+3. **READ `DEV_NOTES.md` FIRST** - Contains current development status, recent sessies (laatste maand), known issues, and next priorities (~600 lines)
+4. **READ `DEVELOPMENT_GUIDE.md` SECOND** - Contains technical architecture, coding patterns, and implementation details (~990 lines - tijdloos)
+5. **UNDERSTAND CURRENT STATE** - Check versie nummer, status, en openstaande taken before starting work
+6. **For historical context:** Check `DEV_NOTES_ARCHIVE.md` for sessies ouder dan 1 maand
+
+**DURING SESSION:**
+- **UPDATE `SESSION_LOG.md` FREQUENTLY** - Mark steps completed, add crash recovery info
+- Real-time tracking helpt bij herstel na stroomuitval/crashes
 
 **AT THE END OF EACH SESSION:**
-1. **UPDATE `DEV_NOTES.md`** - Add session notes, completed tasks, decisions made, and issues encountered
-2. **UPDATE `DEVELOPMENT_GUIDE.md`** - Add new patterns, architectural changes, or technical details if relevant
-3. **UPDATE VERSION** - Follow version update workflow below
+1. **SUMMARIZE SESSION** - Move session summary from SESSION_LOG.md to DEV_NOTES.md
+2. **UPDATE `DEV_NOTES.md`** - Add session notes to top of recente sessies section
+   - Keep rolling window (laatste maand only)
+   - Move oude sessies (>1 maand) to DEV_NOTES_ARCHIVE.md when needed
+3. **UPDATE `DEVELOPMENT_GUIDE.md`** - ONLY add timeless technical patterns/architecture changes (NOT version-specific features)
+4. **UPDATE `PROJECT_INFO.md`** - Add new version entry to "VOLLEDIGE VERSIE GESCHIEDENIS" for user-facing changes
+5. **UPDATE VERSION** - Follow version update workflow below
+6. **CLEAR `SESSION_LOG.md`** - Ready for next session (optional: keep laatste sessie voor reference)
+
+**DOCUMENTATION STRUCTURE (v0.6.15+):**
+- **SESSION_LOG.md** (~200 lines): Real-time sessie tracking voor crash recovery (OVERSCHREVEN elke sessie)
+- **DEV_NOTES.md** (600 lines): Recente sessies (laatste maand), TODO lijst, Known issues
+- **DEV_NOTES_ARCHIVE.md** (1200+ lines): Historische sessies (ouder dan 1 maand)
+- **DEVELOPMENT_GUIDE.md** (990 lines): Tijdloze technische referentie
+- **PROJECT_INFO.md** (928 lines): User-facing info + volledige versie geschiedenis
+- **CLAUDE.md** (548 lines): Claude instructies
 
 ## Version Update Workflow (v0.6.13+)
 
@@ -67,8 +87,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Planning Tool** - A shift scheduling application for self-rostering teams, built with Python and PyQt6. The application manages team schedules, leave requests, shift codes, and schedule templates (typetabellen) for shift-based work environments.
 
-**Current Version:** 0.6.15 (Beta)
-**Status:** Active development - Planning Editor Priority 1 Compleet (Concept/Gepubliceerd Toggle)
+**Current Version:** 0.6.16 (Beta)
+**Status:** Active development - Bulk Operations & Notities Systeem
 
 ## Running the Application
 
@@ -491,8 +511,9 @@ if 'versie_naam' not in columns:
 
 **Documentation:**
 - `PROJECT_INFO.md` - User-facing documentation
-- `DEVELOPMENT_GUIDE.md` - Technical architecture details (~800 lines)
+- `DEVELOPMENT_GUIDE.md` - Technical architecture details (~1000 lines)
 - `DEV_NOTES.md` - Development log and session notes
+- `proposed_improvements.md` - Pragmatic code quality improvement plan
 
 ## Roadmap
 
