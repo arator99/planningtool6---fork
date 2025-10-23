@@ -99,7 +99,7 @@ def detect_version(db_path):
 
         # Check speciale tabellen
         has_typetabel_versies = 'typetabel_versies' in tables
-        has_typetabel_data = 'typetabel_data' in tables
+        _has_typetabel_data = 'typetabel_data' in tables  # Unused but kept for completeness
         has_verlof_saldo = 'verlof_saldo' in tables
         has_rode_lijnen_config = 'rode_lijnen_config' in tables
 

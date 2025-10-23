@@ -4,6 +4,7 @@ Verificatie script: Check of alles klaar is voor Planning Editor
 """
 import sqlite3
 from pathlib import Path
+from datetime import datetime
 
 db_path = Path("data/planning.db")
 conn = sqlite3.connect(db_path)
@@ -99,7 +100,6 @@ else:
     print(f"   ⚠ Verwacht 42 entries (6x7), gevonden {count}")
 
 # 6. Check feestdagen (voor huidige maand)
-from datetime import datetime
 huidige_jaar = datetime.now().year
 huidige_maand = datetime.now().month
 

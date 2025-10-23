@@ -5,12 +5,10 @@ Gemeenschappelijke functionaliteit voor planner en teamlid kalenders
 UPDATED: Database compatibiliteit met nieuwe planning tabel structuur
 """
 from typing import Dict, Any, List, Optional, Tuple
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea
-from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import QWidget
 from datetime import datetime, timedelta
 from database.connection import get_connection
-from gui.styles import Styles, Colors, Fonts, Dimensions
+from gui.styles import Colors, Fonts
 from services.term_code_service import TermCodeService
 import calendar
 
@@ -64,7 +62,6 @@ class GridKalenderBase(QWidget):
         conn.close()
 
         # Update gebruikers data
-        oude_gebruiker_ids = {user['id'] for user in self.gebruikers_data} if hasattr(self, 'gebruikers_data') else set()
         nieuwe_gebruiker_ids = {user['id'] for user in nieuwe_gebruikers_data}
         self.gebruikers_data = nieuwe_gebruikers_data
 
@@ -106,6 +103,7 @@ class GridKalenderBase(QWidget):
                 p.gebruiker_id,
                 p.datum,
                 p.shift_code,
+                p.notitie,
                 p.status,
                 -- Details van shift_codes (indien match)
                 sc.shift_type as shift_naam,
@@ -136,6 +134,7 @@ class GridKalenderBase(QWidget):
 
             self.planning_data[datum][gebruiker_id] = {
                 'shift_code': row['shift_code'],
+                'notitie': row['notitie'],
                 'status': row['status'],
                 # Shift details (None als speciale code)
                 'shift_naam': row['shift_naam'],
@@ -325,6 +324,14 @@ class GridKalenderBase(QWidget):
             tooltip_lines.append("")
             tooltip_lines.append(status_tekst[verlof_info['status']])
             tooltip_lines.append(f"Aangevraagd op: {verlof_info['aangevraagd_op']}")
+
+        # Notitie info (voor alle modes)
+        if datum_str in self.planning_data and gebruiker_id in self.planning_data[datum_str]:
+            notitie = self.planning_data[datum_str][gebruiker_id].get('notitie', '')
+            if notitie:
+                tooltip_lines.append("")
+                tooltip_lines.append("--- NOTITIE ---")
+                tooltip_lines.append(notitie)
 
         return '\n'.join(tooltip_lines) if tooltip_lines else ""
 

@@ -6,10 +6,8 @@ Beheert verlof en kompensatiedagen saldi voor gebruikers.
 Gebruikt term-based systeem voor code-onafhankelijke queries.
 """
 
-from datetime import datetime, date, timedelta
-from typing import Optional
+from datetime import datetime, timedelta
 from database.connection import get_connection
-from services.term_code_service import TermCodeService
 
 
 class VerlofSaldoService:

@@ -6,10 +6,9 @@ Voor het testen van beide grid kalender widgets
 from typing import Callable
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QTabWidget, QMessageBox)
-from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from datetime import datetime
-from gui.styles import Styles, Colors, Fonts, Dimensions
+from gui.styles import Styles, Fonts, Dimensions
 
 
 class KalenderTestScreen(QWidget):

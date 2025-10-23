@@ -50,7 +50,7 @@ def migreer_theme_per_gebruiker():
                     data = json.load(f)
                     global_theme = data.get('theme', 'light')
                 print(f"Gevonden globale theme voorkeur: {global_theme}")
-            except:
+            except (FileNotFoundError, json.JSONDecodeError):
                 pass
 
         # Update alle bestaande gebruikers met de globale theme voorkeur
@@ -63,7 +63,7 @@ def migreer_theme_per_gebruiker():
         updated_count = cursor.rowcount
 
         conn.commit()
-        print(f"Migratie succesvol! Theme voorkeur kolom toegevoegd.")
+        print("Migratie succesvol! Theme voorkeur kolom toegevoegd.")
         print(f"{updated_count} gebruikers geupdate met theme '{global_theme}'")
 
         # Info over oude JSON bestand

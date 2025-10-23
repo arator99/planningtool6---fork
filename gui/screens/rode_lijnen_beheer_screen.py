@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from datetime import datetime
 from database.connection import get_connection
-from gui.styles import Styles, Colors, Fonts, Dimensions, TableConfig
+from gui.styles import Styles, Fonts, Dimensions, TableConfig
 import sqlite3
 
 

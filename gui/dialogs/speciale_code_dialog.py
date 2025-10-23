@@ -7,7 +7,6 @@ from typing import Dict, Any, Optional
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit, QCheckBox, QFormLayout,
                              QMessageBox)
-from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from gui.styles import Styles, Colors, Fonts, Dimensions
 

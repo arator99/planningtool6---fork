@@ -72,7 +72,7 @@ def upgrade_database():
         """, (MIN_DB_VERSION, f"Upgrade naar v{MIN_DB_VERSION} - Database versie tracking systeem toegevoegd"))
 
         conn.commit()
-        print(f"[OK] db_metadata tabel aangemaakt")
+        print("[OK] db_metadata tabel aangemaakt")
         print(f"[OK] Database versie ingesteld op {MIN_DB_VERSION}")
 
         return True

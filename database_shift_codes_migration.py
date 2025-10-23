@@ -107,7 +107,7 @@ def migrate_shift_codes():
     print("\n" + "=" * 60)
     print("MIGRATIE VOLTOOID")
     print("=" * 60)
-    print(f"\nEindstatus:")
+    print("\nEindstatus:")
     print(f"  • {wp} werkpost(en)")
     print(f"  • {sc} shift code(s)")
     print(f"  • {spc} speciale code(s)")

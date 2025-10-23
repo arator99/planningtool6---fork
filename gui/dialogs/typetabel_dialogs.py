@@ -11,7 +11,6 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import QDate
 from PyQt6.QtGui import QFont
 from gui.styles import Styles, Fonts, Dimensions, Colors
-from datetime import datetime
 
 
 class NieuweTypetabelDialog(QDialog):
@@ -67,7 +66,7 @@ class NieuweTypetabelDialog(QDialog):
         weken_layout.addWidget(self.weken_spin)
 
         weken_info = QLabel("(1-52 weken)")
-        weken_info.setStyleSheet(f"color: #666;")
+        weken_info.setStyleSheet("color: #666;")
         weken_layout.addWidget(weken_info)
         weken_layout.addStretch()
 

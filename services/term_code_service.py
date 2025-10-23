@@ -22,7 +22,7 @@ VERPLICHTE TERMEN:
 - arbeidsduurverkorting (standaard: DA)
 """
 
-from typing import Dict, Optional
+from typing import Dict
 import sqlite3
 from database.connection import get_connection
 

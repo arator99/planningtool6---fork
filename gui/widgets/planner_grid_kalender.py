@@ -4,11 +4,10 @@ Planner Grid Kalender
 Editable kalender voor planners met buffer dagen en scroll functionaliteit
 UPDATED: Editable cellen met keyboard navigatie en save functionaliteit
 """
-from typing import Dict, Any, List, Optional, Callable, Set
+from typing import Dict, Optional, Set
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                              QComboBox, QScrollArea, QWidget, QGridLayout,
-                             QCheckBox, QDialog, QDialogButtonBox, QSizePolicy,
-                             QLineEdit, QMessageBox, QMenu)
+                             QDialog, QLineEdit, QMessageBox, QMenu)
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QCursor
 from gui.widgets.grid_kalender_base import GridKalenderBase
@@ -304,7 +303,7 @@ class PlannerGridKalender(GridKalenderBase):
         # Laad feestdagen voor huidig jaar EN aangrenzende jaren (voor buffer dagen)
         self.load_feestdagen_extended()
 
-        # Laad rode lijnen (28-daagse HR cycli)
+        # Laad rode lijnen (28-daagse HR-cycli)
         self.load_rode_lijnen()
 
         # Datum range: maand + 8 dagen buffer
@@ -345,7 +344,7 @@ class PlannerGridKalender(GridKalenderBase):
         conn.close()
 
     def load_rode_lijnen(self) -> None:
-        """Laad rode lijnen (28-daagse HR cycli) voor huidige periode"""
+        """Laad rode lijnen (28-daagse HR-cycli) voor huidige periode"""
         conn = get_connection()
         cursor = conn.cursor()
 
@@ -493,6 +492,17 @@ class PlannerGridKalender(GridKalenderBase):
         # Haal shift code op
         shift_code = self.get_display_code(datum_str, gebruiker_id)
 
+        # Check of er een notitie is
+        heeft_notitie = False
+        if datum_str in self.planning_data and gebruiker_id in self.planning_data[datum_str]:
+            notitie = self.planning_data[datum_str][gebruiker_id].get('notitie', '')
+            heeft_notitie = bool(notitie and notitie.strip())
+
+        # Voeg indicator toe als er een notitie is
+        display_text = shift_code
+        if heeft_notitie:
+            display_text = f"{shift_code} *" if shift_code else "*"
+
         # Bepaal achtergrond en overlay
         achtergrond = self.get_datum_achtergrond(datum_str)
         overlay = self.get_verlof_overlay(datum_str, gebruiker_id, 'planner')
@@ -505,8 +515,8 @@ class PlannerGridKalender(GridKalenderBase):
         is_rode_lijn_start = datum_str in self.rode_lijnen_starts
 
 
-        # Maak editable label
-        cel = EditableLabel(shift_code, datum_str, gebruiker_id, self)
+        # Maak editable label (met display_text ipv shift_code)
+        cel = EditableLabel(display_text, datum_str, gebruiker_id, self)
         cel.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL, QFont.Weight.Bold))
 
         # Stylesheet met optionele rode lijn
@@ -694,6 +704,111 @@ class PlannerGridKalender(GridKalenderBase):
         except sqlite3.Error as e:
             QMessageBox.critical(self, "Database Fout", f"Kon shift niet verwijderen:\n{e}")
 
+    def edit_notitie(self, datum_str: str, gebruiker_id: int):
+        """Bewerk of verwijder notitie voor cel"""
+        from PyQt6.QtWidgets import QTextEdit, QDialog, QVBoxLayout, QPushButton, QHBoxLayout
+        from datetime import datetime
+
+        # Haal huidige notitie op (uit planning_data of database)
+        huidige_notitie = ""
+        if datum_str in self.planning_data and gebruiker_id in self.planning_data[datum_str]:
+            huidige_notitie = self.planning_data[datum_str][gebruiker_id].get('notitie', '') or ""
+
+        # Haal gebruikersnaam op
+        gebruiker_naam = "Onbekend"
+        for user in self.gebruikers_data:
+            if user['id'] == gebruiker_id:
+                gebruiker_naam = user['volledige_naam']
+                break
+
+        # Format datum voor display
+        try:
+            datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
+            datum_display = datum_obj.strftime('%d-%m-%Y')
+        except (ValueError, TypeError):
+            datum_display = datum_str
+
+        # Maak dialog
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Notitie: {gebruiker_naam} - {datum_display}")
+        dialog.setModal(True)
+        dialog.resize(500, 300)
+
+        layout = QVBoxLayout(dialog)
+
+        # Text editor
+        text_edit = QTextEdit()
+        text_edit.setPlainText(huidige_notitie)
+        text_edit.setPlaceholderText("Bijv: Afspraak arbeidsgeneesheer 15u - late shift nodig")
+        layout.addWidget(text_edit)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+
+        verwijder_btn = QPushButton("Verwijder Notitie")
+        verwijder_btn.setStyleSheet(Styles.button_warning())
+        verwijder_btn.clicked.connect(lambda: text_edit.setPlainText(""))  # type: ignore
+        button_layout.addWidget(verwijder_btn)
+
+        button_layout.addStretch()
+
+        annuleer_btn = QPushButton("Annuleren")
+        annuleer_btn.clicked.connect(dialog.reject)  # type: ignore
+        button_layout.addWidget(annuleer_btn)
+
+        opslaan_btn = QPushButton("Opslaan")
+        opslaan_btn.setStyleSheet(Styles.button_primary())
+        opslaan_btn.clicked.connect(dialog.accept)  # type: ignore
+        button_layout.addWidget(opslaan_btn)
+
+        layout.addLayout(button_layout)
+
+        # Toon dialog
+        if dialog.exec():
+            nieuwe_notitie = text_edit.toPlainText().strip()
+
+            # Opslaan in database
+            try:
+                conn = get_connection()
+                cursor = conn.cursor()
+
+                # Check of record bestaat
+                cursor.execute("""
+                    SELECT id FROM planning
+                    WHERE gebruiker_id = ? AND datum = ?
+                """, (gebruiker_id, datum_str))
+
+                row = cursor.fetchone()
+
+                if row:
+                    # Update bestaand record
+                    cursor.execute("""
+                        UPDATE planning
+                        SET notitie = ?
+                        WHERE gebruiker_id = ? AND datum = ?
+                    """, (nieuwe_notitie if nieuwe_notitie else None, gebruiker_id, datum_str))
+                else:
+                    # Maak nieuw record (alleen met notitie, geen shift_code)
+                    cursor.execute("""
+                        INSERT INTO planning (gebruiker_id, datum, notitie, status)
+                        VALUES (?, ?, ?, 'concept')
+                    """, (gebruiker_id, datum_str, nieuwe_notitie))
+
+                conn.commit()
+                conn.close()
+
+                # Refresh grid
+                self.load_initial_data()
+
+                # Success feedback
+                if nieuwe_notitie:
+                    QMessageBox.information(self, "Notitie Opgeslagen", "✓ Notitie is opgeslagen.")
+                else:
+                    QMessageBox.information(self, "Notitie Verwijderd", "✓ Notitie is verwijderd.")
+
+            except sqlite3.Error as e:
+                QMessageBox.critical(self, "Database Fout", f"Kon notitie niet opslaan:\n{e}")
+
     def navigate_to_cell(self, huidige_datum: str, huidige_gebruiker_id: int, richting: str):
         """Navigeer naar andere cel"""
         datum_lijst = self.get_datum_lijst(start_offset=8, eind_offset=8)
@@ -748,6 +863,12 @@ class PlannerGridKalender(GridKalenderBase):
     def show_context_menu(self, cel: EditableLabel, datum_str: str, gebruiker_id: int):
         """Toon context menu bij rechtsklik"""
         menu = QMenu(self)
+
+        # Notitie toevoegen/bewerken
+        notitie_action = menu.addAction("Notitie toevoegen/bewerken")
+        notitie_action.triggered.connect(lambda: self.edit_notitie(datum_str, gebruiker_id))  # type: ignore
+
+        menu.addSeparator()
 
         # Verwijder
         delete_action = menu.addAction("Verwijder shift")

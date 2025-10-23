@@ -99,15 +99,15 @@ def schrijf_architectuur(structuur):
                 if samenvatting:
                     f.write(f"        Beschrijving: {samenvatting}\n")
                 if imports:
-                    f.write(f"        Imports:\n")
+                    f.write("        Imports:\n")
                     for imp in imports:
                         f.write(f"            {imp}\n")
                 if functies:
-                    f.write(f"        Functies:\n")
+                    f.write("        Functies:\n")
                     for func in functies:
                         f.write(f"            {func}\n")
                 if methodes:
-                    f.write(f"        Klassen & Methodes:\n")
+                    f.write("        Klassen & Methodes:\n")
                     for klasse, methoden in methodes.items():
                         f.write(f"            class {klasse}:\n")
                         for methode in methoden:

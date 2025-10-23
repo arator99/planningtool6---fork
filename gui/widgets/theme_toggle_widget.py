@@ -6,7 +6,7 @@ Visuele switch voor dark/light mode met zon/maan iconen
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
-from gui.styles import Colors, Fonts, Dimensions, ThemeManager
+from gui.styles import Fonts, ThemeManager
 
 
 class ThemeToggleWidget(QWidget):
@@ -32,7 +32,7 @@ class ThemeToggleWidget(QWidget):
         self.sun_label.setFont(QFont(Fonts.FAMILY, 18, QFont.Weight.Bold))
         self.sun_label.setFixedSize(28, 28)
         self.sun_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.sun_label.setStyleSheet(f"""
+        self.sun_label.setStyleSheet("""
             color: #FFB000;
             background-color: rgba(255, 193, 7, 0.2);
             border-radius: 14px;
@@ -53,7 +53,7 @@ class ThemeToggleWidget(QWidget):
         self.moon_label.setFont(QFont(Fonts.FAMILY, 18, QFont.Weight.Bold))
         self.moon_label.setFixedSize(28, 28)
         self.moon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.moon_label.setStyleSheet(f"""
+        self.moon_label.setStyleSheet("""
             color: #5BC0DE;
             background-color: rgba(91, 192, 222, 0.2);
             border-radius: 14px;
@@ -68,8 +68,8 @@ class ThemeToggleWidget(QWidget):
 
         if current_theme == 'dark':
             # Dark mode actief - knop naar rechts (maan kant)
-            self.toggle_btn.setStyleSheet(f"""
-                QPushButton {{
+            self.toggle_btn.setStyleSheet("""
+                QPushButton {
                     background-color: #5BC0DE;
                     border: 2px solid #5BC0DE;
                     border-radius: 12px;
@@ -77,23 +77,23 @@ class ThemeToggleWidget(QWidget):
                     padding-right: 4px;
                     font-weight: bold;
                     color: white;
-                }}
-                QPushButton:hover {{
+                }
+                QPushButton:hover {
                     background-color: #46B8DA;
                     border-color: #46B8DA;
-                }}
+                }
             """)
             self.toggle_btn.setText("●")
             self.toggle_btn.setToolTip("Schakel naar Light Mode")
 
             # Icon highlighting - actief (maan) vs inactief (zon)
-            self.sun_label.setStyleSheet(f"""
+            self.sun_label.setStyleSheet("""
                 color: #999999;
                 background-color: rgba(200, 200, 200, 0.1);
                 border-radius: 14px;
                 padding: 2px;
             """)
-            self.moon_label.setStyleSheet(f"""
+            self.moon_label.setStyleSheet("""
                 color: #5BC0DE;
                 background-color: rgba(91, 192, 222, 0.3);
                 border-radius: 14px;
@@ -102,8 +102,8 @@ class ThemeToggleWidget(QWidget):
             """)
         else:
             # Light mode actief - knop naar links (zon kant)
-            self.toggle_btn.setStyleSheet(f"""
-                QPushButton {{
+            self.toggle_btn.setStyleSheet("""
+                QPushButton {
                     background-color: #FFB000;
                     border: 2px solid #FFB000;
                     border-radius: 12px;
@@ -111,24 +111,24 @@ class ThemeToggleWidget(QWidget):
                     padding-left: 4px;
                     font-weight: bold;
                     color: white;
-                }}
-                QPushButton:hover {{
+                }
+                QPushButton:hover {
                     background-color: #E0A800;
                     border-color: #E0A800;
-                }}
+                }
             """)
             self.toggle_btn.setText("●")
             self.toggle_btn.setToolTip("Schakel naar Dark Mode")
 
             # Icon highlighting - actief (zon) vs inactief (maan)
-            self.sun_label.setStyleSheet(f"""
+            self.sun_label.setStyleSheet("""
                 color: #FFB000;
                 background-color: rgba(255, 193, 7, 0.3);
                 border-radius: 14px;
                 padding: 2px;
                 font-weight: bold;
             """)
-            self.moon_label.setStyleSheet(f"""
+            self.moon_label.setStyleSheet("""
                 color: #999999;
                 background-color: rgba(200, 200, 200, 0.1);
                 border-radius: 14px;

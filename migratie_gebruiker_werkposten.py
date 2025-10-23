@@ -95,7 +95,7 @@ def main():
 
             aantal = cursor.rowcount
             print(f"   OK - {aantal} gebruikers gekoppeld aan '{werkpost_naam}'")
-            print(f"        (Dit kan later worden aangepast in Werkpost Koppeling beheer)")
+            print("        (Dit kan later worden aangepast in Werkpost Koppeling beheer)")
         else:
             print("   INFO - Geen actieve werkposten gevonden, geen seed data toegevoegd")
 

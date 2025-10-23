@@ -5,7 +5,6 @@ Toont gebruikershandleiding voor Planning Tool
 """
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser, QPushButton,
                              QHBoxLayout, QTabWidget)
-from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from gui.styles import Styles, Colors, Fonts, Dimensions
 import markdown

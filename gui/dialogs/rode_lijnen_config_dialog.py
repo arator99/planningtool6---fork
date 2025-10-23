@@ -7,7 +7,7 @@ from typing import Dict, Any
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QSpinBox, QDateEdit,
                              QFormLayout, QMessageBox)
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import QDate
 from PyQt6.QtGui import QFont
 from datetime import datetime
 from gui.styles import Styles, Colors, Fonts, Dimensions

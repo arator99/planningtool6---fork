@@ -8,6 +8,7 @@ import sys
 from typing import Dict, Any, Optional
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMessageBox
 from PyQt6.QtGui import QKeySequence, QShortcut
+from pathlib import Path
 from database.connection import init_database, check_db_compatibility
 from gui.screens.login_screen import LoginScreen
 from gui.screens.dashboard_screen import DashboardScreen
@@ -15,6 +16,24 @@ from gui.screens.feestdagen_screen import FeestdagenScherm
 from gui.screens.gebruikersbeheer_screen import GebruikersbeheerScreen
 from gui.screens.mijn_planning_screen import MijnPlanningScreen
 from gui.styles import ThemeManager, Colors
+
+
+def ensure_application_folders():
+    """
+    Zorg dat alle benodigde applicatie folders bestaan
+    Wordt aangeroepen bij app start
+    """
+    # Data folder (voor database)
+    data_folder = Path("data")
+    data_folder.mkdir(exist_ok=True)
+
+    # Exports folder (voor Excel exports naar HR)
+    exports_folder = Path("exports")
+    exports_folder.mkdir(exist_ok=True)
+
+    print("[OK] Application folders geverifieerd:")
+    print("     - data/ (database)")
+    print("     - exports/ (Excel exports voor HR)")
 
 
 class MainWindow(QMainWindow):
@@ -396,6 +415,9 @@ def main() -> None:
     """Main entry point"""
     # Start app (nodig voor QMessageBox)
     app = QApplication(sys.argv)
+
+    # Zorg dat benodigde folders bestaan
+    ensure_application_folders()
 
     # Initialiseer database
     init_database()

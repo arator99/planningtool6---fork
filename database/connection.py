@@ -5,7 +5,6 @@ UPDATED: v0.6.4+ structuur met werkposten en simpele planning tabel
 """
 
 import sqlite3
-import os
 from pathlib import Path
 import bcrypt
 from datetime import datetime, timedelta
@@ -225,6 +224,7 @@ def create_tables(cursor):
             gebruiker_id INTEGER NOT NULL,
             datum TEXT NOT NULL,
             shift_code TEXT,
+            notitie TEXT,
             status TEXT DEFAULT 'concept' CHECK(status IN ('concept', 'gepubliceerd')),
             aangemaakt_op TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (gebruiker_id) REFERENCES gebruikers(id),
@@ -624,7 +624,7 @@ def seed_rode_lijnen(cursor):
     print(f"  [OK] {aantal_periodes} rode lijnen periodes aangemaakt (12 maanden)")
     print(f"    Vanaf: {start.strftime('%d-%m-%Y')}")
     print(f"    Tot: {(start + timedelta(days=28 * aantal_periodes)).strftime('%d-%m-%Y')}")
-    print(f"    Verdere periodes worden on-demand gegenereerd")
+    print("    Verdere periodes worden on-demand gegenereerd")
 
 
 def seed_rode_lijnen_config(cursor):
@@ -645,6 +645,6 @@ def seed_rode_lijnen_config(cursor):
         VALUES (?, ?, 1)
     """, (start_datum.date().isoformat(), interval_dagen))
 
-    print(f"  [OK] Rode lijnen config aangemaakt")
+    print("  [OK] Rode lijnen config aangemaakt")
     print(f"    Start: {start_datum.strftime('%d-%m-%Y')}")
     print(f"    Interval: {interval_dagen} dagen")

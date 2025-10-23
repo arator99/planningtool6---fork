@@ -7,8 +7,7 @@ Grid editor voor het bewerken van typetabel patroon
 from typing import Dict, Any, List, Optional
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QTableWidget, QTableWidgetItem,
-                             QHeaderView, QComboBox, QMessageBox, QTextEdit,
-                             QScrollArea, QWidget)
+                             QHeaderView, QComboBox, QMessageBox, QTextEdit)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from database.connection import get_connection
@@ -69,7 +68,7 @@ class TypetabelEditorDialog(QDialog):
             try:
                 dt = datetime.fromisoformat(self.versie['laatste_wijziging'])
                 info_text += f"  |  Laatst gewijzigd: {dt.strftime('%Y-%m-%d %H:%M')}"
-            except:
+            except (ValueError, TypeError):
                 pass
 
         info_label = QLabel(info_text)

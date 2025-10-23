@@ -7,7 +7,6 @@ from typing import Dict, Any, List, Optional
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                              QComboBox, QScrollArea, QWidget, QGridLayout,
                              QCheckBox, QDialog, QDialogButtonBox)
-from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from gui.widgets.grid_kalender_base import GridKalenderBase
 from gui.styles import Styles, Colors, Fonts, Dimensions

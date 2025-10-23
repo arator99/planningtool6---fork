@@ -6,11 +6,11 @@ Dialog voor het genereren van planning uit actieve typetabel
 from typing import Dict, Any, Optional, List, Set
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QDateEdit, QMessageBox, QTextEdit,
-                             QCheckBox, QGroupBox)
-from PyQt6.QtCore import QDate, Qt
+                             QGroupBox)
+from PyQt6.QtCore import QDate
 from PyQt6.QtGui import QFont
 from database.connection import get_connection
-from gui.styles import Styles, Colors, Fonts, Dimensions
+from gui.styles import Styles, Fonts, Dimensions
 from datetime import datetime, timedelta
 import sqlite3
 
@@ -242,7 +242,7 @@ class AutoGeneratieDialog(QDialog):
             lines.append(f"ℹ️ BESTAAND: {self.bestaande_data_count} records")
             if self.beschermd_count > 0:
                 lines.append(f"🔒 BESCHERMD: {self.beschermd_count} records (worden overgeslagen)")
-            lines.append(f"✓ WORDT INGEVULD: Lege cellen en typetabel-shifts")
+            lines.append("✓ WORDT INGEVULD: Lege cellen en typetabel-shifts")
 
         self.preview_text.setPlainText("\n".join(lines))
 
@@ -346,7 +346,7 @@ class AutoGeneratieDialog(QDialog):
         # Parse actief_vanaf datum
         try:
             actief_vanaf = datetime.strptime(actief_vanaf_str, "%Y-%m-%d").date()
-        except:
+        except (ValueError, TypeError):
             # Fallback als format anders is
             actief_vanaf = datetime.fromisoformat(actief_vanaf_str).date()
 

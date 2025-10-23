@@ -7,10 +7,9 @@ Read-only widget voor weergave van verlof en KD saldo (teamlid view).
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt
 from datetime import datetime
 
-from gui.styles import Styles, Colors, Fonts, Dimensions
+from gui.styles import Colors, Fonts, Dimensions
 from services.verlof_saldo_service import VerlofSaldoService
 from services.term_code_service import TermCodeService
 
@@ -57,7 +56,6 @@ class VerlofSaldoWidget(QWidget):
         frame_layout.addWidget(title)
 
         # Verlof section
-        verlof_code = TermCodeService.get_code_for_term('verlof')
         self.verlof_label = QLabel()
         self.verlof_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
         self.verlof_label.setWordWrap(True)
@@ -65,7 +63,6 @@ class VerlofSaldoWidget(QWidget):
         frame_layout.addWidget(self.verlof_label)
 
         # KD section
-        kd_code = TermCodeService.get_code_for_term('kompensatiedag')
         self.kd_label = QLabel()
         self.kd_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
         self.kd_label.setWordWrap(True)

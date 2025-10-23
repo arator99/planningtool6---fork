@@ -250,7 +250,7 @@ class TypetabelBeheerScreen(QWidget):
                 else:
                     tijd_str = f"{dagen_geleden} dagen geleden"
                 info_text += f"  |  Gewijzigd: {tijd_str}"
-            except:
+            except (ValueError, TypeError):
                 pass
 
         info_label = QLabel(info_text)
@@ -273,8 +273,8 @@ class TypetabelBeheerScreen(QWidget):
                     users_label = QLabel(f"Gebruikers: {gebruikers_cnt} personen")
                     users_label.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: {Fonts.SIZE_SMALL}px;")
                     layout.addWidget(users_label)
-            except:
-                pass
+            except Exception:
+                pass  # Silently fail on DB errors
 
         # Opmerking (indien aanwezig)
         if versie['opmerking']:

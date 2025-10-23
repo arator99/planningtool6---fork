@@ -3,7 +3,7 @@
 Planning Editor Scherm
 Gebruikt PlannerGridKalender widget met codes sidebar en toolbar
 """
-from typing import Callable, Set, Dict, Any, List
+from typing import Callable, Set, Dict
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QScrollArea, QTextEdit, QDialog,
                              QTableWidget, QTableWidgetItem, QHeaderView,
@@ -144,6 +144,13 @@ class PlanningEditorScreen(QWidget):
         auto_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
         auto_btn.clicked.connect(self.show_auto_generatie_dialog)  # type: ignore
         toolbar.addWidget(auto_btn)
+
+        # Bulk delete button
+        bulk_delete_btn = QPushButton("Wis Maand (Bescherm Speciale Codes)")
+        bulk_delete_btn.setStyleSheet(Styles.button_warning())
+        bulk_delete_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
+        bulk_delete_btn.clicked.connect(self.show_bulk_delete_dialog)  # type: ignore
+        toolbar.addWidget(bulk_delete_btn)
 
         # Status toggle button
         self.status_btn.setMinimumHeight(Dimensions.BUTTON_HEIGHT_NORMAL)
@@ -396,8 +403,8 @@ class PlanningEditorScreen(QWidget):
         reply = QMessageBox.warning(
             self,
             "Terug naar Concept",
-            f"Planning terug naar concept zetten?\n\n"
-            f"Teamleden kunnen deze planning dan NIET meer bekijken.",
+            "Planning terug naar concept zetten?\n\n"
+            "Teamleden kunnen deze planning dan NIET meer bekijken.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
@@ -614,6 +621,97 @@ class PlanningEditorScreen(QWidget):
         if dialog.exec():
             # Refresh kalender na generatie
             self.kalender.load_initial_data()
+
+    def show_bulk_delete_dialog(self):
+        """Wis alle planning van huidige maand (behalve beschermde codes)"""
+        from services.term_code_service import TermCodeService
+        import sqlite3
+        from datetime import date
+        from calendar import monthrange
+
+        # Haal beschermde termen op
+        beschermde_termen = ['verlof', 'kompensatiedag', 'zondagrust', 'zaterdagrust', 'ziek', 'arbeidsduurverkorting']
+
+        # Haal codes op voor beschermde termen
+        beschermde_codes = []
+        for term in beschermde_termen:
+            code = TermCodeService.get_code_for_term(term)
+            if code:
+                beschermde_codes.append(code)
+
+        # Format beschermde codes lijst
+        codes_lijst = ", ".join(beschermde_codes) if beschermde_codes else "Geen"
+
+        # Bereken datum range voor huidige maand
+        jaar = self.kalender.jaar
+        maand = self.kalender.maand
+        eerste_dag = date(jaar, maand, 1)
+        laatste_dag_nummer = monthrange(jaar, maand)[1]
+        laatste_dag = date(jaar, maand, laatste_dag_nummer)
+
+        # Bevestiging dialog
+        reply = QMessageBox.question(
+            self,
+            "Wis Planning Maand",
+            f"<b>Weet je zeker dat je alle planning wilt verwijderen voor {eerste_dag.strftime('%B %Y')}?</b><br><br>"
+            f"⚠️ Deze actie kan niet ongedaan worden gemaakt.<br><br>"
+            f"<b>Beschermde codes (blijven behouden):</b><br>"
+            f"{codes_lijst}<br><br>"
+            f"<i>Alle andere shifts worden verwijderd.</i>",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Voer bulk delete uit
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # Bepaal datum range
+            start_datum = eerste_dag.isoformat()
+            eind_datum = laatste_dag.isoformat()
+
+            if beschermde_codes:
+                # DELETE met WHERE NOT IN voor beschermde codes
+                placeholders = ','.join(['?'] * len(beschermde_codes))
+                cursor.execute(f"""
+                    DELETE FROM planning
+                    WHERE datum >= ?
+                    AND datum <= ?
+                    AND (shift_code NOT IN ({placeholders}) OR shift_code IS NULL)
+                """, [start_datum, eind_datum] + beschermde_codes)
+            else:
+                # Geen beschermde codes, verwijder alles
+                cursor.execute("""
+                    DELETE FROM planning
+                    WHERE datum >= ?
+                    AND datum <= ?
+                """, (start_datum, eind_datum))
+
+            deleted_count = cursor.rowcount
+            conn.commit()
+            conn.close()
+
+            # Refresh kalender
+            self.kalender.load_initial_data()
+
+            # Success message
+            QMessageBox.information(
+                self,
+                "Planning Gewist",
+                f"✓ {deleted_count} shifts verwijderd voor {eerste_dag.strftime('%B %Y')}.<br><br>"
+                f"Beschermde codes zijn behouden."
+            )
+
+        except sqlite3.Error as e:
+            QMessageBox.critical(
+                self,
+                "Database Fout",
+                f"Fout bij verwijderen planning:<br>{e}"
+            )
 
     def filter_codes_table(self, search_text: str):
         """Filter codes table op zoekterm"""

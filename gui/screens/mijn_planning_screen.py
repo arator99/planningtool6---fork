@@ -4,14 +4,13 @@
 Mijn Planning Scherm
 Teamleden bekijken hun eigen rooster en kunnen collega's filteren
 """
-from typing import Callable, Set, Dict
+from typing import Callable, Set
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QMessageBox, QTableWidget,
-                             QTableWidgetItem, QHeaderView)
+                             QPushButton, QTableWidget)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from datetime import datetime
-from gui.styles import Styles, Colors, Fonts, Dimensions, TableConfig
+from gui.styles import Styles, Colors, Fonts, Dimensions
 from gui.widgets import TeamlidGridKalender
 from database.connection import get_connection
 
@@ -114,7 +113,6 @@ class MijnPlanningScreen(QWidget):
         layout.addWidget(info)
 
         # Scroll area
-        from PyQt6.QtWidgets import QScrollArea, QTextEdit
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)

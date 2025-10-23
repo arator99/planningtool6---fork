@@ -5,7 +5,7 @@ Genereert Excel exports van planning voor HR
 """
 
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from database.connection import get_connection
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
@@ -32,9 +32,8 @@ def export_maand_naar_excel(jaar: int, maand: int) -> str:
     Returns:
         str: Pad naar gegenereerd bestand
     """
-    # Maak exports directory als die niet bestaat
+    # Exports directory (wordt aangemaakt bij app start)
     export_dir = Path("exports")
-    export_dir.mkdir(exist_ok=True)
 
     # Bestandsnaam: maandnaam_jaartal.xlsx
     maand_naam = MAAND_NAMEN[maand]
@@ -52,8 +51,6 @@ def export_maand_naar_excel(jaar: int, maand: int) -> str:
     # Styling definities
     header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF", size=11)
-    datum_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
-    datum_font = Font(bold=True, size=10)
     border = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),

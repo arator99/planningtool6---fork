@@ -40,6 +40,25 @@ Welkom bij de **Planning Tool**, een roosterapplicatie speciaal ontwikkeld voor 
 
 ⚠️ **Belangrijk:** Wijzig het admin wachtwoord direct na eerste login via *Persoonlijk → Wijzig Wachtwoord*
 
+### Bestandsstructuur
+
+Bij de eerste opstart worden automatisch de volgende folders aangemaakt:
+
+```
+PlanningTool_v0.6.15.exe    (de applicatie)
+├── data/                   (database en applicatiedata)
+│   └── planning.db
+├── exports/                (Excel exports voor HR) ⭐ NIEUW
+│   ├── oktober_2025.xlsx
+│   └── november_2025.xlsx
+├── PROJECT_INFO.md         (project informatie)
+└── HANDLEIDING.md         (deze handleiding)
+```
+
+**Belangrijke folders:**
+- **data/** - Bevat de database (maak regelmatig backups!)
+- **exports/** - Automatisch gegenereerde Excel bestanden bij planning publiceren
+
 ### Interface navigatie
 
 Na inloggen zie je het **Dashboard** met verschillende tabs:
@@ -231,6 +250,13 @@ De planning heeft twee statussen per maand:
 4. Bevestig in de dialog
 5. Status wordt "GEPUBLICEERD" voor hele maand
 6. Teamleden kunnen planning nu bekijken
+7. 📊 **Automatisch:** Excel bestand wordt gegenereerd in `exports/` folder
+
+**Excel export voor HR:**
+- Bestandsnaam: `maandnaam_jaartal.xlsx` (bijv. `oktober_2025.xlsx`)
+- Locatie: `exports/` folder (naast de applicatie)
+- Inhoud: Alle gebruikers (inclusief reserves) met planning per dag
+- Gebruik: Copy/paste naar SharePoint voor HR
 
 **Waarom concept status?**
 - Je kunt eerst plannen zonder dat teamleden alles zien

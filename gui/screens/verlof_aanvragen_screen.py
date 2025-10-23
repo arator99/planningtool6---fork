@@ -6,10 +6,8 @@ Teamleden kunnen verlof aanvragen en hun aanvragen bekijken
 from typing import Callable, List, Dict, Any
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QTableWidget, QTableWidgetItem,
-                             QHeaderView, QDateEdit, QTextEdit, QMessageBox,
-                             QDialog, QDialogButtonBox, QCalendarWidget)
+                             QHeaderView, QDateEdit, QTextEdit, QMessageBox)
 from PyQt6.QtCore import Qt, QDate
-from PyQt6.QtGui import QTextCharFormat
 from PyQt6.QtGui import QFont
 from datetime import datetime, timedelta
 from database.connection import get_connection

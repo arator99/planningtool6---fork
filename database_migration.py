@@ -7,7 +7,6 @@ Run dit script één keer om je database te upgraden
 import sqlite3
 import uuid
 from pathlib import Path
-from datetime import datetime
 
 
 def migrate_database():
