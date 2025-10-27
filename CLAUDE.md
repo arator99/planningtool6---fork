@@ -73,6 +73,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    VALUES ("0.6.15", "Description of schema change")
    ```
 
+**⚠️ CRITICAL:** Migration scripts MUST update `db_metadata` or the app will refuse to start with "database version mismatch" error. Schema changes without version updates cause compatibility failures!
+
 ### Version Numbering Pattern:
 - Pattern: `0.6.X` where X increments sequentially
 - Examples: `0.6.9` → `0.6.10` → `0.6.11` → `0.6.12` → `0.6.13`
@@ -87,8 +89,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Planning Tool** - A shift scheduling application for self-rostering teams, built with Python and PyQt6. The application manages team schedules, leave requests, shift codes, and schedule templates (typetabellen) for shift-based work environments.
 
-**Current Version:** 0.6.16 (Beta)
-**Status:** Active development - Bulk Operations & Notities Systeem
+**Current Version:** 0.6.18 (Beta)
+**Status:** Active development - Grid Kalender Refactoring & Teamlid Features
 
 ## Running the Application
 
@@ -531,6 +533,47 @@ if 'versie_naam' not in columns:
 - Theme toggle only available in dashboard (v0.6.9)
 - QCalendarWidget behouden light mode styling (Qt limitation v0.6.9)
 - Geen automatische cleanup overgedragen verlof op 1 mei (v0.6.10)
+
+**v0.6.17 Features Completed:**
+- ✅ Multi-Cell Selectie Systeem - Bulk operaties in Planning Editor
+  - **Cel Selectie:** Ctrl+Click (individueel), Shift+Click (rectangle range)
+  - **Visuele feedback:** Lichtblauwe gradient overlay op geselecteerde cellen
+  - **Status label:** "X cellen geselecteerd (ESC om te wissen)" (witte achtergrond)
+  - **Bulk Wissen:** Context menu "Wis Selectie" met bescherming speciale codes
+  - **Bulk Invullen:** Context menu "Vul Selectie In..." met code validatie
+  - **Notities behoud:** Notities ALTIJD behouden bij bulk operaties
+  - **Gepubliceerde maand blokkering:** Duidelijke waarschuwing + cel reset
+- ✅ Status Visualisatie Verbeteringen - Duidelijke concept/gepubliceerd indicatie
+  - **8px gekleurde rand:** Geel (#FFE082) voor concept, groen (#81C784) voor gepubliceerd
+  - **Border frame:** Hele scherm omlijst met status kleur
+  - **Info box relocatie:** Naast maandnaam ipv aparte toolbar rij
+- ✅ Planning Editor Layout Optimalisatie - Meer verticale ruimte
+  - **Compacte header:** Knoppen op info label regel (Auto-Genereren, Wis Maand, Publiceren)
+  - **Kalender header geïntegreerd:** Maandnaam + navigatie op 1 rij met info box
+  - **Tooltip alleen onderaan:** Dubbele tooltip verwijderd
+  - **Verticale ruimte:** 2 rijen gewonnen voor toekomstige HR features
+- ✅ ESC Key Handler - Focus management voor keyboard shortcuts
+- ✅ Gepubliceerde Maand Bescherming - Preventie user errors
+  - Blokkering: cel edit, bulk delete, bulk fill, vul week, notitie edit
+  - Duidelijke error: "Zet eerst terug naar concept via Planning Editor"
+
+**v0.6.16 Features Completed:**
+- ✅ Notitie naar Planner - Bidirectionele communicatie teamleden ↔ planner
+  - Menu knop "Notitie naar Planner" in Mijn Planning tab (teamleden)
+  - NotitieNaarPlannerDialog met datum selectie + tekst editor
+  - Automatische opslag in planning tabel bij juiste persoon
+  - Groen hoekje indicator verschijnt automatisch in grid
+- ✅ Naam Prefix voor Notities - Traceerbaarheid
+  - Teamlid notities: `[Naam]: tekst`
+  - Planner notities: `[Planner]: tekst`
+  - Slimme logica: bestaande prefix niet overschrijven
+- ✅ Notitie Indicator Kleur Verbetering
+  - #17a2b8 (teal) → #00E676 (Material Design bright green)
+  - 70% beter zichtbaar
+- ✅ Database Versie Fix
+  - upgrade_to_v0_6_16.py voor versie synchronisatie
+  - Documentatie: migratie best practices (db_metadata update verplicht)
+  - test_migratie.py uitgebreid voor diagnose
 
 **v0.6.15 Features Completed:**
 - ✅ Concept vs Gepubliceerd Toggle - Volledig status management systeem

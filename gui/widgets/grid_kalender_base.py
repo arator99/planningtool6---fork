@@ -5,10 +5,11 @@ Gemeenschappelijke functionaliteit voor planner en teamlid kalenders
 UPDATED: Database compatibiliteit met nieuwe planning tabel structuur
 """
 from typing import Dict, Any, List, Optional, Tuple
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QWidget, QDialog, QPushButton, QLabel, QComboBox, QHBoxLayout
+from PyQt6.QtGui import QFont
 from datetime import datetime, timedelta
 from database.connection import get_connection
-from gui.styles import Colors, Fonts
+from gui.styles import Colors, Fonts, Styles, Dimensions
 from services.term_code_service import TermCodeService
 import calendar
 
@@ -67,8 +68,11 @@ class GridKalenderBase(QWidget):
 
         # Behoud bestaande filter waar mogelijk, alleen nieuwe gebruikers toevoegen
         if not hasattr(self, 'filter_gebruikers'):
-            # Eerste keer - initialiseer allemaal aan
-            self.filter_gebruikers = {user['id']: True for user in self.gebruikers_data}
+            # Eerste keer - initialiseer met subclass-specifieke logic
+            self.filter_gebruikers = {
+                user['id']: self.get_initial_filter_state(user['id'])
+                for user in self.gebruikers_data
+            }
         else:
             # Filter bestaat al - behoud bestaande instellingen
             # Verwijder gebruikers die niet meer bestaan
@@ -76,10 +80,10 @@ class GridKalenderBase(QWidget):
                 if user_id not in nieuwe_gebruiker_ids:
                     del self.filter_gebruikers[user_id]
 
-            # Voeg nieuwe gebruikers toe (standaard aan)
+            # Voeg nieuwe gebruikers toe met subclass-specifieke logic
             for user_id in nieuwe_gebruiker_ids:
                 if user_id not in self.filter_gebruikers:
-                    self.filter_gebruikers[user_id] = True
+                    self.filter_gebruikers[user_id] = self.get_initial_filter_state(user_id)
 
     def load_planning_data(self, start_datum: str, eind_datum: str, alleen_gepubliceerd: bool = False) -> None:
         """
@@ -432,3 +436,131 @@ class GridKalenderBase(QWidget):
                     qproperty-alignment: AlignCenter;
                 }}
             """
+
+    def load_rode_lijnen(self) -> None:
+        """Laad rode lijnen (28-daagse HR-cycli) voor huidige periode"""
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Laad alle rode lijnen start datums (deze markeren begin van een nieuwe periode)
+        cursor.execute("""
+            SELECT start_datum, eind_datum, periode_nummer
+            FROM rode_lijnen
+            ORDER BY start_datum
+        """)
+
+        # Dictionary met start_datum als key voor snelle lookup
+        # Converteer datetime naar date string (YYYY-MM-DD)
+        self.rode_lijnen_starts: Dict[str, int] = {}
+        for row in cursor.fetchall():
+            datum_str = row['start_datum']
+            # Strip timestamp als die er is (2024-07-28T00:00:00 -> 2024-07-28)
+            if 'T' in datum_str:
+                datum_str = datum_str.split('T')[0]
+            self.rode_lijnen_starts[datum_str] = row['periode_nummer']
+
+        conn.close()
+
+    def update_title(self) -> None:
+        """Update titel met maand/jaar"""
+        maanden = ['Januari', 'Februari', 'Maart', 'April', 'Mei', 'Juni',
+                   'Juli', 'Augustus', 'September', 'Oktober', 'November', 'December']
+        self.title_label.setText(f"Planning {maanden[self.maand - 1]} {self.jaar}")
+
+    def on_jaar_changed(self, jaar_str: str) -> None:
+        """Jaar gewijzigd"""
+        self.refresh_data(int(jaar_str), self.maand)
+
+    def on_maand_changed(self, index: int) -> None:
+        """Maand gewijzigd"""
+        self.refresh_data(self.jaar, index + 1)
+
+    def open_filter_dialog(self) -> None:
+        """Open dialog om gebruikers te filteren"""
+        from gui.widgets.teamlid_grid_kalender import FilterDialog
+        dialog = FilterDialog(self.gebruikers_data, self.filter_gebruikers, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.filter_gebruikers = dialog.get_filter()
+            self.build_grid()
+
+    def get_header_extra_buttons(self) -> List[QPushButton]:
+        """
+        Template method: Override in subclass voor extra header buttons
+        Returns: List van buttons om toe te voegen aan header
+        """
+        return []  # Default: geen extra buttons
+
+    def get_initial_filter_state(self, user_id: int) -> bool:
+        """
+        Template method: MOET overridden worden in subclass
+
+        Deze method bepaalt welke gebruikers initieel zichtbaar zijn in de filter.
+        Elke subclass moet expliciet aangeven wat het gewenste gedrag is.
+
+        Args:
+            user_id: ID van gebruiker
+        Returns:
+            True als gebruiker initieel zichtbaar moet zijn, False anders
+
+        Raises:
+            NotImplementedError: Als subclass deze method niet implementeert
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} moet get_initial_filter_state() implementeren"
+        )
+
+    def create_header(self) -> QHBoxLayout:
+        """
+        Maak header met jaar/maand selectie en filter
+        Subclasses kunnen extra buttons toevoegen via get_header_extra_buttons()
+        """
+        header = QHBoxLayout()
+
+        # Titel (normaal, geen kadertje)
+        self.title_label = QLabel()
+        self.title_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_LARGE))
+        self.update_title()
+        header.addWidget(self.title_label)
+
+        header.addStretch()
+
+        # Template method: Extra buttons van subclass
+        extra_buttons = self.get_header_extra_buttons()
+        for btn in extra_buttons:
+            header.addWidget(btn)
+
+        # Filter knop
+        filter_btn = QPushButton("Filter Teamleden")
+        filter_btn.setFixedSize(150, Dimensions.BUTTON_HEIGHT_NORMAL)
+        filter_btn.clicked.connect(self.open_filter_dialog)  # type: ignore
+        filter_btn.setStyleSheet(Styles.button_secondary())
+        header.addWidget(filter_btn)
+
+        # Jaar selector
+        jaar_label = QLabel("Jaar:")
+        jaar_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+        header.addWidget(jaar_label)
+
+        self.jaar_combo = QComboBox()
+        self.jaar_combo.setFixedWidth(100)
+        jaren = [str(jaar) for jaar in range(datetime.now().year - 1, datetime.now().year + 3)]
+        self.jaar_combo.addItems(jaren)
+        self.jaar_combo.setCurrentText(str(self.jaar))
+        self.jaar_combo.currentTextChanged.connect(self.on_jaar_changed)  # type: ignore
+        header.addWidget(self.jaar_combo)
+
+        # Maand selector
+        maand_label = QLabel("Maand:")
+        maand_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+        header.addWidget(maand_label)
+
+        self.maand_combo = QComboBox()
+        self.maand_combo.setFixedWidth(120)
+        maanden = ['Januari', 'Februari', 'Maart', 'April', 'Mei', 'Juni',
+                   'Juli', 'Augustus', 'September', 'Oktober', 'November', 'December']
+        self.maand_combo.addItems(maanden)
+        self.maand_combo.setCurrentIndex(self.maand - 1)
+        self.maand_combo.currentIndexChanged.connect(self.on_maand_changed)  # type: ignore
+        header.addWidget(self.maand_combo)
+
+        return header

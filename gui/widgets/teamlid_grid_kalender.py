@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                              QComboBox, QScrollArea, QWidget, QGridLayout,
                              QCheckBox, QDialog, QDialogButtonBox)
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont
 from gui.widgets.grid_kalender_base import GridKalenderBase
 from gui.styles import Styles, Colors, Fonts, Dimensions
@@ -22,6 +23,9 @@ class TeamlidGridKalender(GridKalenderBase):
     - Read-only (alleen bekijken)
     - Verlof/DA/VD overlays
     """
+
+    # Signal voor maand wijziging
+    maand_changed: pyqtSignal = pyqtSignal()
 
     def __init__(self, jaar: int, maand: int, huidige_gebruiker_id: int):
         self.huidige_gebruiker_id = huidige_gebruiker_id
@@ -50,73 +54,55 @@ class TeamlidGridKalender(GridKalenderBase):
 
         layout.addStretch()
 
-    def create_header(self) -> QHBoxLayout:
-        """Maak header met jaar/maand selectie en filter"""
-        header = QHBoxLayout()
+    def get_header_extra_buttons(self) -> List[QPushButton]:
+        """Voeg vorige/volgende maand buttons toe (teamlid view)"""
+        buttons = []
 
-        # Titel
-        self.title_label = QLabel()
-        self.title_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_LARGE))
-        self.update_title()
-        header.addWidget(self.title_label)
+        vorige_btn = QPushButton("← Vorige Maand")
+        vorige_btn.setFixedSize(130, Dimensions.BUTTON_HEIGHT_NORMAL)
+        vorige_btn.clicked.connect(self.vorige_maand)  # type: ignore
+        vorige_btn.setStyleSheet(Styles.button_secondary())
+        buttons.append(vorige_btn)
 
-        header.addStretch()
+        volgende_btn = QPushButton("Volgende Maand →")
+        volgende_btn.setFixedSize(150, Dimensions.BUTTON_HEIGHT_NORMAL)
+        volgende_btn.clicked.connect(self.volgende_maand)  # type: ignore
+        volgende_btn.setStyleSheet(Styles.button_secondary())
+        buttons.append(volgende_btn)
 
-        # Filter knop
-        filter_btn = QPushButton("Filter Teamleden")
-        filter_btn.setFixedSize(150, Dimensions.BUTTON_HEIGHT_NORMAL)
-        filter_btn.clicked.connect(self.open_filter_dialog)  # type: ignore
-        filter_btn.setStyleSheet(Styles.button_secondary())
-        header.addWidget(filter_btn)
+        return buttons
 
-        # Jaar selector
-        jaar_label = QLabel("Jaar:")
-        jaar_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
-        header.addWidget(jaar_label)
+    def vorige_maand(self) -> None:
+        """Navigeer naar vorige maand"""
+        if self.maand == 1:
+            self.refresh_data(self.jaar - 1, 12)
+            self.jaar_combo.setCurrentText(str(self.jaar))
+            self.maand_combo.setCurrentIndex(11)
+        else:
+            self.refresh_data(self.jaar, self.maand - 1)
+            self.maand_combo.setCurrentIndex(self.maand - 1)
 
-        self.jaar_combo = QComboBox()
-        self.jaar_combo.setFixedWidth(100)
-        jaren = [str(jaar) for jaar in range(datetime.now().year - 1, datetime.now().year + 3)]
-        self.jaar_combo.addItems(jaren)
-        self.jaar_combo.setCurrentText(str(self.jaar))
-        self.jaar_combo.currentTextChanged.connect(self.on_jaar_changed)  # type: ignore
-        header.addWidget(self.jaar_combo)
+    def volgende_maand(self) -> None:
+        """Navigeer naar volgende maand"""
+        if self.maand == 12:
+            self.refresh_data(self.jaar + 1, 1)
+            self.jaar_combo.setCurrentText(str(self.jaar))
+            self.maand_combo.setCurrentIndex(0)
+        else:
+            self.refresh_data(self.jaar, self.maand + 1)
+            self.maand_combo.setCurrentIndex(self.maand - 1)  # BUG FIX: index is 0-based
 
-        # Maand selector
-        maand_label = QLabel("Maand:")
-        maand_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
-        header.addWidget(maand_label)
-
-        self.maand_combo = QComboBox()
-        self.maand_combo.setFixedWidth(120)
-        maanden = ['Januari', 'Februari', 'Maart', 'April', 'Mei', 'Juni',
-                   'Juli', 'Augustus', 'September', 'Oktober', 'November', 'December']
-        self.maand_combo.addItems(maanden)
-        self.maand_combo.setCurrentIndex(self.maand - 1)
-        self.maand_combo.currentIndexChanged.connect(self.on_maand_changed)  # type: ignore
-        header.addWidget(self.maand_combo)
-
-        return header
-
-    def update_title(self) -> None:
-        """Update titel met maand/jaar"""
-        maanden = ['Januari', 'Februari', 'Maart', 'April', 'Mei', 'Juni',
-                   'Juli', 'Augustus', 'September', 'Oktober', 'November', 'December']
-        self.title_label.setText(f"Planning {maanden[self.maand - 1]} {self.jaar}")
+    def get_initial_filter_state(self, user_id: int) -> bool:
+        """
+        Teamlid-specifieke filter: alleen eigen planning initieel zichtbaar
+        Teamlid moet focussen op eigen rooster, niet afgeleid door collega's
+        """
+        return user_id == self.huidige_gebruiker_id
 
     def load_initial_data(self) -> None:
         """Laad initiële data"""
-        # Check of dit de eerste keer is (voor standaard filter)
-        is_eerste_keer = not hasattr(self, 'filter_gebruikers')
-
-        # Laad gebruikers (filter wordt automatisch behouden door base class)
+        # Laad gebruikers (filter wordt behouden bij refresh, geforceerd bij init)
         self.load_gebruikers(alleen_actief=True)
-
-        # Alleen bij eerste keer: alleen huidige gebruiker zichtbaar
-        # Bij refresh: filter wordt automatisch behouden door base class
-        if is_eerste_keer:
-            self.set_alle_gebruikers_filter(False)
-            self.filter_gebruikers[self.huidige_gebruiker_id] = True
 
         # Laad feestdagen
         self.load_feestdagen()
@@ -136,30 +122,6 @@ class TeamlidGridKalender(GridKalenderBase):
 
         # Bouw grid
         self.build_grid()
-
-    def load_rode_lijnen(self) -> None:
-        """Laad rode lijnen (28-daagse HR cycli) voor huidige periode"""
-        conn = get_connection()
-        cursor = conn.cursor()
-
-        # Laad alle rode lijnen start datums (deze markeren begin van een nieuwe periode)
-        cursor.execute("""
-            SELECT start_datum, eind_datum, periode_nummer
-            FROM rode_lijnen
-            ORDER BY start_datum
-        """)
-
-        # Dictionary met start_datum als key voor snelle lookup
-        # Converteer datetime naar date string (YYYY-MM-DD)
-        self.rode_lijnen_starts: Dict[str, int] = {}
-        for row in cursor.fetchall():
-            datum_str = row['start_datum']
-            # Strip timestamp als die er is (2024-07-28T00:00:00 -> 2024-07-28)
-            if 'T' in datum_str:
-                datum_str = datum_str.split('T')[0]
-            self.rode_lijnen_starts[datum_str] = row['periode_nummer']
-
-        conn.close()
 
     def build_grid(self) -> None:
         """Bouw de grid met namen en datums"""
@@ -301,27 +263,13 @@ class TeamlidGridKalender(GridKalenderBase):
 
         return cel
 
-    def open_filter_dialog(self) -> None:
-        """Open dialog om gebruikers te filteren"""
-        dialog = FilterDialog(self.gebruikers_data, self.filter_gebruikers, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.filter_gebruikers = dialog.get_filter()
-            self.build_grid()
-
-    def on_jaar_changed(self, jaar_str: str) -> None:
-        """Jaar gewijzigd"""
-        self.refresh_data(int(jaar_str), self.maand)
-
-    def on_maand_changed(self, index: int) -> None:
-        """Maand gewijzigd"""
-        self.refresh_data(self.jaar, index + 1)
-
     def refresh_data(self, jaar: int, maand: int) -> None:
         """Herlaad data voor nieuwe jaar/maand"""
         self.jaar = jaar
         self.maand = maand
         self.update_title()
         self.load_initial_data()
+        self.maand_changed.emit()  # Emit signal voor status update
 
 
 class FilterDialog(QDialog):

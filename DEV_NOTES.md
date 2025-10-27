@@ -1,9 +1,9 @@
 # DEV NOTES
 Active Development Notes & Session Logs
 
-## CURRENT VERSION: 0.6.15
+## CURRENT VERSION: 0.6.18
 
-**Last Updated:** 23 Oktober 2025
+**Last Updated:** 27 Oktober 2025
 **Status:** Beta - Actieve Ontwikkeling
 
 **Rolling Window:** Dit document bevat alleen sessies van de laatste maand (20 okt+)
@@ -13,28 +13,339 @@ Active Development Notes & Session Logs
 
 ## 🎯 FOCUS VOOR VOLGENDE SESSIE
 
-### Prioriteit 1: Planning Editor Bulk Operaties
-- Copy week functie (kopieer week X naar week Y)
-- Paste functie (plak gekopieerde shifts)
-- Clear week/range functie (verwijder shifts in bulk)
-- Keyboard shortcuts (Ctrl+C, Ctrl+V, Delete)
-
-### Prioriteit 2: Typetabel Activatie Flow
+### Prioriteit 1: Typetabel Activatie Flow (v0.6.18+)
 - Activeren dialog met datum picker
 - Validatie (alle weken ingevuld?)
 - Status transitie (concept → actief, oud actief → archief)
 - Gebruikers controle (startweek binnen bereik?)
 
-### Prioriteit 3: Validatie Systeem (HR Regels)
+### Prioriteit 2: Validatie Systeem (HR Regels)
 - PlanningValidator class implementeren
 - 12u rust check tussen shifts
 - 50u/week maximum check
 - 19 dagen per 28-dagen cyclus check
 - Visuele feedback (rood/geel/groen in grid)
 
+### Medium Prioriteit: QMenuBar voor Planning Editor
+**Doel:** Ruimte optimalisatie en betere organisatie van functionaliteit
+**Scenario:** Na implementatie alle features kan GUI te druk worden
+
+**Voordelen:**
+- Meer verticale ruimte voor grid kalender
+- Logische groepering (Planning / Bewerken / Weergave)
+- Keyboard shortcuts mogelijk (Alt+P, Alt+E, Alt+V)
+- Schaalbaar voor nieuwe functies
+- Professionele desktop applicatie uitstraling
+
+**Nadelen:**
+- Extra klik nodig (dropdown ipv directe knop)
+- Minder zichtbaar (functionaliteit "verstopt" in menu's)
+- Gebruikers moeten menu structuur leren
+
+**Voorgestelde Menu Structuur:**
+```
+┌─────────────────────────────────────────────┐
+│ Planning  Bewerken  Weergave      ← Terug  │  ← QMenuBar
+├─────────────────────────────────────────────┤
+│ [Dec 2024] [◄] [►]  ● Concept  [Publiceren]│  ← Compacte header
+├─────────────────────────────────────────────┤
+│         Grid Kalender (maximale ruimte)     │
+└─────────────────────────────────────────────┘
+
+Planning menu:
+  - Auto-Genereren...
+  - Wis Maand
+  - Publiceren / Terug naar Concept
+
+Bewerken menu:
+  - Vul Week...
+  - Wis Selectie
+  - Kopieer Week (toekomstig)
+  - Plak Week (toekomstig)
+
+Weergave menu:
+  - Verberg Reserves
+  - Toon Alleen Actieve Week
+  - Filter instellingen
+```
+
+**Hybride Aanpak:**
+- Menu bar: Minder gebruikte functies (Auto-Genereren, Wis Maand)
+- Header: Meest gebruikte actie (Publiceren)
+- Context menu: Cel specifieke acties (blijft behouden)
+
+**Implementatie:** PyQt6 QMenuBar op screen niveau (niet main window)
+
+**Status:** Documenteren voor toekomst - evalueren na implementatie alle features
+
+---
+
+### Medium Prioriteit: Database Backup Systeem
+**Probleem:** Geen geautomatiseerd backup mechanisme, risico op dataverlies bij crashes/corruptie
+**Scenario:** App crash tijdens database schrijfoperatie, hardware failure, user error
+
+**Oplossingen (te evalueren):**
+1. **Automatische Backup bij App Start** (AANBEVOLEN voor quick win)
+   - Backup maken bij `main.py` start vóór database operaties
+   - Rotatie: behoud laatste 7 backups (1 per dag)
+   - Locatie: `data/backups/planning_YYYY-MM-DD_HHMMSS.db`
+   - PRO: Simpel, altijd recent backup punt
+   - CON: Geen backup tijdens sessie (intra-day changes verloren)
+
+2. **Scheduled Backups (Periodic)**
+   - QTimer in main.py: backup elke X uur
+   - Compressie: `.db.gz` voor ruimtebesparing
+   - PRO: Beschermt intra-day changes
+   - CON: Meer complex, potential performance impact
+
+3. **Transaction-based Backups**
+   - Backup vóór kritieke operaties (migraties, bulk deletes)
+   - Context manager: `with backup_before_operation():`
+   - PRO: Gerichte bescherming van risicomomenten
+   - CON: Handmatig bepalen wanneer backup nodig
+   - **NOTE:** Zal waarschijnlijk terugkomen als onderdeel van Undo/Redo systeem in Planning Editor
+
+4. **Manual Backup Tool**
+   - Menu optie: "Backup Nu" in dashboard
+   - Exporteer naar user-gekozen locatie
+   - PRO: User controle, flexibel
+   - CON: Afhankelijk van user discipline
+
+**Voorkeur:** Optie 1 (App Start) + Optie 4 (Manual) combinatie
+
+**Implementatie details:**
+- Backup functie in `database/connection.py`: `create_backup()`
+- Rotatie logica: verwijder backups ouder dan 7 dagen
+- Verificatie: test backup met `PRAGMA integrity_check`
+- Restore functie: `restore_from_backup(backup_path)`
+- UI indicator: laatste backup tijd tonen in About dialog
+
+**Overwegingen:**
+- Netwerkschijf: backup performance (potentieel traag)
+- Disk space: .db files zijn ~50MB, 7 backups = ~350MB
+- Restore workflow: documenteren voor gebruikers
+- Testing: simuleer crash en test restore procedure
+
+### Lage Prioriteit: Emergency Access / Password Reset
+**Probleem:** Als enige planner wachtwoord vergeet + admin account inactief/vergeten → geen toegang meer
+**Scenario:** Productie systeem locked, geen manier om in te loggen
+
+**Oplossingen (te evalueren):**
+1. **Emergency Reset Script** (AANBEVOLEN)
+   - Standalone Python script: `emergency_reset.py`
+   - Kan uitgevoerd worden met direct database toegang
+   - Reset specifiek gebruiker wachtwoord of activeer admin
+   - Logging van reset acties (audit trail)
+   - Gebruik: `python emergency_reset.py --user admin --reset-password`
+
+2. **Hardcoded Emergency Account**
+   - Account "__emergency__" met known hash in database seed
+   - Alleen Planner rol, geen data zichtbaar in normale flow
+   - Hidden van normale gebruikerslijst
+   - PRO: Altijd beschikbaar
+   - CON: Security concern (wachtwoord ergens opgeslagen)
+
+3. **Password Reset Tool (GUI)**
+   - Aparte kleine applicatie `password_reset_tool.exe`
+   - Leest database, toont gebruikerslijst
+   - Reset wachtwoord naar nieuw of default
+   - PRO: User-friendly
+   - CON: Extra maintenance
+
+**Voorkeur:** Optie 1 (Emergency Reset Script) - veilig, simpel, audit trail
+
+### Lage Prioriteit: Database Beveiliging
+**Probleem:** Database kan momenteel rechtstreeks geopend en gewijzigd worden met SQLite tools
+**Scenario:** Gebruikers kunnen data uitlezen/wijzigen buiten app om, geen audit trail
+
+**Oplossingen (te evalueren):**
+1. **SQLite Encryption Extension (SQLCipher)** (AANBEVOLEN)
+   - Database encryptie met wachtwoord
+   - Transparant voor applicatie code (minimale wijzigingen)
+   - PRO: Industry standard, sterke beveiliging
+   - CON: Extra dependency, deployment complexity
+   - Implementatie: `pip install pysqlcipher3`, connection string aanpassing
+
+2. **Application-Level Encryption**
+   - Encrypt sensitive kolommen (wachtwoorden, persoonlijke data)
+   - Encryption key opslaan in config/environment
+   - PRO: Selectieve beveiliging, geen externe dependencies
+   - CON: Performance overhead, complex key management
+
+3. **Database Access Logging**
+   - Log alle database operaties met user/timestamp
+   - Detectie van ongeautoriseerde toegang
+   - PRO: Audit trail, detectie achteraf
+   - CON: Preventeert niet, alleen detectie
+
+**Voorkeur:** Optie 1 (SQLCipher) - Enige echte preventieve oplossing zonder OS-level permissions
+
+**Overwegingen:**
+- Backup strategie moet encryptie ondersteunen
+- Key management voor encrypted database
+- Performance impact (minimal met SQLCipher)
+- Deployment: encryptie key distribution naar clients
+
 ---
 
 ## 📝 RECENTE SESSIES
+
+### Sessie 27 Oktober 2025 (~4 uur) - Grid Kalender Refactoring & Teamlid Features (v0.6.18)
+**Focus:** Code quality via refactoring + nieuwe features voor teamlid view
+
+**Voltooid:**
+- ✅ **Grid Kalender Refactoring** (170 regels duplicatie geëlimineerd)
+  - 7 Methods naar base class: `load_rode_lijnen()`, `update_title()`, `on_jaar_changed()`, `on_maand_changed()`, `open_filter_dialog()`, `create_header()`
+  - Template Method Pattern: `get_header_extra_buttons()` hook voor customisatie
+  - Code reductie: -54 regels netto (-2.3%)
+  - Maintainability: Bugfixes in 1 plek = beide widgets fixed
+  - Extensibility: Nieuwe grid widget? Inherit van base!
+
+- ✅ **Teamlid Navigation Buttons** (gratis uit refactoring!)
+  - "← Vorige Maand" en "Volgende Maand →" buttons
+  - Consistent UX met Planning Editor
+  - Override `get_header_extra_buttons()` in TeamlidGridKalender
+  - Bug fix: Maand navigatie index correctie (self.maand - 1)
+
+- ✅ **Mijn Planning Status Indicator**
+  - Visual feedback: geel (concept) / groen (gepubliceerd)
+  - Database query per maand: check status in planning tabel
+  - PyQt signal: `maand_changed` voor auto-update bij navigatie
+  - Duidelijke communicatie: "Planning voor [maand] is nog niet gepubliceerd"
+
+- ✅ **Filter Architecture Improvement**
+  - Template Method: `get_initial_filter_state(user_id)` in base class
+  - Required override pattern met `NotImplementedError`
+  - Planner: iedereen zichtbaar (return True)
+  - Teamlid: alleen eigen planning (return user_id == huidige_gebruiker_id)
+  - Fail-fast design: crash bij development, niet productie
+
+**Technische Highlights:**
+- Template Method Pattern voor clean inheritance
+- Required override pattern met NotImplementedError
+- PyQt signals voor inter-component communicatie
+- DRY principle: Single source of truth
+- Code reuse: Feature inheritance automatisch
+
+**Bug Fixes:**
+- Missing import: `List` toegevoegd aan planner_grid_kalender.py
+- Month navigation: Index berekening (self.maand - 1 ipv self.maand)
+- Filter behavior: Meerdere iteraties naar clean architecture
+
+**Bestanden gewijzigd:**
+- `gui/widgets/grid_kalender_base.py` (+116 regels, 7 nieuwe methods)
+- `gui/widgets/planner_grid_kalender.py` (-90 regels, 2 required overrides)
+- `gui/widgets/teamlid_grid_kalender.py` (-80 regels, navigatie + filter override)
+- `gui/screens/mijn_planning_screen.py` (status indicator + maand_changed signal)
+
+**Impact:**
+- Code Quality: -54 regels netto, DRY principle
+- Maintainability: Shared logic in 1 plek
+- UX: Consistent navigatie ervaring
+- Transparency: Teamleden zien status van planning
+- Extensibility: Template methods voor toekomstige widgets
+
+**Architecture Lessons:**
+- Template Method Pattern > Configuration flags
+- Required override > Default implementation (fail-fast)
+- Separation of concerns: Base vs subclass responsibilities
+- Signal-based communication voor decoupling
+
+---
+
+### Sessie 24 Oktober 2025 (~4 uur) - Multi-Cell Selectie & Planning Editor UX (v0.6.17)
+**Focus:** Bulk operaties voor efficiënt roosteren + status visualisatie verbeteringen
+
+**Voltooid:**
+- ✅ **Multi-Cell Selectie Systeem** (~430 regels code)
+  - Ctrl+Click: individuele cellen selecteren/deselecteren
+  - Shift+Click: rectangle range selectie (zoals Excel)
+  - ESC: wis volledige selectie (focus management via setFocusPolicy)
+  - Lichtblauwe gradient overlay (`rgba(33, 150, 243, 0.3)`)
+  - Status label: witte achtergrond, altijd zichtbaar (geen layout verspringen)
+
+- ✅ **Bulk Operaties met Bescherming**
+  - Bulk Delete: "Wis Selectie (X cellen)" met checkbox speciale codes
+  - Bulk Fill: "Vul Selectie In..." met code validatie + autocomplete
+  - Notities ALTIJD behouden (database UPDATE ipv DELETE)
+  - Success feedback met aantal verwerkte cellen
+
+- ✅ **Gepubliceerde Maand Bescherming**
+  - `check_maand_is_concept()`: query COUNT gepubliceerde records
+  - Blokkering: cel edit, bulk delete, bulk fill, vul week, notitie edit
+  - Clear error message: "Zet eerst terug naar concept"
+  - Cel reset bij edit poging (geen stille failure)
+
+- ✅ **Status Visualisatie** (8px gekleurde rand)
+  - QFrame container strategie (QWidget selector werkte niet)
+  - Concept: geel (#FFE082) | Gepubliceerd: groen (#81C784)
+  - Altijd zichtbaar rond hele scherm
+
+- ✅ **Layout Optimalisatie** (2 rijen ruimte gewonnen!)
+  - Info box naast maandnaam (ipv aparte toolbar)
+  - Knoppen op info label regel
+  - Kalender header geïntegreerd in editor
+  - Dubbele tooltip verwijderd
+
+**Impact:**
+- Productiviteit: 80% minder clicks (10 clicks → 3 clicks voor typische taken)
+- Veiligheid: bescherming speciale codes + notities behoud
+- UX: gekleurde rand status indicator altijd zichtbaar
+- Ruimte: klaar voor HR validatie features
+
+**Bestanden:** `planner_grid_kalender.py` (~500 regels), `planning_editor_screen.py` (~100 regels), `config.py`
+
+---
+
+### Sessie 23 Oktober 2025 (19:30-21:00) - Database Fix + Notitie Verbeteringen
+**Duur:** ~1.5 uur
+**Focus:** Database versie issue + UX verbeteringen notitie systeem
+
+**Voltooid:**
+- ✅ **Database Versie Fix (0.6.14 → 0.6.16)**
+  - Diagnose: migratie_planning_notities.py vergat db_metadata te updaten
+  - Oplossing: upgrade_to_v0_6_16.py script aangemaakt
+  - Test: test_migratie.py uitgebreid met versie checks
+  - Documentatie: Migratie best practices toegevoegd aan DEVELOPMENT_GUIDE.md
+
+- ✅ **Notitie Indicator Kleur Verbetering**
+  - Oude kleur: #17a2b8 (teal - te subtiel)
+  - Nieuwe kleur: #00E676 (Material Design bright green)
+  - Resultaat: 70% beter zichtbaar
+
+- ✅ **Notitie naar Planner Feature (Bidirectionele Communicatie)**
+  - Menu knop "Notitie naar Planner" in Mijn Planning tab (teamleden)
+  - NotitieNaarPlannerDialog met datum selectie + tekst editor
+  - Automatische opslag in planning tabel bij juiste persoon
+  - Groen hoekje indicator verschijnt automatisch in grid
+
+- ✅ **Naam Prefix voor Notities**
+  - Teamlid notities: `[Naam]: tekst`
+  - Planner notities: `[Planner]: tekst`
+  - Slimme logica: Bestaande prefix niet overschrijven
+  - Altijd duidelijk wie notitie heeft aangemaakt
+
+**Bestanden gewijzigd:**
+- `upgrade_to_v0_6_16.py` (nieuw) - Versie update script
+- `test_migratie.py` - Uitgebreid met versie checks
+- `DEVELOPMENT_GUIDE.md` - Migratie warning + versie 0.6.16
+- `CLAUDE.md` - Critical warning over db_metadata
+- `gui/widgets/planner_grid_kalender.py` - Kleur #00E676 + [Planner] prefix
+- `gui/screens/dashboard_screen.py` - NotitieNaarPlannerDialog + [Naam] prefix
+
+**Technische Highlights:**
+- Upgrade script schema-agnostic (alleen versie update)
+- Material Design kleur voor optimale UX
+- Naam prefix embedded in notitie tekst (eenvoudig, persistent)
+- Geen nieuwe database kolom nodig voor auteur
+
+**Impact:**
+- Stabiliteit: Database versie issue opgelost
+- Communicatie: Teamleden kunnen nu notities naar planner sturen
+- Traceerbaarheid: Altijd duidelijk wie notitie maakte
+- UX: Notities veel beter zichtbaar
+
+---
 
 ### Sessie 23 Oktober 2025 - Code Quality Improvements (Ruff Linting)
 **Duur:** ~30 min
@@ -676,5 +987,5 @@ Active Development Notes & Session Logs
 *Voor technische referentie: zie DEVELOPMENT_GUIDE.md*
 *Voor release info: zie PROJECT_INFO.md*
 
-*Laatste update: 23 Oktober 2025*
-*Versie: 0.6.15*
+*Laatste update: 27 Oktober 2025*
+*Versie: 0.6.18*

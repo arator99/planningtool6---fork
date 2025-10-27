@@ -37,9 +37,11 @@ class MijnPlanningScreen(QWidget):
             self.gebruiker_id
         )
         self.codes_help_table: QTableWidget = QTableWidget()
+        self.status_label: QLabel = QLabel()  # Status indicator
 
         self.init_ui()
         self.load_valid_codes()
+        self.update_status_indicator()  # Toon initiële status
 
     def init_ui(self) -> None:
         """Bouw UI"""
@@ -74,6 +76,11 @@ class MijnPlanningScreen(QWidget):
 
         left_layout.addLayout(header)
 
+        # Status indicator (concept/gepubliceerd)
+        self.status_label.setWordWrap(True)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        left_layout.addWidget(self.status_label)
+
         # Info box
         info_box = QLabel(
             "Bekijk hier je eigen rooster. "
@@ -85,6 +92,9 @@ class MijnPlanningScreen(QWidget):
 
         # Kalender widget
         left_layout.addWidget(self.kalender)
+
+        # Connect kalender maand change signal to update status
+        self.kalender.maand_changed.connect(self.update_status_indicator)  # type: ignore
 
         main_layout.addLayout(left_layout, stretch=3)
 
@@ -227,3 +237,76 @@ class MijnPlanningScreen(QWidget):
 
         conn.close()
         return "\n".join(lines) if lines else "Geen speciale codes beschikbaar"
+
+    def get_maand_status(self) -> str:
+        """Check of huidige maand gepubliceerd is"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            jaar = self.kalender.jaar
+            maand = self.kalender.maand
+
+            # Bepaal eerste dag van maand en eerste dag van volgende maand
+            eerste_dag = f"{jaar:04d}-{maand:02d}-01"
+            if maand == 12:
+                volgende_maand = f"{jaar + 1:04d}-01-01"
+            else:
+                volgende_maand = f"{jaar:04d}-{maand + 1:02d}-01"
+
+            # Haal unieke statussen op voor deze maand
+            cursor.execute("""
+                SELECT DISTINCT status
+                FROM planning
+                WHERE datum >= ? AND datum < ?
+            """, (eerste_dag, volgende_maand))
+
+            statussen = [row['status'] for row in cursor.fetchall()]
+            conn.close()
+
+            # Bepaal status
+            if 'gepubliceerd' in statussen:
+                return 'gepubliceerd'
+            else:
+                return 'concept'
+
+        except Exception as e:
+            print(f"Fout bij laden status: {e}")
+            return 'concept'
+
+    def update_status_indicator(self) -> None:
+        """Update status indicator op basis van maand status"""
+        status = self.get_maand_status()
+
+        # Maand naam voor display
+        maanden = ['januari', 'februari', 'maart', 'april', 'mei', 'juni',
+                   'juli', 'augustus', 'september', 'oktober', 'november', 'december']
+        maand_naam = maanden[self.kalender.maand - 1]
+        jaar = self.kalender.jaar
+
+        if status == 'concept':
+            # Geel/oranje: planning nog niet gepubliceerd
+            self.status_label.setText(f"⚠️ Planning voor {maand_naam} {jaar} is nog niet gepubliceerd")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    background-color: #FFF9C4;
+                    border-left: 4px solid #FFE082;
+                    padding: 12px;
+                    font-weight: bold;
+                    color: #F57C00;
+                }
+            """)
+            self.status_label.show()
+        else:
+            # Groen: planning gepubliceerd
+            self.status_label.setText(f"✓ Planning voor {maand_naam} {jaar}")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    background-color: #E8F5E9;
+                    border-left: 4px solid #81C784;
+                    padding: 12px;
+                    font-weight: bold;
+                    color: #388E3C;
+                }
+            """)
+            self.status_label.show()

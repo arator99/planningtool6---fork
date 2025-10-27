@@ -2,8 +2,8 @@
 Planning Tool - Technische Documentatie voor Ontwikkelaars
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.15 (Beta)
-**Laatste update:** 23 Oktober 2025
+**Huidige versie:** 0.6.18 (Beta)
+**Laatste update:** 27 Oktober 2025
 
 ---
 
@@ -51,12 +51,37 @@ def create_tables(cursor):
 # 3. Maak upgrade script
 # upgrade_to_v0_6_16.py
 
-# 4. Update db_metadata
+# 4. Update db_metadata (VERPLICHT!)
 cursor.execute("""
     INSERT INTO db_metadata (version_number, migration_description)
     VALUES (?, ?)
 """, ("0.6.16", "Beschrijving van wijziging"))
 ```
+
+**⚠️ KRITIEK: Migratie Scripts MOETEN db_metadata Updaten!**
+
+Elk migratie script dat de database schema wijzigt MOET de `db_metadata` tabel updaten:
+
+```python
+# FOUT: Schema wijziging zonder versie update
+cursor.execute("ALTER TABLE planning ADD COLUMN notitie TEXT")
+conn.commit()
+# ❌ App zal crashen met "database versie mismatch" error!
+
+# CORRECT: Schema wijziging met versie update
+cursor.execute("ALTER TABLE planning ADD COLUMN notitie TEXT")
+cursor.execute("""
+    INSERT INTO db_metadata (version_number, migration_description)
+    VALUES (?, ?)
+""", ("0.6.16", "Planning notitie kolom toegevoegd"))
+conn.commit()
+# ✅ Database versie is gesynchroniseerd met schema
+```
+
+**Waarom dit essentieel is:**
+- App controleert bij startup: `db_version >= MIN_DB_VERSION`
+- Zonder db_metadata update → versie mismatch → app weigert te starten
+- Gebruikers krijgen: "Database versie X.Y.Z is ouder dan vereist"
 
 ### Database Compatibiliteit
 De app controleert bij startup of database compatibel is:
@@ -937,6 +962,77 @@ def on_nieuw_scherm_clicked(self):
 
 ---
 
+## FUTURE CONSIDERATIONS
+
+### GUI Pattern: QMenuBar voor Complexe Schermen
+
+**Concept:** Voor schermen met veel functionaliteit (zoals Planning Editor) kan een menu bar boven aan het scherm de UX verbeteren.
+
+**Implementatie:**
+```python
+class PlanningEditorScreen(QWidget):
+    def __init__(self, router: Callable):
+        super().__init__()
+        self.router = router
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # Menu bar bovenaan
+        menu_bar = QMenuBar()
+        layout.addWidget(menu_bar)
+
+        # Planning menu
+        planning_menu = menu_bar.addMenu("Planning")
+        planning_menu.addAction("Auto-Genereren...", self.on_auto_genereren)
+        planning_menu.addAction("Wis Maand", self.on_wis_maand)
+        planning_menu.addSeparator()
+        planning_menu.addAction("Publiceren", self.toggle_publicatie_status)
+
+        # Bewerken menu
+        bewerk_menu = menu_bar.addMenu("Bewerken")
+        bewerk_menu.addAction("Vul Week...", self.vul_week)
+        bewerk_menu.addAction("Wis Selectie", self.wis_selectie)
+
+        # Weergave menu
+        weergave_menu = menu_bar.addMenu("Weergave")
+        weergave_menu.addAction("Verberg Reserves", self.toggle_reserves)
+
+        # Terug knop rechts
+        menu_bar.addAction("← Terug", self.router)
+
+        # Rest van UI
+        layout.addWidget(self.kalender_widget)
+```
+
+**Voordelen:**
+- Meer verticale ruimte voor content
+- Logische groepering van functionaliteit
+- Keyboard shortcuts (Alt+P voor Planning, etc.)
+- Schaalbaar voor nieuwe features
+- Professionele uitstraling
+
+**Nadelen:**
+- Extra klik nodig (dropdown ipv directe button)
+- Functionaliteit minder zichtbaar
+- Gebruikers moeten menu structuur leren
+
+**Hybride Aanpak:**
+Combineer menu bar met compacte header:
+- Menu bar: Minder gebruikte functies
+- Header: Meest gebruikte acties (bijv. Publiceren)
+- Context menu: Cel-specifieke acties
+
+**Wanneer Gebruiken:**
+- Schermen met >6 acties/knoppen
+- Duidelijke groepering mogelijk (Planning/Bewerken/Weergave)
+- Verticale ruimte schaars
+- Desktop applicatie workflow (niet mobile-first)
+
+**Status:** Gedocumenteerd voor toekomstige evaluatie wanneer alle functionaliteit geïmplementeerd is.
+
+---
+
 ## LESSEN GELEERD
 
 ### PyQt6 Specifiek
@@ -1011,5 +1107,5 @@ ruff format .
 *Voor recente development sessies, zie DEV_NOTES.md*
 *Voor historische sessies, zie DEV_NOTES_ARCHIVE.md*
 
-*Laatste update: 23 Oktober 2025*
-*Versie: 0.6.15*
+*Laatste update: 27 Oktober 2025*
+*Versie: 0.6.18*
