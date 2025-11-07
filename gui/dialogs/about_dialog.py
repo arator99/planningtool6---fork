@@ -1,4 +1,4 @@
-#gui/dialogs/about_diolog.py
+#gui/dialogs/about_dialog.py
 
 """
 About Dialog voor Planning Tool
@@ -7,7 +7,7 @@ Laadt project info uit PROJECT_INFO.md
 """
 
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                             QPushButton, QTabWidget, QWidget, QTextEdit, QScrollArea)
+                             QPushButton, QTabWidget, QWidget, QTextEdit, QScrollArea, QGridLayout)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from gui.styles import Styles, Colors, Fonts, Dimensions
@@ -18,7 +18,7 @@ import sys
 import re
 
 BUILD_DATE = "oktober 2025"
-DEVELOPERS = "Ontwikkeld door:\n• Aerts Bob (Lead Developer - I-O.112)\n• Claude (AI Assistant - Anthropic)"
+#DEVELOPERS = "Ontwikkeld door:\n• Aerts Bob (Lead Developer - I-O.112)\n• Claude (AI Assistant - Anthropic)"
 
 
 def load_project_info():
@@ -255,7 +255,7 @@ class AboutDialog(QDialog):
         return widget
 
     def create_credits_tab(self):
-        """Credits tab"""
+        """Credits tab met gedetailleerde teamstructuur"""
         widget = QWidget()
         layout = QVBoxLayout()
         layout.setContentsMargins(
@@ -266,22 +266,65 @@ class AboutDialog(QDialog):
         )
         layout.setSpacing(Dimensions.SPACING_LARGE)
 
-        # Developers
-        dev_label = QLabel("Ontwikkeling")
+        # --- Ontwikkeling Sectie ---
+        dev_label = QLabel("Ontwikkelingsteams")
         dev_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_HEADING, QFont.Weight.Bold))
         layout.addWidget(dev_label)
 
-        dev_text = QLabel(DEVELOPERS)
-        dev_text.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL))
-        dev_text.setStyleSheet(f"color: {Colors.TEXT_PRIMARY};")
-        layout.addWidget(dev_text)
+        # Nieuwe Data Structuur
+        teams = {
+            "Concept & UX Team": {
+                "Functional Solution Designer": "Bob Aerts (I-O.112)",
+                "Documentation Specialist": "Docusaurus Agent",
+                "UX Writers": "Bob Aerts & UI-UX-designer Agent"
+            },
+            "Technical Solutions Team": {
+                "Technical Solution Designer": "Claude (AI Assistant)",
+                "Software Development": "Python Expert Agent",
+                "Database Design": "Database-optimization Agent"
+            }
+        }
 
-        layout.addSpacing(Dimensions.SPACING_MEDIUM)
+        # Dynamisch de teams en rollen toevoegen
+        for team_name, roles in teams.items():
+            # Team Titel
+            team_title = QLabel(f"**{team_name}**")
+            team_title.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL, QFont.Weight.Bold))
+            team_title.setStyleSheet(f"color: {Colors.PRIMARY}; margin-top: {Dimensions.SPACING_MEDIUM}px;")
+            layout.addWidget(team_title)
 
-        # Technologie
+            # Raster voor twee kolommen
+            grid_layout = QGridLayout()
+            grid_layout.setContentsMargins(0, 0, 0, 0)  # Geen extra marges voor de grid
+            grid_layout.setHorizontalSpacing(Dimensions.SPACING_LARGE * 2)  # Extra ruimte tussen kolommen
+            grid_layout.setVerticalSpacing(Dimensions.SPACING_SMALL)
+
+            row = 0
+            for role, member in roles.items():
+                # Kolom 1: Rol
+                role_label = QLabel(f"  • {role}:")
+                role_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+                role_label.setStyleSheet(f"color: {Colors.TEXT_SECONDARY};")
+                grid_layout.addWidget(role_label, row, 0, Qt.AlignmentFlag.AlignLeft)
+
+                # Kolom 2: Lid
+                member_label = QLabel(member)
+                member_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+                member_label.setStyleSheet(f"color: {Colors.TEXT_PRIMARY};")
+                grid_layout.addWidget(member_label, row, 1, Qt.AlignmentFlag.AlignLeft)
+
+                row += 1
+
+            layout.addLayout(grid_layout)
+
+        layout.addSpacing(Dimensions.SPACING_LARGE)
+
+        # --- Technologie Sectie (blijft ongewijzigd) ---
         tech_label = QLabel("Technologie")
         tech_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_HEADING, QFont.Weight.Bold))
         layout.addWidget(tech_label)
+
+        # ... (rest van de tech_items code) ...
 
         tech_items = [
             "Python 3.x",

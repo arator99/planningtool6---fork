@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QTableWidget, QTableWidgetItem,
                              QHeaderView, QComboBox, QDialog, QTextEdit,
                              QMessageBox, QDialogButtonBox)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from datetime import datetime, timedelta
 from database.connection import get_connection
@@ -25,6 +25,9 @@ class VerlofGoedkeuringScreen(QWidget):
     - Filter per teamlid
     - Impact op planning zien
     """
+
+    #signal om notificatie terug te laten tellen
+    verlofGoedgekeurd = pyqtSignal()
 
     def __init__(self, router: Callable, planner_id: int):
         super().__init__()
@@ -377,9 +380,10 @@ class VerlofGoedkeuringScreen(QWidget):
                 f"{type_naam} goedgekeurd voor {aanvraag['volledige_naam']}!\n\n"
                 f"{toegekende_code} is toegevoegd aan de planning."
             )
-
+            self.verlofGoedgekeurd.emit()
             # Herlaad tabel
             self.load_aanvragen()
+
 
         except sqlite3.Error as e:
             QMessageBox.critical(self, "Database Fout", f"Kon aanvraag niet goedkeuren:\n{e}")

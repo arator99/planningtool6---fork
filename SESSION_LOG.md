@@ -8,366 +8,330 @@ Voor permanente logs, zie DEV_NOTES.md
 
 ## 📅 HUIDIGE SESSIE
 
-**Datum:** 27 Oktober 2025
-**Start tijd:** 14:00
-**Eind tijd:** 18:00
-**Duur:** ~4 uur
-**Status:** ✅ VOLTOOID - Grid Kalender Refactoring + Teamlid Features (v0.6.18)
+**Datum:** 4 November 2025
+**Start tijd:** ~14:00
+**Status:** ✅ VOLTOOID - Comprehensive Constraint Testing & Segmented RX Check (v0.6.26)
 
 ---
 
 ## 🎯 SESSIE DOEL
 
 **Hoofdtaak:**
-Grid Kalender Code Cleanup - Elimineer 170 regels code duplicatie
+1. Comprehensive automated testing van constraint checker systeem
+2. Fix segmented RX check voor partial planning invulling (BUG-005)
 
 **Achtergrond:**
-- Manuele toevoeging in vorige SESSION_LOG geïdentificeerd code duplicatie
-- 7 methods 100% gedupliceerd tussen PlannerGridKalender en TeamlidGridKalender
-- Totale duplicatie: ~170 regels code
-- Impact: moeilijker onderhoud, bugs in 2 plekken fixen
-
-**Concrete Doelen:**
-1. ✅ Verwerk manuele toevoeging in technische documentatie (HIGH PRIORITY)
-2. ✅ Maak backups van betrokken bestanden
-3. ✅ Refactor grid kalender widgets (verplaats naar base class)
-4. ✅ Implementeer template method pattern voor create_header()
-5. ✅ Test alle functionaliteit (planner + teamlid views)
-6. ✅ Voeg navigatie buttons toe aan Mijn Planning (bonus!)
-7. ✅ Implementeer status indicator voor teamleden (bonus!)
-8. ✅ Verbeter filter architecture met required override pattern
+- User meldde: "iets dat me stoort, lege cellen worden al meegeteld" tijdens weekend invulling
+- RX gap check triggert valse violations bij partial planning (alleen za/zo ingevuld)
+- Nodig: intelligente segmentatie om incomplete planning te detecteren
 
 ---
 
 ## 📋 SESSIE PLANNING
 
-### **Phase 1: Documentatie & Voorbereiding (~30 min)** ✅ VOLTOOID
+### **Phase 1: Automated Testing Suite (~60 min)** ✅ VOLTOOID
 
-1. ✅ Verwerk manuele toevoeging uit vorige SESSION_LOG
-   - ✅ Update DEV_NOTES.md met Prioriteit 1 & 2
-   - ✅ Update DEVELOPMENT_GUIDE.md met technische schuld sectie
-   - ✅ Update PROJECT_INFO.md met geplande verbeteringen
+1. ✅ Create comprehensive test script (13 scenarios)
+2. ✅ Test RX/CX gap detection
+3. ✅ Test 7 werkdagen reeks boundaries
+4. ✅ Test VV verlof gedrag (telt als werkdag)
+5. ✅ Test 50u week boundaries
+6. ✅ Test 12u rust cross-month
+7. ✅ Test RX gap cross-year
+8. ✅ Test 19 dagen cyclus boundaries
+9. ✅ Fix test bugs (UUID constraint, wrong shift codes)
+10. ✅ All 13 tests PASSED
 
-2. ✅ Maak backups voor veilige refactoring
-   - ✅ Backup directory: `backups/refactoring_grid_kalenders_20251027/`
-   - ✅ 3 bestanden: grid_kalender_base, planner_grid_kalender, teamlid_grid_kalender
-   - ✅ README.md met restore instructies
+### **Phase 2: Segmented RX Check (~45 min)** ✅ VOLTOOID
 
-3. ✅ Maak refactoring checklist
-   - ✅ `REFACTORING_CHECKLIST_GRID_KALENDERS.md` (stap-voor-stap guide)
-   - ✅ 4 phases met concrete code snippets
-   - ✅ Testing checklist (12+ verificatie punten)
-   - ✅ Troubleshooting sectie
+1. ✅ Design: lege cellen breken segment
+2. ✅ Implementeer `_segment_planning_op_lege_cellen()`
+3. ✅ Refactor `check_max_dagen_tussen_rx()` voor segments
+4. ✅ Extract `_check_rx_gap_in_segment()` helper
+5. ✅ Test 3 scenarios (partial, complete, gap > 7)
+6. ✅ All scenarios PASSED
 
-### **Phase 2: GridKalenderBase - Voeg Gemeenschappelijke Methods Toe (~30 min)** ✅ VOLTOOID
+### **Phase 3: Documentatie (~15 min)** ✅ VOLTOOID
 
-1. ✅ Verplaats `load_rode_lijnen()` van planner/teamlid naar base
-2. ✅ Verplaats `update_title()` naar base
-3. ✅ Verplaats `on_jaar_changed()` naar base
-4. ✅ Verplaats `on_maand_changed()` naar base
-5. ✅ Verplaats `open_filter_dialog()` naar base
-6. ✅ Voeg `get_header_extra_buttons()` toe (template method pattern)
-7. ✅ Refactor `create_header()` in base met template method
-
-### **Phase 3: PlannerGridKalender - Verwijder Duplicatie (~20 min)** ✅ VOLTOOID
-
-1. ✅ Verwijder gedupliceerde methods (load_rode_lijnen, update_title, etc.)
-2. ✅ Verwijder `create_header()` volledig
-3. ✅ Implementeer `get_header_extra_buttons()` override voor navigatie buttons
-4. ✅ Implementeer `get_initial_filter_state()` required override (return True)
-5. ✅ Behoud planner-specifieke methods (vorige_maand, volgende_maand)
-
-### **Phase 4: TeamlidGridKalender - Verwijder Duplicatie (~15 min)** ✅ VOLTOOID
-
-1. ✅ Verwijder gedupliceerde methods (load_rode_lijnen, update_title, etc.)
-2. ✅ Verwijder `create_header()` volledig
-3. ✅ Implementeer `get_header_extra_buttons()` override voor navigatie buttons (BONUS!)
-4. ✅ Implementeer `get_initial_filter_state()` required override (return user_id == self.huidige_gebruiker_id)
-5. ✅ Voeg `maand_changed` signal toe voor status indicator
-
-### **Phase 5: Testing & Verificatie (~20 min)** ✅ VOLTOOID
-
-1. ✅ Syntax check (py_compile voor alle 3 files)
-2. ✅ Start applicatie zonder errors
-3. ✅ Test Planning Editor (planner grid):
-   - ✅ Vorige/Volgende Maand buttons werken
-   - ✅ Filter dialog werkt
-   - ✅ Rode lijnen zichtbaar
-   - ✅ Multi-cell selectie werkt (v0.6.17)
-4. ✅ Test Mijn Planning (teamlid grid):
-   - ✅ Navigatie buttons werken (BONUS FEATURE!)
-   - ✅ Filter werkt (alleen eigen planning zichtbaar)
-   - ✅ Rode lijnen zichtbaar
-   - ✅ Status indicator toont concept/gepubliceerd (BONUS FEATURE!)
-5. ✅ Regression testing (auto-generatie, cel edit, notities, etc.)
-
-### **Phase 6: Documentatie & Commit (~10 min)** ✅ VOLTOOID
-
-1. ✅ Update config.py: APP_VERSION = "0.6.18"
-2. ✅ Update documentatie: CLAUDE.md, DEV_NOTES.md, PROJECT_INFO.md, DEVELOPMENT_GUIDE.md
-3. ✅ Git commit met beschrijving
-4. ✅ Update SESSION_LOG.md met resultaten
+1. ✅ Update SESSION_LOG.md (dit bestand)
+2. ⏸️ Summary naar DEV_NOTES.md (later)
 
 ---
 
 ## ✅ VOLTOOIDE STAPPEN
 
-### Phase 1: Documentatie & Voorbereiding (Voltooid)
+### SESSIE 1: Comprehensive Constraint Testing
 
-**1. Technische Documentatie Updated:**
-- ✅ **DEV_NOTES.md:**
-  - Prioriteit 1: Grid Kalender Code Cleanup (REFACTORING) 🚨
-  - Prioriteit 2: Mijn Planning Screen Verbeteringen 🎯
-  - Volledige analyse: gedupliceerde methods, oplossing, impact
-  - Geschatte tijd: 1-1.5 uur
+**User Request:**
+"Kan je al deze testen zelf uitvoeren?" (na lijst van edge cases)
 
-- ✅ **DEVELOPMENT_GUIDE.md:**
-  - Nieuwe sectie: "Known Technical Debt: Grid Kalender Code Duplicatie"
-  - Tabel met exacte regelnummers en percentages
-  - Complete code voorbeelden voor oplossing
-  - Voordelen, risico's en geschatte tijd
-  - Versie: 0.6.17
+**Test Scenarios Geïmplementeerd:**
+1. RX → meerdere CX → gap detection
+2. 7 vs 8 werkdagen reeks (boundary test)
+3. RX breekt werkdagen reeks
+4. VV telt als werkdag (breekt reeks NIET)
+5. 48u vs 56u week (boundary test)
+6. 12u rust cross-month (nacht 31 okt → vroeg 1 nov)
+7. RX gap cross-year (dec → jan)
+8. 19 vs 20 dagen cyclus (boundary test)
+9. Weekend boundary (info only)
+10. Week cross boundary (info only)
 
-- ✅ **PROJECT_INFO.md:**
-  - Nieuwe sectie: "HOGE PRIORITEIT (Volgende Updates)"
-  - User-vriendelijke uitleg code cleanup
-  - Uitleg nieuwe features (navigatie + status indicator)
-  - "Waarom deze volgorde?" educatieve sectie
+**Test Script:**
+- File: `scripts/test_constraint_scenarios.py`
+- Test gebruiker ID: 999 (auto-created met UUID)
+- Database: INSERT/DELETE test data per scenario
+- Validator: PlanningValidator(gebruiker_id, jaar, maand)
 
-**2. Backups Gemaakt:**
-- ✅ Directory: `backups/refactoring_grid_kalenders_20251027/`
-- ✅ `grid_kalender_base_BEFORE_REFACTOR.py` (17K)
-- ✅ `planner_grid_kalender_BEFORE_REFACTOR.py` (58K)
-- ✅ `teamlid_grid_kalender_BEFORE_REFACTOR.py` (16K)
-- ✅ `README.md` met restore instructies
+**Test Results:**
+```
+Totaal: 13 tests
+  PASSED: 13
+  FAILED: 0
+```
 
-**3. Refactoring Checklist Gemaakt:**
-- ✅ `REFACTORING_CHECKLIST_GRID_KALENDERS.md`
-- ✅ 4 Phases met concrete stappen
-- ✅ Code snippets voor elke wijziging
-- ✅ Testing checklist (12+ punten)
-- ✅ Troubleshooting sectie met oplossingen
-- ✅ Commit message template
-- ✅ Documentatie update checklist
+**Belangrijke Bevindingen:**
+
+1. **VV Gedrag Correct:**
+   - `telt_als_werkdag = 1` ✓ (telt in 28-dagen cyclus)
+   - `breekt_werk_reeks = 0` ✓ (breekt 7-dagen reeks NIET)
+   - Dit is correct volgens user's business rules
+
+2. **Cross-Month/Year Detection Werkt:**
+   - Buffer loading (+/- 1 maand) werkt perfect
+   - 12u rust: nacht 31/10 → vroeg 1/11 gedetecteerd
+   - RX gap: 26 okt → 6 nov gedetecteerd
+   - RX gap: 28 dec → 6 jan gedetecteerd
+
+3. **Boundary Tests Correct:**
+   - 7 werkdagen = OK, 8 = violation ✓
+   - 19 cyclus dagen = OK, 20 = violation ✓
+   - 48u week = OK, 56u = violation ✓
+
+**Test Bugs Gefixed:**
+- UUID constraint error → added UUID to test user insert
+- Wrong shift code (2301) → changed to 7301 (nacht)
+- Test logic error (VV test verwachtte verkeerd gedrag)
 
 ---
 
-## 🚨 CRASH RECOVERY INFO
+### SESSIE 2: Segmented RX Check (BUG-005)
 
-**Laatst opgeslagen:** Nu
-**Huidige taak:** Klaar om refactoring te beginnen (Phase 2)
-**Volgende stap:** GridKalenderBase - Verplaats load_rode_lijnen()
+**User Problem:**
+"Iets dat me stoort, lege cellen worden al meegeteld. vb, ik ben weekends aan het invullen om die grens van 6 weekends te testen. Dus ik vul enkel zaterdag en zondag in voor een ganse maand, en ik krijg al violations, want nergens een RX ingevuld."
 
-**Backups locatie:** `backups/refactoring_grid_kalenders_20251027/`
+**Root Cause:**
+RX gap check behandelt lege cellen als deel van planning:
+- User vult za 2/11, zo 3/11, dan ma-vr LEEG, dan za 9/11
+- Check ziet: za/zo, 5 dagen zonder shift, za → "gap NA laatste shift"
+- Triggert violation: "Te lang na laatste RX: X dagen"
 
-**Als crash tijdens refactoring:**
-1. Stop onmiddellijk met wijzigingen
-2. Check welke phase voltooid is (zie checklist)
-3. Als errors: restore backups
-   ```bash
-   cp backups/refactoring_grid_kalenders_20251027/*.py gui/widgets/
-   # Hernoem (verwijder _BEFORE_REFACTOR suffix)
+**User Oplossing:**
+"of, we hebben een lege cel, we breken voor deze periode de RX-check, maar beginnen terug verder te tellen vanaf de volgende RX."
+
+**Design: Segmented RX Check**
+
+Concept:
+- Lege cel (shift_code is None of '') breekt segment
+- VV, KD, CX, RX blijven in segment (bewuste keuzes)
+- Check RX gaps per segment afzonderlijk
+
+Voordeel:
+- Partial planning invoer → geen valse violations
+- Complete segmenten worden WEL gecheckt
+- Geen arbitraire drempelwaarden nodig
+
+**Implementatie:**
+
+1. **New Method: `_segment_planning_op_lege_cellen()`**
+   ```python
+   def _segment_planning_op_lege_cellen(
+       self, planning: List[PlanningRegel]
+   ) -> List[List[PlanningRegel]]:
+       """
+       Segment planning op lege cellen
+
+       Input:  [shift, shift, LEEG, shift, RX, LEEG, shift]
+       Output: [[shift, shift], [shift, RX], [shift]]
+       """
+       segments = []
+       current_segment = []
+
+       for p in planning:
+           if not p.shift_code or p.shift_code.strip() == '':
+               if current_segment:
+                   segments.append(current_segment)
+                   current_segment = []
+           else:
+               current_segment.append(p)
+
+       if current_segment:
+           segments.append(current_segment)
+
+       return segments
    ```
-4. Herijk situatie en start opnieuw vanaf laatste voltooide phase
+
+2. **Refactored: `check_max_dagen_tussen_rx()`**
+   ```python
+   def check_max_dagen_tussen_rx(...):
+       # Segment planning
+       segments = self._segment_planning_op_lege_cellen(planning)
+
+       # Check elk segment apart
+       violations = []
+       for segment in segments:
+           segment_violations = self._check_rx_gap_in_segment(segment, max_gap)
+           violations.extend(segment_violations)
+
+       return ConstraintCheckResult(...)
+   ```
+
+3. **New Helper: `_check_rx_gap_in_segment()`**
+   - Extract van originele RX gap logic
+   - Works op segment ipv hele planning
+   - Check gaps TUSSEN RX codes
+   - Check gap NA laatste RX (BUG-003b fix behouden)
+
+**Code Changes:**
+- File: `services/constraint_checker.py`
+- Lines: 854-1041
+- New methods: 2 (segment + check_segment)
+- Refactored methods: 1 (main check)
+
+**Testing:**
+
+Test Script: `scripts/test_segmented_rx_check.py`
+
+Scenario 1: Weekend invulling (partial)
+```
+Za 2/11, zo 3/11, [ma-vr LEEG], za 9/11, zo 10/11, ...
+→ Segments: [za,zo], [za,zo], [za,zo], [za,zo]
+→ RX violations: 0
+→ [PASS] Geen valse violations
+```
+
+Scenario 2: Complete planning
+```
+RX 7/11, shift 8-14/11, RX 15/11
+→ Segments: [RX, 7x shift, RX]
+→ RX violations: 0 (7 dagen tussen RX = OK)
+→ [PASS] Correct gedrag
+```
+
+Scenario 3: Gap > 7 binnen segment
+```
+RX 1/11, shift 2-11/11 (10 dagen)
+→ Segments: [RX, 10x shift]
+→ RX violations: 1 ("Te lang na laatste RX: 9 dagen")
+→ [PASS] Correct gedetecteerd
+```
+
+**Test Results:**
+```
+[PASS] Geen RX violations - segmented check werkt!
+[PASS] Geen violations - 7 dagen tussen RX is OK
+[PASS] Correct: RX gap > 7 dagen gedetecteerd
+```
 
 ---
 
-## 📝 NOTITIES TIJDENS SESSIE
+## 🔍 BELANGRIJKE INZICHTEN
 
-**Code Duplicatie Gevonden:**
-- 7 methods exact gedupliceerd tussen planner en teamlid widgets
-- Totaal ~170 regels duplicatie
-- Impact: bugs moeten op 2 plekken gefixt worden
-- Oplossing: verplaats naar base class + template method pattern
+### 1. VV (Verlof) Business Rules
+- Telt WEL als werkdag in 28-dagen cyclus
+- Breekt NIET de 7-werkdagen reeks
+- Breekt NIET de 8-dagen RX cycle
+- Dit is correcte configuratie (user confirmed)
 
-**Design Beslissingen:**
-- Template method pattern voor `create_header()`
-- Base class roept `get_header_extra_buttons()` aan
-- Planner override: voeg navigatie buttons toe
-- Teamlid override: geen (gebruikt default lege lijst)
-- Resultaat: navigatie buttons komen "gratis" voor teamlid!
+### 2. Buffer Loading Werkt Perfect
+- PlanningValidator laadt +/- 1 maand (BUG-003c fix)
+- Cross-month violations correct gedetecteerd
+- Cross-year violations correct gedetecteerd
 
-**Nieuwe Features (geblokkeerd door refactoring):**
-- Navigatie buttons in Mijn Planning → komt automatisch!
-- Status indicator voor teamleden → 15-20 min implementatie
-
-**Technische Approach:**
-- Backup FIRST (veiligheid)
-- Refactor base class eerst
-- Dan subclasses updaten
-- Test frequent (per phase)
-- Bij problemen: restore backups
+### 3. Segmented Check Pattern
+- Elegante oplossing voor partial planning
+- Geen valse violations tijdens invoer
+- Complete segmenten blijven gevalideerd
+- Pattern kan hergebruikt voor andere checks indien nodig
 
 ---
 
-## 📊 SESSIE RESULTATEN
+## 📊 CODE CHANGES SAMENVATTING
 
-### ✅ VOLTOOID - Alle Doelen Behaald + Bonus Features!
+### constraint_checker.py (3 nieuwe methods)
 
-**1. Grid Kalender Refactoring (170 regels duplicatie geëlimineerd):**
-- ✅ 7 Methods naar base class verplaatst
-- ✅ Template Method Pattern geïmplementeerd
-- ✅ Code reductie: -54 regels netto (-2.3%)
-- ✅ Maintainability: Bug fixes in 1 plek = beide widgets gefixed
-- ✅ Extensibility: Template methods voor toekomstige widgets
-- **Bestanden:**
-  - `gui/widgets/grid_kalender_base.py` (+116 regels, 7 nieuwe methods)
-  - `gui/widgets/planner_grid_kalender.py` (-90 regels, 2 required overrides)
-  - `gui/widgets/teamlid_grid_kalender.py` (-80 regels, navigatie + filter override)
+**1. `_segment_planning_op_lege_cellen()` (NEW)**
+- Purpose: Split planning in segmenten op lege cellen
+- Input: Gesorteerde planning list
+- Output: List van segmenten
+- Logic: Lege cel breekt segment, codes blijven in segment
 
-**2. Teamlid Navigation Buttons (BONUS!):**
-- ✅ "← Vorige Maand" en "Volgende Maand →" toegevoegd
-- ✅ Kwam automatisch uit refactoring via template method
-- ✅ Consistent UX met Planning Editor
-- ✅ Bug fix: Month navigation index correctie (self.maand - 1)
-- **Bestanden:**
-  - `gui/widgets/teamlid_grid_kalender.py` (vorige_maand, volgende_maand methods)
+**2. `_check_rx_gap_in_segment()` (NEW)**
+- Purpose: Check RX gaps binnen 1 segment
+- Input: Segment + max_gap
+- Output: List van violations
+- Logic: Extract van originele check logic
 
-**3. Mijn Planning Status Indicator (BONUS!):**
-- ✅ Visual feedback: geel (concept) / groen (gepubliceerd)
-- ✅ Database query per maand: check status in planning tabel
-- ✅ PyQt signal: `maand_changed` voor auto-update bij navigatie
-- ✅ Duidelijke communicatie voor teamleden
-- **Bestanden:**
-  - `gui/screens/mijn_planning_screen.py` (get_maand_status, update_status_indicator)
-  - `gui/widgets/teamlid_grid_kalender.py` (maand_changed signal emit)
+**3. `check_max_dagen_tussen_rx()` (REFACTORED)**
+- Change: Nu werkt met segmenten ipv hele planning
+- Loop: For each segment → check gaps
+- Metadata: + segments_count
 
-**4. Filter Architecture Improvement (BONUS!):**
-- ✅ Template Method: `get_initial_filter_state(user_id)` in base class
-- ✅ Required override pattern met `NotImplementedError` (fail-fast)
-- ✅ Planner: alle gebruikers zichtbaar (return True)
-- ✅ Teamlid: alleen eigen planning (return user_id == huidige_gebruiker_id)
-- ✅ Meerdere iteraties naar clean architecture
-- **Bestanden:**
-  - `gui/widgets/grid_kalender_base.py` (template method)
-  - `gui/widgets/planner_grid_kalender.py` (override)
-  - `gui/widgets/teamlid_grid_kalender.py` (override)
+### Test Scripts (2 nieuwe files)
 
-**5. Bug Fixes:**
-- ✅ Missing import: `List` toegevoegd aan planner_grid_kalender.py
-- ✅ Month navigation: Index berekening gecorrigeerd (self.maand - 1 ipv self.maand)
-- ✅ Filter behavior: Van hacky forceful reset naar clean template method
+**1. `test_constraint_scenarios.py`**
+- 13 automated test scenarios
+- Tests: RX/CX, werkdagen reeks, uren week, rust, cyclus
+- All tests PASSED
 
-**6. Documentatie Updates:**
-- ✅ config.py: APP_VERSION = "0.6.18"
-- ✅ CLAUDE.md: Versie + status update
-- ✅ DEVELOPMENT_GUIDE.md: Versie + datum, technical debt sectie verwijderd (122 regels)
-- ✅ DEV_NOTES.md: Sessie entry, prioriteiten updated
-- ✅ PROJECT_INFO.md: v0.6.18 release notes met workflows
-- ✅ SESSION_LOG.md: Finalisatie met complete resultaten
-
-**7. Backups & Safety:**
-- ✅ Backups gemaakt: `backups/refactoring_grid_kalenders_20251027/`
-- ✅ Restore instructies gedocumenteerd
-- ✅ Refactoring checklist met troubleshooting
-
-### 📁 Gewijzigde Bestanden (9 totaal)
-
-**Code (5 files):**
-1. `gui/widgets/grid_kalender_base.py` (+116 regels)
-2. `gui/widgets/planner_grid_kalender.py` (-90 regels)
-3. `gui/widgets/teamlid_grid_kalender.py` (-80 regels)
-4. `gui/screens/mijn_planning_screen.py` (status indicator)
-5. `config.py` (APP_VERSION = "0.6.18")
-
-**Documentatie (4 files):**
-6. `CLAUDE.md` (versie update)
-7. `DEVELOPMENT_GUIDE.md` (versie + technical debt verwijderd)
-8. `DEV_NOTES.md` (sessie entry + prioriteiten)
-9. `PROJECT_INFO.md` (v0.6.18 release notes)
-
-### 🎯 Impact & Verbetering
-
-**Code Quality:**
-- 54 regels minder code (-2.3%)
-- DRY principle toegepast
-- Single source of truth voor shared logic
-- Template Method Pattern voor clean inheritance
-
-**Maintainability:**
-- Bug fixes in 1 plek = beide widgets automatisch gefixed
-- Duidelijke separation of concerns (base vs subclass)
-- Required override pattern voorkomt vergeten implementaties
-
-**UX Improvements:**
-- Consistent navigatie ervaring (planner + teamlid)
-- Transparantie over planning status voor teamleden
-- Duidelijke visual feedback (geel/groen indicator)
-
-**Development Speed:**
-- Template methods maken toekomstige features sneller
-- Code reuse: Feature inheritance automatisch
-- Fail-fast design voorkomt productie bugs
-
-### 🏆 Achievements
-
-- ✅ **Hoofddoel:** 170 regels duplicatie geëlimineerd
-- ✅ **Bonus 1:** Navigatie buttons voor teamlid (kwam gratis!)
-- ✅ **Bonus 2:** Status indicator voor teamleden (15-20 min extra)
-- ✅ **Bonus 3:** Filter architecture verbetering (clean code)
-- ✅ **Bug fixes:** 3 issues opgelost (import, navigation index, filter)
-- ✅ **Documentatie:** 4 technische documenten geüpdatet
-- ✅ **Klaar voor release:** v0.6.18 compleet gedocumenteerd
+**2. `test_segmented_rx_check.py`**
+- 3 scenarios voor segmented check
+- Tests: partial planning, complete planning, gap detection
+- All tests PASSED
 
 ---
 
-## 🎯 VOOR VOLGENDE SESSIE
+## 📝 METADATA
 
-**v0.6.18 is compleet! ✅**
+**Versie:** v0.6.26
+**Branch:** master
+**Bugs Fixed:** 1 (BUG-005: Segmented RX Check)
+**Tests Added:** 16 scenarios (13 comprehensive + 3 segmented)
+**Code Quality:** All tests passing, geen regressies
 
-**Volgende Prioriteiten (zie DEV_NOTES.md):**
-1. **Typetabel Activatie Flow** (~3-4 uur)
-   - Activeren dialog met datum picker
-   - Validatie checklist (alle weken ingevuld?)
-   - Status transitie (concept → actief, oud actief → archief)
-   - Gebruikers controle (startweek binnen bereik?)
+**Files Changed:**
+- `services/constraint_checker.py` (refactored + 2 new methods)
+- `scripts/test_constraint_scenarios.py` (NEW - 489 lines)
+- `scripts/test_segmented_rx_check.py` (NEW - 230 lines)
+- `scripts/debug_12u_cross_month.py` (NEW - debug helper)
+- `SESSION_LOG.md` (updated - dit bestand)
 
-2. **Validatie Systeem (HR Regels)** (~4-5 uur)
-   - PlanningValidator class implementeren
-   - 12u rust check tussen shifts
-   - 50u/week maximum check
-   - 19 dagen per 28-dagen cyclus check
-   - Visuele feedback in grid (rood/geel/groen)
-
-3. **Planning Editor Bulk Operaties** (~3-4 uur)
-   - Copy Week / Paste Week functionaliteit
-   - Clear Range met datum selectie
-   - Keyboard shortcuts (Ctrl+C, Ctrl+V, Delete)
+**Next Steps:**
+- [ ] Move summary naar DEV_NOTES.md
+- [ ] User manual testing met november 2024 data
+- [ ] Consider: extend segmented pattern naar andere checks?
 
 ---
 
-## 💡 LESSEN TIJDENS SESSIE
+## 🎉 SESSIE RESULTAAT
 
-### Code Quality
-1. **Backups essentieel** - Backups gaven vertrouwen voor grote refactoring
-2. **Checklist werkt perfect** - Stap-voor-stap approach voorkwam fouten
-3. **Template method pattern** - Perfecte oplossing voor shared + specific functionaliteit
-4. **Required override > default** - NotImplementedError voorkomt vergeten implementaties (fail-fast)
-5. **DRY principle pays off** - 54 regels minder, betere maintainability
+**Status:** ✅ SUCCESS
 
-### Development Process
-1. **Iterative improvement** - Filter fix nam 3 iteraties, maar eindresultaat is clean
-2. **Test per phase** - Direct testen na elke wijziging voorkwam grote problemen
-3. **Documentatie tijdens sessie** - SESSION_LOG hielp crash recovery + planning
-4. **Bonus features gratis** - Template methods maakten navigatie buttons automatisch beschikbaar
+**Achievements:**
+1. ✅ 13 constraint scenarios automated en verified
+2. ✅ Segmented RX check geïmplementeerd (BUG-005)
+3. ✅ All tests passing (16/16)
+4. ✅ Geen regressies in bestaande checks
+5. ✅ User problem opgelost (weekend invulling werkt)
 
-### Architecture Patterns
-1. **Template Method Pattern** - Best practice voor inheritance met customization hooks
-2. **Required override pattern** - Expliciete contract, crash early (niet in productie)
-3. **Separation of concerns** - Base class vs subclass responsibilities duidelijk gescheiden
-4. **Signal-based communication** - PyQt signals voor gedecoupelde inter-component updates
-
-### Bug Fixing
-1. **Multiple iterations OK** - Filter bug nam 3 pogingen, maar eindoplossing is superieur
-2. **Architecture > hacky fixes** - Template method beter dan forceful reset in __init__
-3. **Import errors easy to miss** - Altijd check typing imports (List, Dict, Optional)
-4. **Index calculations tricky** - 0-based vs 1-based, self.maand - 1 voor combo box
+**Impact:**
+- Partial planning invulling nu mogelijk zonder noise
+- Complete planning blijft correct gevalideerd
+- Test coverage dramatisch verbeterd
+- Confidence in constraint checker systeem ↑↑↑
 
 ---
 
-*Voor vorige sessie (24 okt): Zie DEV_NOTES.md (Multi-Cell Selectie v0.6.17)*
-*Voor permanente logs: Zie DEV_NOTES.md*
-*Voor historische sessies: Zie DEV_NOTES_ARCHIVE.md*
-
-*Laatste update: 27 Oktober 2025 - 18:00*
-*Versie: 0.6.18 ✅ VOLTOOID*
+**Session End:** ~17:00
+**Duration:** ~3 uur
+**Outcome:** EXCELLENT - Major quality improvement

@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Optional
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                              QComboBox, QScrollArea, QWidget, QGridLayout,
                              QCheckBox, QDialog, QDialogButtonBox)
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QFont
 from gui.widgets.grid_kalender_base import GridKalenderBase
 from gui.styles import Styles, Colors, Fonts, Dimensions
@@ -48,9 +48,38 @@ class TeamlidGridKalender(GridKalenderBase):
         header = self.create_header()
         layout.addLayout(header)
 
-        # Grid container (wordt gevuld door build_grid)
-        self.grid_container = QWidget()
-        layout.addWidget(self.grid_container)
+        # FROZEN COLUMNS (v0.6.25) - Dual scroll area pattern
+        # Splits grid in frozen deel (naam) en scrollable deel (datums)
+        h_layout = QHBoxLayout()
+        h_layout.setSpacing(0)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+
+        # LINKER deel: Frozen kolom (naam)
+        self.frozen_scroll = QScrollArea()
+        self.frozen_scroll.setWidgetResizable(True)
+        self.frozen_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.frozen_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # Sync met rechts
+        self.frozen_container = QWidget()
+        self.frozen_scroll.setWidget(self.frozen_container)
+        self.frozen_scroll.setFixedWidth(280)  # Alleen naam kolom
+
+        # RECHTER deel: Scrollable kolommen (datums)
+        self.scrollable_scroll = QScrollArea()
+        self.scrollable_scroll.setWidgetResizable(True)
+        self.scrollable_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.scrollable_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scrollable_container = QWidget()
+        self.scrollable_scroll.setWidget(self.scrollable_container)
+
+        # Synchroniseer vertical scrollbars (frozen volgt scrollable)
+        self.scrollable_scroll.verticalScrollBar().valueChanged.connect(  # type: ignore
+            self.frozen_scroll.verticalScrollBar().setValue
+        )
+
+        h_layout.addWidget(self.frozen_scroll)
+        h_layout.addWidget(self.scrollable_scroll)
+
+        layout.addLayout(h_layout)
 
         layout.addStretch()
 
@@ -124,14 +153,21 @@ class TeamlidGridKalender(GridKalenderBase):
         self.build_grid()
 
     def build_grid(self) -> None:
-        """Bouw de grid met namen en datums"""
-        # Clear bestaande layout
-        if self.grid_container.layout():
-            QWidget().setLayout(self.grid_container.layout())
+        """Bouw de grid met namen en datums - SPLIT in frozen + scrollable (v0.6.25)"""
+        # Clear bestaande layouts
+        if self.frozen_container.layout():
+            QWidget().setLayout(self.frozen_container.layout())
+        if self.scrollable_container.layout():
+            QWidget().setLayout(self.scrollable_container.layout())
 
-        grid_layout = QGridLayout()
-        grid_layout.setSpacing(0)
-        grid_layout.setContentsMargins(0, 0, 0, 0)
+        # Maak twee aparte layouts
+        frozen_layout = QGridLayout()
+        frozen_layout.setSpacing(0)
+        frozen_layout.setContentsMargins(0, 0, 0, 0)
+
+        scrollable_layout = QGridLayout()
+        scrollable_layout.setSpacing(0)
+        scrollable_layout.setContentsMargins(0, 0, 0, 0)
 
         # Haal datum lijst en zichtbare gebruikers
         datum_lijst = self.get_datum_lijst(start_offset=0, eind_offset=0)
@@ -141,11 +177,13 @@ class TeamlidGridKalender(GridKalenderBase):
             # Geen gebruikers geselecteerd
             info = QLabel("Geen teamleden geselecteerd. Gebruik de filter knop.")
             info.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; padding: 20px;")
-            grid_layout.addWidget(info, 0, 0)
-            self.grid_container.setLayout(grid_layout)
+            frozen_layout.addWidget(info, 0, 0)
+            self.frozen_container.setLayout(frozen_layout)
+            self.scrollable_container.setLayout(scrollable_layout)
             return
 
-        # Header rij: namen kolom + datums
+        # ============== FROZEN HEADER (naam kolom) ==============
+        # Naam header → frozen kolom 0
         naam_header = QLabel("Teamlid")
         naam_header.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL, QFont.Weight.Bold))
         naam_header.setStyleSheet(f"""
@@ -157,11 +195,12 @@ class TeamlidGridKalender(GridKalenderBase):
                 qproperty-alignment: AlignCenter;
             }}
         """)
-        naam_header.setFixedWidth(280)  # Verhoogd van 200 naar 280 voor lange namen
-        grid_layout.addWidget(naam_header, 0, 0)
+        naam_header.setFixedWidth(280)
+        frozen_layout.addWidget(naam_header, 0, 0)
 
-        # Datum headers
-        for col, (datum_str, label) in enumerate(datum_lijst, start=1):
+        # ============== SCROLLABLE HEADERS (datum kolommen) ==============
+        # Datum headers starten bij scrollable kolom 0
+        for col, (datum_str, label) in enumerate(datum_lijst):
             datum_header = QLabel(label)
             datum_header.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_TINY, QFont.Weight.Bold))
 
@@ -196,13 +235,13 @@ class TeamlidGridKalender(GridKalenderBase):
                 """)
 
             datum_header.setFixedWidth(60)
-            grid_layout.addWidget(datum_header, 0, col)
+            scrollable_layout.addWidget(datum_header, 0, col)  # Scrollable headers
 
-        # Data rijen: per gebruiker
+        # ============== DATA RIJEN (split in frozen + scrollable) ==============
         for row, gebruiker in enumerate(zichtbare_gebruikers, start=1):
             gebruiker_id = gebruiker['id']
 
-            # Naam kolom
+            # ---- FROZEN: Naam kolom → frozen kolom 0 ----
             naam_label = QLabel(gebruiker['volledige_naam'])
             naam_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
             naam_label.setStyleSheet(f"""
@@ -212,16 +251,18 @@ class TeamlidGridKalender(GridKalenderBase):
                     border: 1px solid {Colors.BORDER_LIGHT};
                 }}
             """)
-            naam_label.setFixedWidth(280)  # Verhoogd van 200 naar 280 voor lange namen
-            grid_layout.addWidget(naam_label, row, 0)
+            naam_label.setFixedWidth(280)
+            frozen_layout.addWidget(naam_label, row, 0)
 
-            # Shift cellen
-            for col, (datum_str, _) in enumerate(datum_lijst, start=1):
+            # ---- SCROLLABLE: Datum cellen → scrollable kolom 0+ ----
+            for col, (datum_str, _) in enumerate(datum_lijst):  # Start bij kolom 0 in scrollable
                 cel = self.create_shift_cel(datum_str, gebruiker_id, mode='teamlid')
                 cel.setFixedWidth(60)
-                grid_layout.addWidget(cel, row, col)
+                scrollable_layout.addWidget(cel, row, col)  # Scrollable layout
 
-        self.grid_container.setLayout(grid_layout)
+        # Set layouts op containers
+        self.frozen_container.setLayout(frozen_layout)
+        self.scrollable_container.setLayout(scrollable_layout)
 
     def create_shift_cel(self, datum_str: str, gebruiker_id: int, mode: str) -> QLabel:
         """

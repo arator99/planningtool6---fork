@@ -276,16 +276,16 @@ class ShiftCodesScreen(QWidget):
             self.werkposten_tabel.setCellWidget(row, 3, acties_widget)
 
     def format_shift_codes_overzicht(self, werkpost_id: int) -> str:
-        """Formatteer shift codes overzicht - Weekdag: V=7101, L=7201"""
+        """Formatteer shift codes overzicht - Weekdag: V=7101 ⚠, L=7201"""
         try:
             conn = get_connection()
             cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT dag_type, shift_type, code
+                SELECT dag_type, shift_type, code, is_kritisch
                 FROM shift_codes
                 WHERE werkpost_id = ?
-                ORDER BY 
+                ORDER BY
                     CASE dag_type
                         WHEN 'weekdag' THEN 1
                         WHEN 'zaterdag' THEN 2
@@ -320,7 +320,9 @@ class ShiftCodesScreen(QWidget):
                     'dag': 'D'
                 }.get(shift['shift_type'], shift['shift_type'][0].upper())
 
-                per_dag[dag].append(f"{afkorting}={shift['code']}")
+                # Voeg kritisch indicator toe
+                kritisch_tag = " ⚠" if shift['is_kritisch'] else ""
+                per_dag[dag].append(f"{afkorting}={shift['code']}{kritisch_tag}")
 
             # Formatteer per regel
             regels = []

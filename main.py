@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.current_user: Optional[Dict[str, Any]] = None
         self.login_screen: Optional[LoginScreen] = None
+        self.dashboard: Optional[DashboardScreen] = None
 
         # Stacked widget voor schermen wisselen
         self.stack = QStackedWidget()
@@ -122,11 +123,12 @@ class MainWindow(QMainWindow):
         self.apply_theme()
 
         dashboard = DashboardScreen(self.current_user)
+        self.dashboard = dashboard
 
         # FIXED: Signal namen moeten matchen met DashboardScreen
         dashboard.logout_signal.connect(self.on_logout)  # type: ignore
         dashboard.planning_clicked.connect(self.on_planning_clicked)  # type: ignore
-        dashboard.verlof_clicked.connect(self.on_verlof_clicked)  # type: ignore
+        #dashboard.verlof_clicked.connect(self.on_verlof_clicked)  # type: ignore
         dashboard.gebruikers_clicked.connect(self.on_gebruikers_clicked)  # type: ignore
         dashboard.typedienst_clicked.connect(self.on_typedienst_clicked)  # type: ignore
         dashboard.voorkeuren_clicked.connect(self.on_voorkeuren_clicked)  # type: ignore
@@ -265,21 +267,43 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(scherm)
         self.stack.setCurrentWidget(scherm)
 
-    def on_verlof_clicked(self) -> None:
-        """Verlof scherm openen (nog niet gebouwd)"""
-        if self.current_user:
-            print(f"Verlof clicked - Rol: {self.current_user['rol']}")
-        # TODO: Implementeer verlof scherm
+    #vervangen door verlof_aanvragen
+    #def on_verlof_clicked(self) -> None:
+    #    """Verlof scherm openen (nog niet gebouwd)"""
+    #    if self.current_user:
+    #        print(f"Verlof clicked - Rol: {self.current_user['rol']}")
+    #    # TODO: Implementeer verlof scherm
 
     def on_planning_editor_clicked(self) -> None:
-        """Open planning editor scherm"""
+        """
+        Open planning editor scherm
+
+        PERFORMANCE OPTIMALISATIE (v0.6.25):
+        Toon eerst configuratie dialog om te filteren wat geladen moet worden
+        """
         if not self.current_user:
             return
 
+        from gui.dialogs.planning_sessie_configuratie_dialog import PlanningSessieConfiguratieDialog
         from gui.screens.planning_editor_screen import PlanningEditorScreen
-        scherm = PlanningEditorScreen(self.terug)
-        self.stack.addWidget(scherm)
-        self.stack.setCurrentWidget(scherm)
+        from PyQt6.QtWidgets import QDialog
+
+        # Toon configuratie dialog
+        dialog = PlanningSessieConfiguratieDialog(self)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Haal configuratie op
+            config = dialog.get_configuratie()
+
+            # Open planning editor met configuratie
+            scherm = PlanningEditorScreen(
+                router=self.terug,
+                jaar=config['jaar'],
+                maand=config['maand'],
+                gebruiker_ids=config['gebruiker_ids']
+            )
+            self.stack.addWidget(scherm)
+            self.stack.setCurrentWidget(scherm)
 
     def on_verlof_aanvragen_clicked(self) -> None:
         """Open verlof aanvragen scherm"""
@@ -298,6 +322,8 @@ class MainWindow(QMainWindow):
 
         from gui.screens.verlof_goedkeuring_screen import VerlofGoedkeuringScreen
         scherm = VerlofGoedkeuringScreen(self.terug, self.current_user['id'])
+        if self.dashboard:
+            scherm.verlofGoedgekeurd.connect(self.dashboard.refresh_verlof_badge)
         self.stack.addWidget(scherm)
         self.stack.setCurrentWidget(scherm)
 

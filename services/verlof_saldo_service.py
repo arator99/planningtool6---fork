@@ -71,8 +71,8 @@ class VerlofSaldoService:
                 'bestaat': False
             }
 
-        # Bereken opgenomen uit aanvragen (meest actueel)
-        vv_opgenomen, kd_opgenomen = VerlofSaldoService.bereken_opgenomen_uit_aanvragen(
+        # Bereken opgenomen uit planning (meest actueel - handmatige wijzigingen meegenomen)
+        vv_opgenomen, kd_opgenomen = VerlofSaldoService.bereken_opgenomen_uit_planning(
             gebruiker_id, jaar
         )
 
@@ -200,7 +200,7 @@ class VerlofSaldoService:
         kd_dagen = 0
 
         for row in cursor.fetchall():
-            # Bereken werkdagen tussen start en eind (exclusief weekends/feestdagen)
+            # Bereken kalenderdagen tussen start en eind (inclusief weekends)
             dagen = VerlofSaldoService._bereken_werkdagen(
                 row['start_datum'],
                 row['eind_datum']
@@ -265,8 +265,8 @@ class VerlofSaldoService:
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Bereken opgenomen uit aanvragen
-        vv_opgenomen, kd_opgenomen = VerlofSaldoService.bereken_opgenomen_uit_aanvragen(
+        # Bereken opgenomen uit planning
+        vv_opgenomen, kd_opgenomen = VerlofSaldoService.bereken_opgenomen_uit_planning(
             gebruiker_id, jaar
         )
 
@@ -317,45 +317,22 @@ class VerlofSaldoService:
     @staticmethod
     def _bereken_werkdagen(start_datum_str: str, eind_datum_str: str) -> int:
         """
-        Bereken aantal werkdagen tussen start en eind datum.
-        Exclusief weekends en feestdagen.
+        Bereken aantal kalenderdagen tussen start en eind datum.
+        Inclusief weekends en feestdagen.
 
         Args:
             start_datum_str: Start datum (ISO format YYYY-MM-DD)
             eind_datum_str: Eind datum (ISO format YYYY-MM-DD)
 
         Returns:
-            Aantal werkdagen
+            Aantal kalenderdagen (inclusief weekends)
         """
         # Parse datums
         start = datetime.strptime(start_datum_str, '%Y-%m-%d').date()
         eind = datetime.strptime(eind_datum_str, '%Y-%m-%d').date()
 
-        # Haal feestdagen op voor deze periode
-        conn = get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            SELECT datum FROM feestdagen
-            WHERE datum BETWEEN ? AND ?
-        """, (start_datum_str, eind_datum_str))
-
-        feestdagen = {row['datum'] for row in cursor.fetchall()}
-
-        # Tel werkdagen
-        werkdagen = 0
-        current = start
-
-        while current <= eind:
-            # Skip weekends (5=Saturday, 6=Sunday)
-            if current.weekday() < 5:
-                # Skip feestdagen
-                if current.strftime('%Y-%m-%d') not in feestdagen:
-                    werkdagen += 1
-
-            current += timedelta(days=1)
-
-        return werkdagen
+        # Bereken aantal dagen (inclusief start en eind dag)
+        return (eind - start).days + 1
 
     @staticmethod
     def get_alle_saldi(jaar: int, alleen_actief: bool = True) -> list[dict]:
@@ -399,8 +376,8 @@ class VerlofSaldoService:
 
         resultaten = []
         for row in cursor.fetchall():
-            # Bereken actuele opgenomen dagen
-            vv_opgenomen, kd_opgenomen = VerlofSaldoService.bereken_opgenomen_uit_aanvragen(
+            # Bereken actuele opgenomen dagen uit planning
+            vv_opgenomen, kd_opgenomen = VerlofSaldoService.bereken_opgenomen_uit_planning(
                 row['gebruiker_id'], jaar
             )
 

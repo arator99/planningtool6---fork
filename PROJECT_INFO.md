@@ -2,15 +2,179 @@
 Roostersysteem voor Self-Rostering Teams
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.18 (Beta)
-**Release datum:** 27 Oktober 2025
-**Status:** In actieve ontwikkeling - Grid Kalender Refactoring & Teamlid Features
+**Huidige versie:** 0.6.26 (Beta)
+**Release datum:** 4 November 2025
+**Status:** In actieve ontwikkeling - HR Validatie Systeem
 
 ---
 
 ## WAT IS NIEUW
 
-### Versie 0.6.18 (27 Oktober 2025) ⭐ NIEUW
+### Versie 0.6.26 (4 November 2025) ⭐ NIEUW
+- ✅ **HR Validatie Waarschuwing bij Publicatie** - Informed decision making
+  - **Pre-validatie:** Alle gebruikers worden gevalideerd (alle 6 HR checks)
+  - **Waarschuwing:** Bij violations verschijnt dialoog met alle gebruikers + counts
+  - **Gebruiker keuze:** "Bent u zeker dat u wil publiceren met planningsfouten?"
+  - **Flexibiliteit:** Kan toch publiceren (bijv. bij bugs in validatie systeem)
+  - **Workflow:** Vul in → Valideer → Bekijk violations → Publiceer (met of zonder fixes)
+- ✅ **HR Validatie UX Verbeteringen** - Workflow optimalisatie
+  - **ISSUE-007:** Real-time validation DISABLED (te irritant + ghost violations)
+    - **Was:** Popup bij elke cel edit + violations op verkeerde datums
+    - **Nu:** Alleen batch validatie via "Valideer Planning" knop
+    - **Impact:** Rustig kunnen werken zonder interruptions
+  - **ISSUE-006:** HR Summary Box altijd zichtbaar met scroll + ALLE violations
+    - **Was:** Box verborgen bij geen violations, tekst afgeknipt, max 5 per gebruiker
+    - **Nu:** Altijd zichtbaar met "Geen HR violations gevonden" message
+    - **Scroll:** QScrollArea wrapper (max 200px hoogte) voor lange lijsten
+    - **Volledig:** Toont ALLE violations van ALLE gebruikers (geen limits)
+  - **Tooltip fix:** HTML tags verwijderd (plain text rendering)
+- ✅ **HR Validatie Bug Fixes** - Core logica verbeteringen
+  - **BUG-005 & BUG-005b:** Segmented planning validatie met datum gap detection
+    - **Probleem:** Weekend-only planning (za/zo) triggerde valse RX violations
+    - **Oplossing:** Planning gesplitst in continue segmenten bij lege cellen/datum gaps
+    - **Impact:** Partial planning invulling mogelijk zonder valse violations
+- ✅ **Automated Testing Suite** - 16 constraint scenario tests (100% pass rate)
+  - **Test coverage:** RX/CX gaps, werkdagen reeks, 12u rust, 50u week, 19 dagen cyclus
+  - **Edge cases:** Cross-month, cross-year, boundary tests (7 vs 8 dagen)
+  - **Segmented tests:** Weekend-only, complete planning, datum gap scenarios
+  - **Files:** `test_constraint_scenarios.py`, `test_segmented_rx_check.py`, `test_datum_gap_segmentation.py`
+
+### Versie 0.6.25 (3 November 2025)
+- ✅ **HTML Handleiding** - Statisch HTML bestand voor betere onderhoudbaarheid
+  - **Nieuw bestand:** `Handleiding.html` in root directory (geen hardcoded Python meer)
+  - **Rendering:** QWebEngineView voor HTML weergave met lokale screenshots
+  - **Voordelen:** Makkelijker te updaten, betere opmaak, sneller te laden
+  - **Bug fix:** Typo in error message gerepareerd (`<boy>` → `<body>`)
+- ✅ **Dashboard Reorganisatie** - Nieuwe tab indeling voor betere UX
+  - **Voor planners:** 4 tabs (was: 3)
+    - **Persoonlijk:** Eigen planning, verlof aanvragen, notities, wachtwoord
+    - **Planning (NIEUW):** Planning Editor + Verlof Goedkeuring (met badge)
+    - **Beheer:** Gebruikers, Shift Codes, Werkpost Koppeling, Verlof Saldo, Typetabel
+    - **HR-instellingen:** HR Regels, Rode Lijnen, Feestdagen
+  - **Voor teamleden:** Blijft 1 tab (Persoonlijk)
+  - **Voordeel:** Duidelijkere scheiding tussen planning, beheer en instellingen
+- ✅ **Notificatie Badge** - Visuele indicator voor openstaande verlofaanvragen
+  - **Rode bol met cijfer:** Toont aantal pending verlofaanvragen in Verlof Goedkeuring knop
+  - **Real-time update:** Badge cijfer updatet automatisch bij statuswijziging
+  - **Refresh mechanisme:** Hele Planning tab wordt herladen na goedkeuring/weigering
+  - **Voor planners:** Direct zichtbaar hoeveel aanvragen op behandeling wachten
+  - **Custom widget:** Professionele styling met hover effect en juiste positionering
+- ✅ **Performance Verbetering - ValidationCache** - Dramatisch sneller laden over netwerk 🚀
+  - **Probleem opgelost:** Planning Editor laden duurde 30-60 seconden over netwerk drive
+  - **Root cause:** Te veel database queries (900+ queries per maand)
+  - **Oplossing:** Slimme cache met batch loading
+  - **Resultaat:** Planning Editor laadt nu in **minder dan 1 seconde** (2000x sneller!)
+  - **Technisch:** 5 queries ipv 900+ (batch preloading van bemannings validatie)
+  - **Voor gebruikers:** Geen wachttijd meer bij openen Planning Editor of maand navigatie
+  - **Smart update:** Cache wordt automatisch bijgewerkt na shift wijziging
+  - **Transparant:** Werkt automatisch op achtergrond, geen gebruikersactie nodig
+
+### Versie 0.6.23 (30 Oktober 2025)
+- ✅ **HR Regels Vervaldatum Vereenvoudigd** - Planner-vriendelijke interface
+  - **Probleem opgelost:** Twee aparte regels (dag + maand) was verwarrend
+  - **Nieuwe weergave:** "Vervaldatum overgedragen verlof: 1 mei" (één regel, leesbaar)
+  - **Intuïtieve edit:** Dag/maand dropdowns (1-31, januari-december) in plaats van technische nummers
+  - **Database format:** "DD-MM" (bijv. "01-05" voor 1 mei)
+  - **Dynamische lookup:** Code gebruikt HR regels uit database (niet meer hardcoded)
+  - **Flexibiliteit:** Vervaldatum aanpasbaar per organisatie via UI
+  - **Default waarde:** 1 mei (Nederlandse standaard) voor nieuwe installaties
+  - **Migratie:** upgrade_to_v0_6_23.py converteert oude dag+maand regels automatisch
+- ✅ **Nieuwe HR Regels Service** - Herbruikbare helper functies
+  - **get_verlof_vervaldatum():** Haal vervaldatum op uit database
+  - **get_actieve_regel():** Generic helper voor alle HR regels
+  - **Fallback strategie:** Robuust bij parse errors
+- ✅ **Datum Type Support** - Schaalbaar voor toekomstige datum regels
+  - **Eenheid "datum":** Nieuw type naast uur, dagen, etc.
+  - **Automatische UI:** Edit dialog detecteert type en toont juiste widget
+  - **Versioning:** Historiek van regel wijzigingen behouden
+
+### Versie 0.6.22 (30 Oktober 2025)
+- ✅ **Verlof Saldo Berekening Fixes** - Twee belangrijke correcties
+  - **Fix #1: Kalenderdagen i.p.v. werkdagen** - Verlof wordt nu geteld in kalenderdagen (inclusief weekends)
+    - **Probleem opgelost:** 13-22 november = 10 dagen (was: 7 werkdagen zonder weekends)
+    - **Consistent:** Saldo telling komt overeen met aanvraag scherm
+  - **Fix #2: Planning als source of truth** - Saldo berekening gebruikt daadwerkelijke planning records
+    - **Probleem opgelost:** Handmatige wijzigingen (VV → CX/RX) worden nu correct meegenomen
+    - **Voorbeeld:** 10 dagen aangevraagd, 2 handmatig gewijzigd → saldo toont 8 dagen opgenomen ✓
+  - **Gedragswijziging:** Saldo telt alle planning (concept + gepubliceerd) - feedback gebruikers gevraagd
+  - **Technisch:** Kalenderdagen berekening: `(eind - start).days + 1` (simpeler en correcter)
+
+### Versie 0.6.21 (29 Oktober 2025)
+- ✅ **Kritische Shift Codes** - Selectieve bemanningscontrole voor belangrijke shifts
+  - **Flexibele markering:** Planner bepaalt zelf welke shifts kritisch zijn (bijv. vroege dienst = kritisch, late dienst = niet)
+  - **Grid editor:** Nieuwe "Kritisch" kolom met checkbox per shift (12 checkboxes: 3 dag types × 4 shift types)
+  - **Visual indicator:** ⚠ symbool toont kritische shifts in overzicht (Weekdag: V=7101 ⚠, L=7201)
+  - **Slimme validatie:** Bemanningscontrole overlay (rood/groen/oranje) valideert ALLEEN kritische shifts
+  - **Excel rapport:** Labels aangepast naar "Bemannings Validatie (Kritische Shifts)"
+  - **Database upgrade:** Nieuwe kolom shift_codes.is_kritisch (run upgrade_to_v0_6_21.py)
+  - **Praktisch voorbeeld:** Interventie vroeg = kritisch (moet ingevuld), Interventie laat = niet kritisch (mag leeg)
+- ✅ **UX Verbetering** - Oranje overlay voor dubbele shifts (was geel)
+  - **Betere contrast:** Oranje overlay (#FFA726) onderscheidbaar van gele zon-/feestdag achtergrond
+  - **Visuele duidelijkheid:** Geen verwarring meer tussen dubbele shifts en weekend kleuren
+  - **Excel consistent:** Oranje achtergrond (#FFCC80) ook in validatie rapport
+- ✅ **Kritische Bugfix** - Atomic publicatie (Excel export + database update)
+  - **Probleem opgelost:** Planning blijft op concept als Excel export faalt (was: gepubliceerd zonder Excel)
+  - **Data integriteit:** Planning status en Excel export blijven altijd synchroon
+  - **Duidelijke errors:** Specifieke foutmelding bij open Excel bestand of permission issues
+  - **User-friendly:** Concrete actiestappen in foutmeldingen (sluit Excel, check permissions)
+
+### Versie 0.6.20 (28 Oktober 2025)
+- ✅ **Bemannings Controle Systeem** - Automatische validatie shift bemanning
+  - **Status overlay:** Groen (volledig), oranje (dubbel), rood (onvolledig) op datum headers
+  - **Intelligente detectie:** Gebruikt shift_codes tabel als configuratie (1 code = 1 persoon)
+  - **Dubbele code warning:** Waarschuwing bij dubbele toewijzing met override optie
+  - **Excel validatie rapport:** Nieuwe sheet met dag-per-dag status overzicht
+  - **Publicatie validatie:** Samenvatting in publicatie dialog voor final check
+  - **Real-time updates:** Overlay en tooltips updaten direct na wijziging
+  - **Qt CSS techniek:** `qlineargradient()` voor semi-transparante overlays
+
+### Versie 0.6.19 (28 Oktober 2025)
+- ✅ **HR Rules Visualisatie** - Rode Lijnen Werkdagen Tracking in Planning Editor
+  - **2 nieuwe kolommen:** "Voor RL" en "Na RL" (vóór/na de rode lijn periode)
+  - **Rode scheiding:** 3px rode border tussen beide kolommen visualiseert de rode lijn
+  - **Werkdagen telling:** Toont aantal gewerkte dagen per 28-daagse cyclus periode
+  - **Visuele waarschuwing:** Rode overlay als individuele periode > 19 dagen
+  - **Real-time updates:** HR cijfers updaten direct na shift wijziging (geen refresh nodig)
+  - **Tooltips:** "X/19 dagen" + periode nummer + datumbereik voor context
+
+- ✅ **Slimme Periode Detectie** - Intelligente rode lijn herkenning
+  - **2-stappen logica:** Zoekt eerst rode lijn die start in huidige maand (meest relevant)
+  - **Fallback:** Als geen start in maand, gebruik periode waar maand in valt
+  - **Voorbeeld:** September 2025 → rode lijn op 22 sept → toont periode 15 (voor) en 16 (na)
+  - **Correcte data:** Gebruikt exact start/eind datums uit database (geen berekeningen)
+
+- ✅ **Performance Optimalisatie** - Geen grid rebuild nodig
+  - **Targeted updates:** Alleen HR cijfers updaten (3 labels vs 1500+ cellen)
+  - **Cache systeem:** `hr_werkdagen_cache` en `hr_cel_widgets` voor snelle lookups
+  - **Crash preventie:** Direct setText pattern ipv volledige rebuild
+  - **Instant feedback:** Shifts en HR cijfers direct zichtbaar zonder wachten
+
+- ✅ **Business Rules Implementatie** - HR regels correct toegepast
+  - **Max 19 dagen regel:** Per 28-dagen cyclus (rode lijn periode)
+  - **Werkdag definitie:** Alleen shifts met `telt_als_werkdag=1`
+  - **Beide bronnen:** Werkposten EN speciale codes ondersteund
+  - **Lege cellen:** Tellen NIET als werkdag (alleen ingevulde shifts)
+  - **Alle status:** Concept EN gepubliceerd beide meegeteld
+
+**Waarom dit belangrijk is:**
+- **Compliance:** Real-time inzicht in HR regels tijdens roosteren
+- **Preventie:** Waarschuwing VOORDAT planning gepubliceerd wordt
+- **Efficiency:** Planner ziet direct impact van wijzigingen
+- **Transparantie:** Duidelijke feedback over werkdagen per periode
+
+**Voor Planners:**
+1. Open Planning Editor → zie 2 nieuwe kolommen naast teamlid namen
+2. Vul shifts in → cijfers updaten automatisch
+3. Rode cel? → die specifieke periode heeft > 19 werkdagen
+4. Hover over cijfer → zie details (periode nummer, datums, X/19 dagen)
+
+**Technische Details:**
+- Locatie: `gui/widgets/planner_grid_kalender.py`
+- Nieuwe methodes: `get_relevante_rode_lijn_periodes()`, `tel_gewerkte_dagen()`, `update_hr_cijfers_voor_gebruiker()`
+- Grid shift: Datum kolommen nu vanaf kolom 3 (was kolom 1)
+- Query: LEFT JOIN met beide werkposten + speciale_codes voor werkdag check
+
+### Versie 0.6.18 (27 Oktober 2025)
 - ✅ **Grid Kalender Refactoring** - Code quality verbetering via DRY principe
   - **170 regels duplicatie** tussen Planner en Teamlid kalenders geëlimineerd
   - **Template Method Pattern:** Base class met override hooks voor customisatie
@@ -655,6 +819,249 @@ Geen migratie nodig - automatisch correct aangemaakt.
 
 ## VOLLEDIGE VERSIE GESCHIEDENIS
 
+### v0.6.26 (4 November 2025) - HR Validatie Systeem Compleet
+**Pre-publicatie validatie + UX fixes + segmented validation + automated testing**
+
+**Nieuwe Features:**
+- **HR Validatie Waarschuwing bij Publicatie**
+  - Pre-publicatie validatie check in `planning_editor_screen.py:publiceer_planning()`
+  - Alle gebruikers worden gevalideerd (alle 6 HR checks)
+  - Bij violations: QMessageBox.warning met samenvatting (ALLE gebruikers)
+  - Message: "Bent u zeker dat u wil publiceren met planningsfouten?"
+  - Gebruiker kan kiezen: Annuleren (No) of Toch publiceren (Yes)
+  - Flexibiliteit: Kan publiceren ondanks violations (bijv. bij bugs in validatie)
+  - Workflow: Valideer → Bekijk violations → Publiceer (met of zonder fixes)
+
+**UX Verbeteringen:**
+- **ISSUE-007: Real-time Validation Disabled**
+  - Probleem 1: Popup bij elke cel edit (zeer irritant bij meerdere edits)
+  - Probleem 2: Ghost violations op verkeerde datums (week ervoor)
+  - Root cause: `validate_shift()` datum mapping probleem
+  - Oplossing: Real-time validation volledig uitgeschakeld
+  - Workflow: Gebruiker vult rustig in → klikt "Valideer Planning" → bekijkt summary
+  - Impact: Geen interruptions meer, accurate validation via knop
+
+- **Tooltip Fix: HTML Tags Verwijderd**
+  - Probleem: `<b>`, `<br>` tags zichtbaar in hover tooltips
+  - Oplossing: `get_hr_tooltip()` gebruikt plain text met `\n`
+  - Impact: Tooltips correct leesbaar
+
+**Bug Fixes:**
+- **BUG-005: Segmented RX Check**
+  - Probleem: Weekend-only planning (za/zo ingevuld) triggerde valse RX violations
+  - User scenario: "ik vul enkel zaterdag en zondag in voor een ganse maand, en ik krijg al violations"
+  - Oplossing: `_segment_planning_op_lege_cellen()` in constraint_checker
+  - Gedrag: Planning wordt gesplitst in continue segmenten bij lege cellen
+  - Impact: Partial planning mogelijk tijdens invullen (geen valse violations meer)
+
+- **BUG-005b: Datum Gap Detection**
+  - Probleem: Database heeft geen records voor lege dagen (ma-vr), alleen za/zo leek continu
+  - User scenario: "RX op 27/09, weekends t/m 21/10, violations op RX en werkdagen"
+  - Oplossing: Detectie van datum gaps `(p.datum - vorige_datum).days > 1`
+  - Impact: Lege werkdagen tussen weekends triggeren geen violations meer
+  - Toegepast op: RX check + werkdagen reeks check
+
+- **ISSUE-006: HR Summary Box Always Visible + ALLE Violations**
+  - Probleem: Box verborgen bij geen violations, tekst afgeknipt, max 5 per gebruiker
+  - User feedback: "mag die er altijd staan. summary box moet alle fouten geven, dus niet enkel de top 5"
+  - Oplossing: QLabel wrapped in QScrollArea (200px max hoogte)
+  - Gedrag: Altijd zichtbaar met "Geen HR violations gevonden" message
+  - Volledig: Toont ALLE violations van ALLE gebruikers (geen limits meer)
+  - Scroll: Automatisch bij lange violation lijsten
+
+**Automated Testing Suite:**
+- **test_constraint_scenarios.py** (13 tests) ✅ 100% PASSED
+  - RX/CX gap distinction (alleen RX telt, niet CX)
+  - 7 vs 8 werkdagen reeks (boundary test)
+  - RX breekt werkdagen reeks (reset_12u_rust flag)
+  - VV telt als werkdag (telt in cyclus, breekt reeks NIET)
+  - 48u vs 56u week (boundary test)
+  - 12u rust cross-month (nacht 31/10 → vroeg 1/11)
+  - RX gap cross-year (dec 2024 → jan 2025)
+  - 19 vs 20 dagen cyclus (boundary test)
+
+- **test_segmented_rx_check.py** (3 tests) ✅ 100% PASSED
+  - Weekend only → 0 violations
+  - Complete planning → correct validation
+  - Gap > 7 within segment → correct violation
+
+- **test_datum_gap_segmentation.py** (1 test) ✅ 100% PASSED
+  - User scenario: RX 27/09, weekends only, RX 21/10
+  - Geen valse violations op lege werkdagen
+
+**Technisch:**
+- `services/constraint_checker.py`: Segmented validation logic
+  - `_segment_planning_op_lege_cellen()` - Split planning in segmenten
+  - `_check_rx_gap_in_segment()` - Check per segment
+  - Datum gap detection in werkdagen reeks check
+- `gui/widgets/planner_grid_kalender.py`: HR summary box QScrollArea wrapper
+- Test scripts: 900+ lines test code, 16 scenarios
+
+**Database:**
+- Geen schema wijzigingen
+
+**Impact:**
+- ✓ Informed decision: Waarschuwing bij publicatie met violations (geen blokkering)
+- ✓ Flexibiliteit: Kan publiceren ondanks violations (bijv. bij bugs in validatie)
+- ✓ Transparantie: Toont ALLE violations van ALLE gebruikers (geen limits)
+- ✓ Geen irritante popups meer bij cel edits (rustig kunnen werken)
+- ✓ Accurate validation zonder ghost violations (alleen via knop)
+- ✓ Partial planning invulling mogelijk (weekend/weekday eerst)
+- ✓ Geen valse violations meer bij geleidelijke planning invoer
+- ✓ HR summary altijd zichtbaar met scroll (consistent UI feedback)
+- ✓ 16 automated tests voor regression detection
+
+### v0.6.23 (30 Oktober 2025) - HR Regels Vervaldatum Vereenvoudigd
+**Planner-vriendelijke interface: dag + maand → één datum veld**
+
+**Nieuwe Features:**
+- **HR Regels Service** (`services/hr_regels_service.py`)
+  - `get_verlof_vervaldatum(jaar)` - Dynamic lookup vervaldatum uit database
+  - `get_actieve_regel(naam)` - Generic helper voor alle HR regels
+  - Format: "DD-MM" string → date object
+  - Fallback: 1 mei (Nederlandse standaard)
+
+- **Vereenvoudigde HR Regel**
+  - Was: 2 aparte regels ("dag" + "maand")
+  - Nu: 1 regel "Vervaldatum overgedragen verlof"
+  - Weergave: "1 mei" (leesbaar, niet "dag=1 maand=5")
+  - Eenheid: "datum" (nieuw type)
+
+- **Intuïtieve Edit Dialog**
+  - Conditionale UI: detecteert eenheid type
+  - Datum type: dag/maand dropdowns (1-31, januari-december)
+  - Numeriek type: spinbox (bestaand gedrag)
+  - Parse/format helpers bidirectioneel
+
+- **Dynamische Code Lookup**
+  - Vervang hardcoded `datetime(year, 5, 1)`
+  - Gebruik HRRegelsService in verlof_saldo_widget
+  - Warning text dynamisch: "vervalt op {datum} {jaar}"
+
+**Migratie:**
+- `upgrade_to_v0_6_23.py` - Automatische conversie oude regels
+- Zoekt dag/maand regels, combineert tot "DD-MM" format
+- Archiveert oude regels (is_actief=0)
+- Default: 1 mei voor nieuwe/ontbrekende regels
+
+**UI Verbeteringen:**
+- HR Regels Beheer: leesbare datums ("1 mei" vs "01-05")
+- Nederlandse maandnamen in edit dialog
+- Historiek toont ook geformateerde datums
+
+**Database:**
+- Schema wijziging: nieuwe datum format voor HR regels
+- MIN_DB_VERSION = 0.6.23
+
+**Voordelen:**
+- ✓ Planner-vriendelijk: duidelijke datum weergave
+- ✓ Flexibel: vervaldatum aanpasbaar per organisatie
+- ✓ Consistent: code gebruikt database (niet hardcoded)
+- ✓ Schaalbaar: datum type herbruikbaar voor andere regels
+
+### v0.6.22 (30 Oktober 2025) - Verlof Saldo Berekening Fixes
+**Twee belangrijke correcties in verlof saldo berekening**
+
+**Bug Fixes:**
+- **Fix #1: Kalenderdagen i.p.v. werkdagen**
+  - Probleem: 13-22 november telde als 7 dagen (alleen ma-vr)
+  - Oplossing: Nu 10 dagen (inclusief weekends)
+  - Consistent met aanvraag scherm
+  - Berekening: `(eind - start).days + 1`
+
+- **Fix #2: Planning als source of truth**
+  - Probleem: Handmatige wijzigingen (VV → CX/RX) niet meegenomen in saldo
+  - Oplossing: Saldo berekening nu uit planning tabel ipv verlof_aanvragen
+  - Voorbeeld: 10 dagen aangevraagd, 2 handmatig gewijzigd → saldo toont 8 dagen ✓
+
+**Gedragswijziging:**
+- Saldo telt alle planning records (concept + gepubliceerd)
+- Planner ziet direct saldo impact bij concept wijzigingen
+- Gedocumenteerd in DESIGN DECISIONS voor gebruikersfeedback
+
+**Technisch:**
+- `services/verlof_saldo_service.py`: `_bereken_werkdagen()` vereenvoudigd
+- 3 functies aangepast: `get_saldo()`, `sync_saldo_naar_database()`, `get_alle_saldi()`
+- Test scripts: `test_verlof_berekening.py`, `test_planning_saldo.py`
+
+**Database:**
+- Geen schema wijzigingen
+
+### v0.6.21 (29 Oktober 2025) - Kritische Shift Codes Systeem
+**Selectieve bemanningscontrole - planner bepaalt welke shifts kritiek zijn**
+
+**Nieuwe Features:**
+- **Kritische Shifts Markering**
+  - Nieuwe kolom in shift_codes tabel: is_kritisch (BOOLEAN)
+  - Grid editor: "Kritisch" kolom met 12 checkboxes per werkpost
+  - Visual indicator: ⚠ symbool in overzicht bij kritische shifts
+  - Planner controle: zelf bepalen welke shifts validatie nodig hebben
+
+- **Selectieve Bemanningscontrole**
+  - Alleen kritische shifts worden gevalideerd in overlay
+  - Praktisch: vroege dienst kritisch, late dienst niet kritisch mogelijk
+  - Excel rapport labels: "Bemannings Validatie (Kritische Shifts)"
+
+- **UX Verbeteringen**
+  - Oranje overlay voor dubbele shifts (was geel)
+  - Betere contrast vs weekend kleuren (#FFA726)
+  - Atomic publicatie bugfix (Excel + database synchroon)
+
+**Technisch:**
+- Database kolom: `shift_codes.is_kritisch` BOOLEAN DEFAULT 0
+- Migration script: `upgrade_to_v0_6_21.py`
+- Service filter: `bemannings_controle_service.py` (WHERE is_kritisch = 1)
+- Dialog update: `shift_codes_grid_dialog.py` (nieuwe kolom)
+- Excel labels: `export_service.py` (kritische shifts vermelding)
+
+**Database:**
+- Schema wijziging: shift_codes.is_kritisch kolom
+- MIN_DB_VERSION = 0.6.21
+
+### v0.6.20 (28 Oktober 2025) - Bemannings Controle System
+**Intelligente shift staffing validatie met real-time feedback**
+
+**Nieuwe Features:**
+- **Bemannings Controle Service**
+  - Automatische detectie verwachte bemanning via shift_codes tabel
+  - Status systeem: groen (volledig), geel (dubbel), rood (onvolledig)
+  - Geen database wijzigingen nodig (gebruikt bestaande structuur)
+
+- **Datum Header Overlay Visualisatie**
+  - Lichtgroene overlay: volledig bemand (40% opacity #81C784)
+  - Gele overlay: dubbele code gebruikt (40% opacity #FFE082)
+  - Rode overlay: ontbrekende code(s) (40% opacity #E57373)
+  - Overlay ALLEEN op datum headers (cellen vrij voor toekomstige HR fout indicators)
+  - Tooltips per dag: toon welke codes wel/niet ingevuld met gebruikersnamen
+  - Real-time updates: overlay updatet direct na cel wijziging
+  - Weekend/feestdag kleuren blijven behouden onder overlay
+
+- **Dubbele Code Waarschuwing**
+  - Warning dialog bij dubbele shift_code toewijzing
+  - Keuze: Annuleren of Toch opslaan
+  - Context aware: correct voor opleidingen/dubbele bemanning
+
+- **Excel Validatie Rapport**
+  - Tweede sheet: "Validatie Rapport" tab in Excel export
+  - Dag-per-dag overzicht: Datum, Dag, Status, Ontbrekende Shifts
+  - Kleurcodering: groen/geel/rood backgrounds
+  - Samenvatting sectie met totaal cijfers
+
+- **Publicatie Flow met Validatie**
+  - Samenvatting dialog toont bemannings status voor publiceren
+  - Preview cijfers: "✓ Volledig: X dagen, ⚠ Dubbel: Y dagen, ✗ Onvolledig: Z dagen"
+  - Validatie rapport automatisch toegevoegd aan Excel
+
+**Technisch:**
+- Nieuwe service: `services/bemannings_controle_service.py`
+- Grid updates: `gui/widgets/planner_grid_kalender.py` (overlay + tooltips)
+- Excel uitbreiding: `services/export_service.py` (validatie rapport sheet)
+- Planning editor: `gui/screens/planning_editor_screen.py` (validatie in publicatie flow)
+- Qt CSS overlay techniek: `qlineargradient()` syntax voor semi-transparante achtergronden
+
+**Database:**
+- Geen schema wijzigingen (hergebruikt shift_codes voor configuratie)
+
 ### v0.6.15 (22 Oktober 2025) - Planning Editor Priority 1 Compleet
 **Planning Status Management + Bug Fixes**
 
@@ -1046,7 +1453,12 @@ Geen migratie nodig - automatisch correct aangemaakt.
 - ✅ Concept vs Gepubliceerd Toggle (v0.6.15) ⭐
 - 🔨 Typetabel Activatie
 - 🔨 Planning Editor bulk operaties (copy week, paste, clear)
-- 🔨 Validatie systeem met visuele feedback
+- 📋 **HR Validatie Systeem** - Design compleet (zie `HR_VALIDATIE_SYSTEEM_DESIGN.md`)
+  - 6 HR regels: 12u rust, 50u/week, 19 dagen/cyclus, 7 dagen tussen RX/CX, 7 werkdagen reeks, max weekends
+  - Real-time rode overlay + tooltips
+  - Pre-publicatie validatie rapport
+  - Typetabel pre-activatie check
+  - Target: v0.6.25 (34-46 uur implementatie)
 - 🔨 Export functionaliteit naar Excel
 
 ### Q1 2026 - Testing

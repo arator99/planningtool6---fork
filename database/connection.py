@@ -169,7 +169,7 @@ def create_tables(cursor):
         )
     """)
 
-    # Shift codes tabel (v0.6.4 - UPDATED structuur)
+    # Shift codes tabel (v0.6.4 - UPDATED structuur, v0.6.21 + is_kritisch)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS shift_codes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -179,6 +179,7 @@ def create_tables(cursor):
             code TEXT NOT NULL,
             start_uur TEXT NOT NULL,
             eind_uur TEXT NOT NULL,
+            is_kritisch BOOLEAN DEFAULT 0,
             FOREIGN KEY (werkpost_id) REFERENCES werkposten(id),
             UNIQUE(werkpost_id, dag_type, shift_type)
         )
@@ -512,6 +513,11 @@ def seed_hr_regels(cursor):
         ('max_werkdagen_cyclus', 19.0, 'dagen', 'VOORBEELD - Maximum gewerkte dagen tussen rode lijnen'),
         ('max_dagen_tussen_rx', 7.0, 'dagen', 'VOORBEELD - Maximum dagen tussen RX/CX'),
         ('max_werkdagen_reeks', 7.0, 'dagen', 'VOORBEELD - Maximum werkdagen achter elkaar'),
+        ('Vervaldatum overgedragen verlof', '01-05', 'datum', 'Datum waarop overgedragen verlof vervalt (DD-MM format, default: 1 mei)'),
+        ('Max overdracht KD naar volgend jaar', 35.0, 'dagen', 'Maximum aantal KD dagen overdraagbaar naar volgend jaar'),
+        ('week_definitie', 'ma-00:00|zo-23:59', 'periode', 'Definitie wanneer werkweek start en eindigt (voor 50-uur regel)'),
+        ('weekend_definitie', 'vr-22:00|ma-06:00', 'periode', 'Definitie wanneer weekend start en eindigt (exclusieve grenzen: shift moet BINNEN periode vallen, niet OP de grens)'),
+        ('max_weekends_achter_elkaar', 6.0, 'weekends', 'VOORBEELD - Maximum aantal weekends achter elkaar werken'),
     ]
 
     cursor.executemany("""

@@ -5,37 +5,69 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="865b7ef9-30d1-4a5b-a980-0e0653fcd9d2" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/Handleiding.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/bugs.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/sessionlimit.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.claude/settings.local.json" beforeDir="false" afterPath="$PROJECT_DIR$/.claude/settings.local.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DEVELOPMENT_GUIDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEVELOPMENT_GUIDE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/DEV_NOTES.md" beforeDir="false" afterPath="$PROJECT_DIR$/DEV_NOTES.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/HANDLEIDING.md" beforeDir="false" afterPath="$PROJECT_DIR$/HANDLEIDING.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Feestdagen_migration.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/HANDLEIDING.md" beforeDir="false" afterPath="$PROJECT_DIR$/archive/old_builds/HANDLEIDING.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/PROJECT_INFO.md" beforeDir="false" afterPath="$PROJECT_DIR$/PROJECT_INFO.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.spec" beforeDir="false" afterPath="$PROJECT_DIR$/build.spec" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/Analysis-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/Analysis-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/EXE-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/EXE-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/PKG-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PKG-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/PYZ-00.pyz" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PYZ-00.pyz" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/PYZ-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PYZ-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/PlanningTool.pkg" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PlanningTool.pkg" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/base_library.zip" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/base_library.zip" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/warn-build.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/warn-build.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/xref-build.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/xref-build.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/PlanningTool_v0.6.15.spec" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/RELEASE_NOTES_v0.6.10.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/RELEASE_NOTES_v0.6.11.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/RELEASE_NOTES_v0.6.12.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/RELEASE_NOTES_v0.6.9.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/SESSION_LOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/SESSION_LOG.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/architectuur.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.spec" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/create_planning_table.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/data/planning.backup.db" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/data/planning.db" beforeDir="false" afterPath="$PROJECT_DIR$/data/planning.db" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/database/connection.py" beforeDir="false" afterPath="$PROJECT_DIR$/database/connection.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/PROJECT_INFO.md" beforeDir="false" afterPath="$PROJECT_DIR$/dist/PROJECT_INFO.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/PlanningTool.exe" beforeDir="false" afterPath="$PROJECT_DIR$/dist/PlanningTool.exe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/database_migration.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/database_shift_codes_migration.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/detect_db_version.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/PlanningTool_v0.6.14.exe" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/data/planning.db" beforeDir="false" afterPath="$PROJECT_DIR$/dist/data/planning.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/planningtool.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/fix_rode_lijnen_seed_datum.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/genereer_architectuur.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/dialogs/about_dialog.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/dialogs/about_dialog.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui/dialogs/handleiding_dialog.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/dialogs/handleiding_dialog.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/dialogs/hr_regel_edit_dialog.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/dialogs/hr_regel_edit_dialog.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/dialogs/shift_codes_grid_dialog.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/dialogs/shift_codes_grid_dialog.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui/screens/dashboard_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/dashboard_screen.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gui/screens/verlof_aanvragen_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/verlof_aanvragen_screen.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/screens/hr_regels_beheer_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/hr_regels_beheer_screen.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/screens/planning_editor_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/planning_editor_screen.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/screens/shift_codes_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/shift_codes_screen.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui/screens/verlof_goedkeuring_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/verlof_goedkeuring_screen.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gui/styles.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/styles.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/screens/werkpost_koppeling_screen.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/screens/werkpost_koppeling_screen.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/widgets/grid_kalender_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/widgets/grid_kalender_base.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui/widgets/planner_grid_kalender.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/widgets/planner_grid_kalender.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui/widgets/teamlid_grid_kalender.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/widgets/teamlid_grid_kalender.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gui/widgets/verlof_saldo_widget.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/widgets/verlof_saldo_widget.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/services/term_code_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/services/term_code_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/migrate_v0_6_4_to_v0_6_13.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migratie_gebruiker_werkposten.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migratie_hr_regels_versioning.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migratie_planning_notities.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migratie_rode_lijnen_config.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migratie_shift_voorkeuren.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migratie_systeem_termen.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migratie_theme_per_gebruiker.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migratie_typetabel_versioned.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migratie_verlof_saldo.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/export_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/services/export_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/verlof_saldo_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/services/verlof_saldo_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_migratie.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/upgrade_to_v0_6_13.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/verify_planning_editor_readiness.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -51,6 +83,7 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="ROOT_SYNC" value="DONT_SYNC" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
   &quot;lastFilter&quot;: {
@@ -79,33 +112,38 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python.Feestdagen_migration.executor&quot;: &quot;Run&quot;,
-    &quot;Python.connection.executor&quot;: &quot;Run&quot;,
-    &quot;Python.database_migration.executor&quot;: &quot;Run&quot;,
-    &quot;Python.database_shift_codes_migration.executor&quot;: &quot;Run&quot;,
-    &quot;Python.feestdagen_screen.executor&quot;: &quot;Run&quot;,
-    &quot;Python.gebruikersbeheer_screen.executor&quot;: &quot;Run&quot;,
-    &quot;Python.genereer_architectuur.executor&quot;: &quot;Run&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.migratie_systeem_termen.executor&quot;: &quot;Run&quot;,
-    &quot;Python.migratie_typetabel_versioned.executor&quot;: &quot;Run&quot;,
-    &quot;Python.planner_grid_kalender.executor&quot;: &quot;Run&quot;,
-    &quot;Python.styles.executor&quot;: &quot;Run&quot;,
-    &quot;Python.verify_planning_editor_readiness.executor&quot;: &quot;Run&quot;,
-    &quot;Python.verlof_aanvragen_screen.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.Feestdagen_migration.executor": "Run",
+    "Python.about_dialog.executor": "Run",
+    "Python.connection.executor": "Run",
+    "Python.database_migration.executor": "Run",
+    "Python.database_shift_codes_migration.executor": "Run",
+    "Python.detect_db_version.executor": "Run",
+    "Python.feestdagen_screen.executor": "Run",
+    "Python.gebruikersbeheer_screen.executor": "Run",
+    "Python.genereer_architectuur.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.migrate_v0_6_4_to_v0_6_13.executor": "Run",
+    "Python.migratie_systeem_termen.executor": "Run",
+    "Python.migratie_typetabel_versioned.executor": "Run",
+    "Python.planner_grid_kalender.executor": "Run",
+    "Python.styles.executor": "Run",
+    "Python.verify_planning_editor_readiness.executor": "Run",
+    "Python.verlof_aanvragen_screen.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "C:/Users/arato/PycharmProjects/planningstool 6 - claude - kopie (2)",
+    "settings.editor.selected.configurable": "preferences.pluginManager"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\arato\PycharmProjects\planningstool 6 - claude\archive\old_builds" />
       <recent name="C:\Users\arato\PycharmProjects\planningstool 6 - claude" />
     </key>
   </component>

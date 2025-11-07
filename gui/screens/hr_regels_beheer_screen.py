@@ -147,6 +147,59 @@ class HRRegelsBeheerScreen(QWidget):
         if state == Qt.CheckState.Checked.value:
             self.load_historiek()
 
+    @staticmethod
+    def format_datum_waarde(waarde: str, eenheid: str) -> str:
+        """
+        Format datum waarde naar leesbare vorm.
+
+        Args:
+            waarde: Waarde uit database (bijv. "01-05" of "12.0")
+            eenheid: Eenheid type (bijv. "datum" of "uur")
+
+        Returns:
+            Leesbare string (bijv. "1 mei" of "12.0")
+        """
+        if eenheid == 'datum':
+            try:
+                # Parse "DD-MM" format
+                parts = str(waarde).split('-')
+                if len(parts) == 2:
+                    dag = int(parts[0])
+                    maand = int(parts[1])
+
+                    # Nederlandse maandnamen
+                    maanden = ['', 'januari', 'februari', 'maart', 'april', 'mei', 'juni',
+                               'juli', 'augustus', 'september', 'oktober', 'november', 'december']
+
+                    if 1 <= maand <= 12:
+                        return f"{dag} {maanden[maand]}"
+
+            except (ValueError, IndexError):
+                pass  # Fallback to raw value
+
+        elif eenheid == 'periode':
+            try:
+                # Parse "ma-00:00|zo-23:59" format
+                start, eind = str(waarde).split('|')
+                start_dag, start_uur = start.split('-', 1)
+                eind_dag, eind_uur = eind.split('-', 1)
+
+                # Dag mapping
+                dagen = {
+                    'ma': 'Maandag', 'di': 'Dinsdag', 'wo': 'Woensdag', 'do': 'Donderdag',
+                    'vr': 'Vrijdag', 'za': 'Zaterdag', 'zo': 'Zondag'
+                }
+
+                start_naam = dagen.get(start_dag.strip(), start_dag)
+                eind_naam = dagen.get(eind_dag.strip(), eind_dag)
+
+                return f"{start_naam} {start_uur} - {eind_naam} {eind_uur}"
+
+            except (ValueError, IndexError, AttributeError):
+                pass  # Fallback to raw value
+
+        return str(waarde)
+
     def load_data(self):
         """Laad actieve regels"""
         try:
@@ -211,8 +264,9 @@ class HRRegelsBeheerScreen(QWidget):
 
             self.actieve_tabel.setItem(row, 0, naam_item)
 
-            # Waarde
-            waarde_item = QTableWidgetItem(str(regel['waarde']))
+            # Waarde (format datum als leesbaar)
+            waarde_str = self.format_datum_waarde(str(regel['waarde']), regel['eenheid'])
+            waarde_item = QTableWidgetItem(waarde_str)
             waarde_item.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL, QFont.Weight.Bold))
             waarde_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.actieve_tabel.setItem(row, 1, waarde_item)
@@ -256,8 +310,9 @@ class HRRegelsBeheerScreen(QWidget):
             naam_text = regel['naam'].replace('_', ' ').title()
             self.historiek_tabel.setItem(row, 0, QTableWidgetItem(naam_text))
 
-            # Waarde
-            self.historiek_tabel.setItem(row, 1, QTableWidgetItem(str(regel['waarde'])))
+            # Waarde (format datum als leesbaar)
+            waarde_str = self.format_datum_waarde(str(regel['waarde']), regel['eenheid'])
+            self.historiek_tabel.setItem(row, 1, QTableWidgetItem(waarde_str))
 
             # Eenheid
             self.historiek_tabel.setItem(row, 2, QTableWidgetItem(regel['eenheid']))
@@ -282,9 +337,14 @@ class HRRegelsBeheerScreen(QWidget):
 
     def bewerk_regel(self, regel: Dict[str, Any]):
         """Bewerk regel - maak nieuwe versie aan"""
-        from gui.dialogs.hr_regel_edit_dialog import HRRegelEditDialog
+        # Check of het een periode regel is (week/weekend definitie)
+        if regel['eenheid'] == 'periode':
+            from gui.dialogs.periode_definitie_edit_dialog import PeriodeDefinitieEditDialog
+            dialog = PeriodeDefinitieEditDialog(self, regel)
+        else:
+            from gui.dialogs.hr_regel_edit_dialog import HRRegelEditDialog
+            dialog = HRRegelEditDialog(self, regel)
 
-        dialog = HRRegelEditDialog(self, regel)
         if dialog.exec():
             data = dialog.get_data()
             self.save_nieuwe_versie(regel, data)
@@ -310,6 +370,9 @@ class HRRegelsBeheerScreen(QWidget):
             """, (nieuwe_data['actief_vanaf'], oude_regel['id']))
 
             # Stap 2: Insert nieuwe regel
+            # Gebruik nieuwe beschrijving als aanwezig (voor term-type regels), anders oude
+            nieuwe_beschrijving = nieuwe_data.get('beschrijving', oude_regel['beschrijving'])
+
             cursor.execute("""
                 INSERT INTO hr_regels
                 (naam, waarde, eenheid, beschrijving, actief_vanaf, is_actief)
@@ -318,7 +381,7 @@ class HRRegelsBeheerScreen(QWidget):
                 oude_regel['naam'],
                 nieuwe_data['waarde'],
                 oude_regel['eenheid'],
-                oude_regel['beschrijving'],
+                nieuwe_beschrijving,
                 nieuwe_data['actief_vanaf']
             ))
 

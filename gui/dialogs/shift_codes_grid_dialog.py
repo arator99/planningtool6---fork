@@ -108,8 +108,8 @@ class ShiftCodesGridDialog(QDialog):
 
     def setup_grid(self):
         """Setup de grid tabel structuur"""
-        # Kolommen: elke shift type heeft 2 sub-kolommen (Code, Tijd)
-        self.grid.setColumnCount(len(self.shift_types) * 2)
+        # Kolommen: elke shift type heeft 3 sub-kolommen (Code, Kritisch, Tijd)
+        self.grid.setColumnCount(len(self.shift_types) * 3)
         self.grid.setRowCount(len(self.dag_types))
 
         # Row headers (dag types)
@@ -121,7 +121,8 @@ class ShiftCodesGridDialog(QDialog):
         headers = []
         for shift in self.shift_types:
             headers.append(f"{shift.upper()}\nCode")
-            headers.append("Tijd")  # Simpel, uitleg staat boven de tabel
+            headers.append("Kritisch")
+            headers.append("Tijd")
         self.grid.setHorizontalHeaderLabels(headers)
 
         # Styling
@@ -130,10 +131,12 @@ class ShiftCodesGridDialog(QDialog):
 
         # Kolom breedtes
         for col in range(self.grid.columnCount()):
-            if col % 2 == 0:  # Code kolom
-                self.grid.setColumnWidth(col, 80)
+            if col % 3 == 0:  # Code kolom
+                self.grid.setColumnWidth(col, 60)
+            elif col % 3 == 1:  # Kritisch kolom
+                self.grid.setColumnWidth(col, 70)
             else:  # Tijd kolom
-                self.grid.setColumnWidth(col, 100)
+                self.grid.setColumnWidth(col, 120)
 
         # Font groter voor headers
         # Alleen vertical header (dag types) bold maken
@@ -163,7 +166,7 @@ class ShiftCodesGridDialog(QDialog):
 
             # Laad shift codes
             cursor.execute("""
-                SELECT dag_type, shift_type, code, start_uur, eind_uur
+                SELECT dag_type, shift_type, code, start_uur, eind_uur, is_kritisch
                 FROM shift_codes
                 WHERE werkpost_id = ?
             """, (self.werkpost_id,))
@@ -174,18 +177,24 @@ class ShiftCodesGridDialog(QDialog):
             # Vul grid in
             for shift in shifts:
                 row = self.dag_types.index(shift['dag_type'])
-                col_base = self.shift_types.index(shift['shift_type']) * 2
+                col_base = self.shift_types.index(shift['shift_type']) * 3
 
                 # Code cel
                 code_item = QTableWidgetItem(shift['code'] or "")
                 self.grid.setItem(row, col_base, code_item)
+
+                # Kritisch checkbox
+                kritisch_checkbox = QCheckBox()
+                kritisch_checkbox.setChecked(bool(shift['is_kritisch']))
+                kritisch_checkbox.setStyleSheet("QCheckBox { margin-left: 25px; }")
+                self.grid.setCellWidget(row, col_base + 1, kritisch_checkbox)
 
                 # Tijd cel - AANGEPAST: toon volledige tijd
                 if shift['start_uur'] and shift['eind_uur']:
                     # Toon als HH:MM-HH:MM (bijv. "06:00-14:00" of "06:30-14:30")
                     tijd_str = f"{shift['start_uur'][:5]}-{shift['eind_uur'][:5]}"
                     tijd_item = QTableWidgetItem(tijd_str)
-                    self.grid.setItem(row, col_base + 1, tijd_item)
+                    self.grid.setItem(row, col_base + 2, tijd_item)
 
         except sqlite3.Error as e:
             QMessageBox.critical(self, "Database Fout", str(e))
@@ -200,13 +209,15 @@ class ShiftCodesGridDialog(QDialog):
             for row_idx, dag_type in enumerate(self.dag_types):
 
                 for shift_idx, shift_type in enumerate(self.shift_types):
-                    col_base = shift_idx * 2
+                    col_base = shift_idx * 3
 
-                    # Haal code en tijd op
+                    # Haal code, kritisch checkbox, en tijd op
                     code_item = self.grid.item(row_idx, col_base)
-                    tijd_item = self.grid.item(row_idx, col_base + 1)
+                    kritisch_widget = self.grid.cellWidget(row_idx, col_base + 1)
+                    tijd_item = self.grid.item(row_idx, col_base + 2)
 
                     code = code_item.text().strip() if code_item else ""
+                    is_kritisch = kritisch_widget.isChecked() if isinstance(kritisch_widget, QCheckBox) else False
                     tijd = tijd_item.text().strip() if tijd_item else ""
 
                     # Als code ingevuld, tijd moet ook
@@ -277,7 +288,8 @@ class ShiftCodesGridDialog(QDialog):
                             'shift_type': shift_type,
                             'code': code,
                             'start_uur': start_uur,
-                            'eind_uur': eind_uur
+                            'eind_uur': eind_uur,
+                            'is_kritisch': is_kritisch
                         })
 
             # Sla op in database
@@ -310,16 +322,17 @@ class ShiftCodesGridDialog(QDialog):
             # Insert nieuwe shift codes
             for shift in shifts_data:
                 cursor.execute("""
-                    INSERT INTO shift_codes 
-                    (werkpost_id, dag_type, shift_type, code, start_uur, eind_uur)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO shift_codes
+                    (werkpost_id, dag_type, shift_type, code, start_uur, eind_uur, is_kritisch)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, (
                     self.werkpost_id,
                     shift['dag_type'],
                     shift['shift_type'],
                     shift['code'],
                     shift['start_uur'],
-                    shift['eind_uur']
+                    shift['eind_uur'],
+                    1 if shift['is_kritisch'] else 0
                 ))
 
             conn.commit()

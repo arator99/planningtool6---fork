@@ -1,6 +1,6 @@
 # gui/screens/werkpost_koppeling_screen.py
 """
-Werkpost Koppeling Beheer Scherm
+Werkpost Koppeling (Postkennis) Beheer Scherm
 Grid met gebruikers (Y-as) x werkposten (X-as)
 Checkboxes om aan te geven welke werkposten elke gebruiker kent
 """
@@ -16,7 +16,7 @@ import sqlite3
 
 
 class WerkpostKoppelingScreen(QWidget):
-    """Werkpost Koppeling Beheer - Grid met checkboxes"""
+    """Werkpost Koppeling (Postkennis) Beheer - Grid met checkboxes"""
 
     def __init__(self, router: Callable):
         super().__init__()
@@ -46,7 +46,7 @@ class WerkpostKoppelingScreen(QWidget):
         # Header
         header_layout = QHBoxLayout()
 
-        title = QLabel("Werkpost Koppeling Beheer")
+        title = QLabel("Werkpost Koppeling (Postkennis) Beheer")
         title.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_TITLE, QFont.Weight.Bold))
         header_layout.addWidget(title)
 

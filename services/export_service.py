@@ -2,14 +2,16 @@
 """
 Export Service voor Planning Tool
 Genereert Excel exports van planning voor HR
+v0.6.20: Validatie Rapport tab toegevoegd
 """
 
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
 from database.connection import get_connection
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.utils import get_column_letter
+from services.bemannings_controle_service import controleer_maand, format_ontbrekende_codes, format_dubbele_codes
 import calendar
 
 
@@ -19,6 +21,48 @@ MAAND_NAMEN = {
     5: 'mei', 6: 'juni', 7: 'juli', 8: 'augustus',
     9: 'september', 10: 'oktober', 11: 'november', 12: 'december'
 }
+
+
+def get_planner_notities_voor_maand(jaar: int, maand: int) -> dict:
+    """
+    Haal planner notities op voor een maand
+
+    Returns:
+        Dict met datum_str als key en lijst van notities als value
+        {'2025-01-15': ['Jan: Ruil met Piet', 'Marie: Opleiding']}
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Haal alle notities op voor deze maand (notities beginnen met "[Planner]:")
+    cursor.execute("""
+        SELECT p.datum, g.volledige_naam, p.notitie
+        FROM planning p
+        JOIN gebruikers g ON p.gebruiker_id = g.id
+        WHERE strftime('%Y', p.datum) = ?
+        AND strftime('%m', p.datum) = ?
+        AND p.notitie IS NOT NULL
+        AND p.notitie != ''
+        AND p.notitie LIKE '[Planner]:%'
+        ORDER BY p.datum, g.volledige_naam
+    """, (str(jaar), str(maand).zfill(2)))
+
+    notities_per_dag = {}
+    for row in cursor.fetchall():
+        datum_str = row['datum']
+        naam = row['volledige_naam']
+        notitie = row['notitie']
+
+        # Verwijder "[Planner]: " prefix voor display
+        notitie_text = notitie.replace('[Planner]: ', '').strip()
+
+        if datum_str not in notities_per_dag:
+            notities_per_dag[datum_str] = []
+
+        notities_per_dag[datum_str].append(f"{naam}: {notitie_text}")
+
+    conn.close()
+    return notities_per_dag
 
 
 def export_maand_naar_excel(jaar: int, maand: int) -> str:
@@ -127,8 +171,19 @@ def export_maand_naar_excel(jaar: int, maand: int) -> str:
     ws.row_dimensions[1].height = 25  # Titel
     ws.row_dimensions[2].height = 30  # Header
 
-    # Sla op
-    wb.save(bestand_pad)
+    # Voeg Validatie Rapport sheet toe (v0.6.20)
+    validatie_ws = wb.create_sheet(title="Validatie Rapport")
+    maak_validatie_rapport_sheet(validatie_ws, jaar, maand)
+
+    # Sla op (v0.6.21: verbeterde error handling)
+    try:
+        wb.save(bestand_pad)
+    except PermissionError:
+        # Re-raise met bestandsnaam voor duidelijkere error message
+        raise PermissionError(f"Kan bestand niet opslaan: {bestand_naam}. Bestand is waarschijnlijk open in Excel.")
+    except (IOError, OSError) as e:
+        # Re-raise met context
+        raise IOError(f"Kan bestand niet schrijven naar {bestand_pad}: {str(e)}")
 
     return str(bestand_pad)
 
@@ -193,3 +248,186 @@ def haal_planning_data(jaar: int, maand: int) -> list:
     conn.close()
 
     return planning_data
+
+
+def maak_validatie_rapport_sheet(ws, jaar: int, maand: int) -> None:
+    """
+    Vul validatie rapport sheet met bemannings controle resultaten.
+
+    Args:
+        ws: Openpyxl worksheet object
+        jaar: Jaar (bijv. 2025)
+        maand: Maand nummer (1-12)
+    """
+    # Styling definities
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    groen_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")  # Light green
+    oranje_fill = PatternFill(start_color="FFB74D", end_color="FFB74D", fill_type="solid")  # Intenser orange (Material Orange 300)
+    rood_fill = PatternFill(start_color="FFCDD2", end_color="FFCDD2", fill_type="solid")  # Light red
+    border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    center_alignment = Alignment(horizontal='center', vertical='center')
+    left_alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+
+    maand_naam = MAAND_NAMEN[maand]
+
+    # Titel rij 1
+    ws.merge_cells('A1:E1')
+    titel_cell = ws['A1']
+    titel_cell.value = f"Bemannings Validatie (Kritische Shifts) - {maand_naam.capitalize()} {jaar}"
+    titel_cell.font = Font(bold=True, size=14, color="366092")
+    titel_cell.alignment = center_alignment
+
+    # Header rij 2
+    headers = ["Datum", "Dag", "Status", "Ontbrekende Kritische Shifts", "Planner Notities"]
+    for col_idx, header in enumerate(headers, start=1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = border
+        cell.alignment = center_alignment
+
+    # Haal bemannings controle resultaten op
+    validatie_resultaat = controleer_maand(jaar, maand)
+    dagen_resultaten = validatie_resultaat['dagen']
+    samenvatting = validatie_resultaat['samenvatting']
+
+    # Haal planner notities op
+    planner_notities = get_planner_notities_voor_maand(jaar, maand)
+
+    # Data rijen
+    row_idx = 3
+    dagen_in_maand = calendar.monthrange(jaar, maand)[1]
+
+    for dag in range(1, dagen_in_maand + 1):
+        datum = date(jaar, maand, dag)
+        datum_str = datum.strftime('%Y-%m-%d')
+
+        # Haal resultaat op voor deze dag
+        if datum_str in dagen_resultaten:
+            dag_resultaat = dagen_resultaten[datum_str]
+            status = dag_resultaat['status']
+            ontbrekende = dag_resultaat.get('ontbrekende_codes', [])
+            dubbele = dag_resultaat.get('dubbele_codes', [])
+
+            # Check of er notities zijn voor deze dag
+            heeft_notities = datum_str in planner_notities
+
+            # Toon alleen dagen met ontbrekende shifts OF planner notities
+            if status != 'rood' and not heeft_notities:
+                continue
+
+            # Datum kolom
+            datum_cell = ws.cell(row=row_idx, column=1)
+            datum_cell.value = datum.strftime('%d-%m-%Y')
+            datum_cell.border = border
+            datum_cell.alignment = center_alignment
+
+            # Dag kolom
+            dag_naam = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'][datum.weekday()]
+            dag_cell = ws.cell(row=row_idx, column=2)
+            dag_cell.value = dag_naam
+            dag_cell.border = border
+            dag_cell.alignment = center_alignment
+
+            # Status kolom
+            status_cell = ws.cell(row=row_idx, column=3)
+            if status == 'groen':
+                status_cell.value = "✓ Volledig"
+                status_cell.fill = groen_fill
+            elif status == 'geel':
+                status_cell.value = "⚠ Dubbel"
+                status_cell.fill = oranje_fill
+            else:  # rood
+                status_cell.value = "✗ Onvolledig"
+                status_cell.fill = rood_fill
+            status_cell.border = border
+            status_cell.alignment = center_alignment
+
+            # Ontbrekende shifts kolom
+            ontbrekend_cell = ws.cell(row=row_idx, column=4)
+            if ontbrekende:
+                ontbrekend_cell.value = format_ontbrekende_codes(ontbrekende)
+            elif dubbele:
+                ontbrekend_cell.value = format_dubbele_codes(dubbele)
+            else:
+                ontbrekend_cell.value = ""
+            ontbrekend_cell.border = border
+            ontbrekend_cell.alignment = left_alignment
+
+            # Planner notities kolom
+            notities_cell = ws.cell(row=row_idx, column=5)
+            if heeft_notities:
+                notities_text = "\n".join(planner_notities[datum_str])
+                notities_cell.value = notities_text
+            else:
+                notities_cell.value = ""
+            notities_cell.border = border
+            notities_cell.alignment = left_alignment
+
+            row_idx += 1
+
+    # Samenvatting sectie (na data rijen + 2 lege rijen)
+    samenvatting_start_row = row_idx + 2
+
+    # Streep
+    ws.merge_cells(f'A{samenvatting_start_row}:E{samenvatting_start_row}')
+    streep_cell = ws.cell(row=samenvatting_start_row, column=1)
+    streep_cell.value = "─" * 60
+    streep_cell.font = Font(size=10)
+
+    # Titel samenvatting
+    titel_row = samenvatting_start_row + 1
+    ws.merge_cells(f'A{titel_row}:E{titel_row}')
+    titel_cell = ws.cell(row=titel_row, column=1)
+    titel_cell.value = "TOTAAL OVERZICHT"
+    titel_cell.font = Font(bold=True, size=12)
+
+    # Streep
+    streep2_row = titel_row + 1
+    ws.merge_cells(f'A{streep2_row}:E{streep2_row}')
+    streep2_cell = ws.cell(row=streep2_row, column=1)
+    streep2_cell.value = "─" * 60
+    streep2_cell.font = Font(size=10)
+
+    # Samenvatting cijfers
+    cijfers_start = streep2_row + 1
+
+    samenvatting_items = [
+        (f"Volledig bemand:", f"{samenvatting['volledig']} dagen", groen_fill),
+        (f"Dubbele codes:", f"{samenvatting['dubbel']} dagen", oranje_fill),
+        (f"Onvolledig bemand:", f"{samenvatting['onvolledig']} dagen", rood_fill),
+        (f"TOTAAL:", f"{samenvatting['totaal']} dagen", None)
+    ]
+
+    for idx, (label, waarde, fill) in enumerate(samenvatting_items):
+        row = cijfers_start + idx
+
+        label_cell = ws.cell(row=row, column=1)
+        label_cell.value = label
+        label_cell.font = Font(bold=True, size=10)
+
+        waarde_cell = ws.cell(row=row, column=2)
+        waarde_cell.value = waarde
+        waarde_cell.font = Font(size=10)
+
+        if fill:
+            label_cell.fill = fill
+            waarde_cell.fill = fill
+
+    # Kolom breedtes
+    ws.column_dimensions['A'].width = 15  # Datum
+    ws.column_dimensions['B'].width = 8   # Dag
+    ws.column_dimensions['C'].width = 15  # Status
+    ws.column_dimensions['D'].width = 50  # Ontbrekende kritische shifts
+    ws.column_dimensions['E'].width = 50  # Planner notities
+
+    # Rij hoogtes
+    ws.row_dimensions[1].height = 25  # Titel
+    ws.row_dimensions[2].height = 30  # Header

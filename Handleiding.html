@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planning Tool - Gebruikershandleiding</title>
+    <style>
+        /* Basisstijlen voor leesbaarheid */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            margin: 500;
+            max-width: 900px;
+        }
+        h1, h2, h3, h4 {
+            color: #333;
+            padding-top: 10px; /* Ruimte boven ankers */
+        }
+        h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; margin-top: 40px; }
+        h3 { margin-top: 30px; }
+        h4 { margin-top: 20px; }
+
+        /* Stijlen voor de Inhoudsopgave (TOC) - Dit is de cruciale fix */
+        .toc {
+            list-style: none; /* Verwijder standaard bullet points */
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 8px 0;
+        }
+        .toc ul {
+            list-style: none; /* Verwijder sub-bullet points */
+            padding-left: 30px; /* Indentatie voor sub-levels */
+            margin-top: 5px;
+        }
+        .toc ul ul {
+            padding-left: 30px; /* Indentatie voor sub-sub-levels */
+        }
+
+        /* Overige stijlen */
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .separator {
+            border: 0;
+            height: 1px;
+            background: #ccc;
+            margin: 20px 0;
+        }
+        .note {
+            border-left: 3px solid orange;
+            padding: 10px;
+            background-color: #fff8e1;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Planning Tool - Gebruikershandleiding</h1>
+        <p><strong>Versie:</strong> 0.6.26</p>
+        <p><strong>Laatst bijgewerkt:</strong> 5 November 2025</p>
+        <hr class="separator">
+    </header>
+
+    <h2 id="inhoud">Inhoud</h2>
+
+    <ul class="toc">
+        <li>1. <a href="#welkom">Welkom</a></li>
+        <li>2. <a href="#aan-de-slag">Aan de slag</a>
+            <ul>
+                <li>2.1. <a href="#eerste-keer-inloggen">Eerste keer inloggen</a></li>
+                <li>2.2. <a href="#bestandsstructuur">Bestandsstructuur</a></li>
+                <li>2.3. <a href="#interface-navigatie">Interface - Navigatie</a></li>
+            </ul>
+        </li>
+        <li>3. <a href="#sneltoetsen">Sneltoetsen</a></li>
+        <li>4. <a href="#rollen-en-rechten">Rollen en rechten</a></li>
+        <li>5. <a href="#belangrijke-concepten">Belangrijke concepten</a>
+            <ul>
+                <li>5.1. <a href="#typetabel-diensttabel">Typetabel (Diensttabel)</a></li>
+                <li>5.2. <a href="#shift-codes">Shift Codes</a></li>
+                <li>5.3. <a href="#hr-regels">HR Regels</a></li>
+                <li>5.4. <a href="#rode-lijnen">Rode Lijnen</a></li>
+                <li>5.5. <a href="#feestdagen">Feestdagen</a></li>
+            </ul>
+        </li>
+        <li>6. <a href="#veelgebruikte-taken">Veelgebruikte taken</a>
+            <ul>
+                <li>6.1. <a href="#voor-planners">Voor Planners</a>
+                    <ul>
+                        <li>6.1.1. <a href="#planning-maken">Planning maken</a></li>
+                        <li>6.1.1a. <a href="#planning-valideren">Planning valideren (HR Regels)</a></li>
+                        <li>6.1.2. <a href="#verlof-goedkeuren">Verlof goedkeuren</a></li>
+                        <li>6.1.3. <a href="#gebruikers-beheren">Gebruikers beheren</a></li>
+                        <li>6.1.4. <a href="#shift-codes-beheren">Shift codes beheren</a></li>
+                        <li>6.1.5. <a href="#typetabel-beheren">Typetabel beheren</a></li>
+                        <li>6.1.6. <a href="#hr-regels-aanpassen">HR Regels aanpassen</a></li>
+                        <li>6.1.7. <a href="#rode-lijnen-configureren">Rode Lijnen configureren</a></li>
+                    </ul>
+                </li>
+                <li>6.2. <a href="#voor-teamleden">Voor Teamleden</a>
+                    <ul>
+                        <li>6.2.1. <a href="#eigen-planning-bekijken">Eigen planning bekijken</a></li>
+                        <li>6.2.2. <a href="#verlof-aanvragen">Verlof aanvragen</a></li>
+                        <li>6.2.3. <a href="#notitie-naar-planner-sturen">Notitie naar Planner sturen</a></li>
+                        <li>6.2.4. <a href="#wachtwoord-wijzigen">Wachtwoord wijzigen</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+        <li>7. <a href="#tips-tricks">Tips & Tricks</a></li>
+        <li>8. <a href="#veelgestelde-vragen">Veelgestelde vragen</a></li>
+    </ul>
+
+    <hr class="separator">
+
+    <h2 id="welkom">1. Welkom</h2>
+    <p>Welkom bij de <strong>Planning Tool</strong>, een roosterapplicatie speciaal ontwikkeld voor self-rostering teams. Deze tool helpt je met:</p>
+    <ul>
+        <li>📅 Efficiënt plannen van diensten</li>
+        <li>🏖️ Beheren van verlofaanvragen</li>
+        <li>✅ Automatische validatie volgens HR-regels</li>
+        <li>📊 Overzichtelijk beheer van shift codes en werkposten</li>
+        <li>🔄 Historiek van planning wijzigingen</li>
+    </ul>
+
+    <hr class="separator">
+
+    <h2 id="aan-de-slag">2. Aan de slag</h2>
+
+    <h3 id="eerste-keer-inloggen">2.1. Eerste keer inloggen</h3>
+    <p><strong>Standaard login:</strong></p>
+    <ul>
+        <li>Gebruikersnaam: <code>admin</code></li>
+        <li>Wachtwoord: <code>admin</code></li>
+    </ul>
+
+    <p class="note">⚠️ <strong>Belangrijk:</strong> Wijzig het admin wachtwoord direct na eerste login via <em>Persoonlijk → Wijzig Wachtwoord</em>.</p>
+
+    <h3 id="bestandsstructuur">2.2. Bestandsstructuur</h3>
+    <p>Bij de eerste opstart worden automatisch de volgende folders aangemaakt:</p>
+    <pre>
+PlanningTool_v0.6.15.exe    (de applicatie)
+├── data/                   (database en applicatiedata)
+│   └── planning.db
+├── exports/                (Excel exports voor HR) ⭐ NIEUW
+│   ├── oktober_2025.xlsx
+│   └── november_2025.xlsx
+├── PROJECT_INFO.md         (project informatie)
+└── HANDLEIDING.md          (deze handleiding)
+    </pre>
+
+    <p><strong>Belangrijke folders:</strong></p>
+    <ul>
+        <li><strong>data/</strong> - Bevat de database (maak regelmatig backups!)</li>
+        <li><strong>exports/</strong> - Automatisch gegenereerde Excel bestanden bij planning publiceren</li>
+    </ul>
+
+    <h3 id="interface-navigatie">2.3. Interface navigatie</h3>
+    <p>Na inloggen zie je het <strong>Dashboard</strong>, afhankelijk van je rol krijg je meer tabs te zien.</p>
+
+    <h4>Voor Teamleden:</h4>
+    <p>1 tabblad <strong>Persoonlijk</strong> met volgende zaken</p>
+    <ul>
+        <li><em>Planning</em> Hier kan je de planning opvragen van gepubliceerde maanden</li>
+        <li><em>Verlof aanvragen</em> Je verlofaanvragen (met saldo weergave)</li>
+        <li><em>Notitie naar Planner</em> Hier kan je berichten sturen naar de planners</li>
+        <li><em>Mijn Voorkeuren</em> Stel hier je shiftvoorkeuren in.</li>
+        <li><em>Wachtwoord wijzigen</em></li>
+    </ul>
+    <img src="handleiding/dashboard-gebruiker.png" alt="Screenshot van het Dashboard voor teamleden">
+
+    <p>Een screenshot van het dashboard voor planners</p>
+    <img src="handleiding/dashboard-planner.png" alt="Screenshot van het Dashboard voor planners">
+
+    <h4>Voor Planners:</h4>
+    <ul>
+        <li><strong>Beheer</strong> - Typetabellen, Shift codes, Gebruikers, Verlof & KD Saldo Beheer</li>
+        <li><strong>Planning</strong> - Planning editor, Verlof goedkeuring (met VV/KD type selectie)</li>
+        <li><strong>Instellingen</strong> - HR regels, Feestdagen, Rode lijnen</li>
+        <li><strong>Persoonlijk</strong> - <strong>Mijn Voorkeuren</strong> (shift voorkeuren, nieuw v0.6.11), Wachtwoord wijzigen, <strong>Dark Mode</strong> (nieuw v0.6.12)</li>
+    </ul>
+
+    <hr class="separator">
+
+    <h2 id="sneltoetsen">3. Sneltoetsen</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Toets</th>
+                <th>Functie</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>F1</strong></td>
+                <td>Deze handleiding openen (werkt in alle schermen)</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <hr class="separator">
+
+    <h2 id="rollen-en-rechten">4. Rollen en rechten</h2>
+
+    <h3>Planner</h3>
+    <p><strong>Volledige controle over planning:</strong></p>
+    <ul>
+        <li>Planning maken en wijzigen voor alle teamleden</li>
+        <li>Verlofaanvragen goedkeuren of afwijzen</li>
+        <li>Gebruikers beheren (toevoegen, bewerken, deactiveren)</li>
+        <li>Shift codes en werkposten configureren</li>
+        <li>HR-regels en instellingen aanpassen</li>
+        <li>Typetabellen beheren</li>
+    </ul>
+
+    <h3>Teamlid</h3>
+    <p><strong>Persoonlijke planning beheer:</strong></p>
+    <ul>
+        <li>Eigen planning bekijken</li>
+        <li>Verlof aanvragen (met saldo weergave)</li>
+        <li>Shift voorkeuren instellen (v0.6.11)</li>
+        <li>Dark mode kiezen (v0.6.12)</li>
+        <li>Wachtwoord wijzigen</li>
+    </ul>
+
+    <hr class="separator">
+
+    <h2 id="belangrijke-concepten">5. Belangrijke concepten</h2>
+
+    <h3 id="typetabel-diensttabel">5.1. Typetabel (Diensttabel)</h3>
+    <p>Een <strong>typetabel</strong> is een herhalend patroon van diensten dat zich automatisch herhaalt.</p>
+
+    <p><strong>Kenmerken:</strong></p>
+    <ul>
+        <li>Lengte: 1 tot 52 weken</li>
+        <li>Elke gebruiker heeft een <strong>startweek</strong> (1 t/m N)</li>
+        <li>Startweek bepaalt waar iemand in het patroon begint</li>
+        <li>Gebruikt voor automatische roostergeneratie</li>
+    </ul>
+
+    <p><strong>Voorbeeld:</strong></p>
+    <pre>
+Week 1: V1, V2, V1, V2, L1, RX, RX
+Week 2: V2, V1, V2, V1, L2, RX, RX
+Week 3: L1, L1, L2, L2, V1, RX, RX
+    </pre>
+
+    <p>Als persoon A startweek 1 heeft en persoon B startweek 2, dan beginnen ze op een andere plek in het patroon.</p>
+
+    <p><strong>Statussen:</strong></p>
+    <ul>
+        <li>🟡 <strong>CONCEPT</strong> - In bewerking, nog niet actief</li>
+        <li>🟢 <strong>ACTIEF</strong> - Wordt gebruikt voor roostering (slechts 1 kan actief zijn)</li>
+        <li>⚫ <strong>ARCHIEF</strong> - Oude versie, alleen-lezen</li>
+    </ul>
+
+    <h3 id="shift-codes">5.2. Shift Codes</h3>
+    <p>Er zijn <strong>twee soorten</strong> codes:</p>
+
+    <h4>1. Werkposten (Team-specifiek)</h4>
+    <p>Diensten die specifiek zijn voor jouw werkpost/team.</p>
+
+    <p><strong>Voorbeelden:</strong></p>
+    <ul>
+        <li><code>V1</code> - Vroege dienst werkpost 1 (06:00-14:00)</li>
+        <li><code>V2</code> - Vroege dienst werkpost 2 (06:00-14:00)</li>
+        <li><code>L1</code> - Late dienst werkpost 1 (14:00-22:00)</li>
+        <li><code>L2</code> - Late dienst werkpost 2 (14:00-22:00)</li>
+    </ul>
+
+    <p><strong>Tijd notatie:</strong></p>
+    <p>Je kunt tijden flexibel invoeren:</p>
+    <ul>
+        <li><code>6-14</code> → wordt automatisch <code>06:00-14:00</code></li>
+        <li><code>06:00-14:00</code> → volledige notatie</li>
+        <li><code>14:15-22:45</code> → met kwartieren</li>
+    </ul>
+
+    <h4>2. Speciale Codes (Globaal)</h4>
+    <p>Codes die voor iedereen gelden.</p>
+
+    <p><strong>Systeem codes</strong> (beschermd, niet verwijderbaar):</p>
+    <ul>
+        <li><code>VV</code> - Verlof (code zelf kan wel aangepast, bijv. naar VL)</li>
+        <li><code>RX</code> - Zondagsrust</li>
+        <li><code>CX</code> - Zaterdagsrust</li>
+        <li><code>Z</code> - Ziek</li>
+        <li><code>DA</code> - Arbeidsduurverkorting</li>
+    </ul>
+
+    <p>Deze codes hebben een <code>[SYSTEEM]</code> label en kunnen niet verwijderd worden. Je <strong>kunt</strong> wel de code zelf aanpassen (bijv. VV naar VL), maar de functionaliteit blijft behouden.</p>
+
+    <p><strong>Andere codes:</strong></p>
+    <ul>
+        <li><code>T</code> - Training</li>
+        <li><code>N1</code>, <code>N2</code> - Nachtdiensten</li>
+        <li>Eigen codes toevoegen naar behoefte</li>
+    </ul>
+
+    <h3 id="hr-regels">5.3. HR Regels</h3>
+    <p>Het systeem controleert <strong>automatisch</strong> of roosters voldoen aan HR-afspraken:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Regel</th>
+                <th>Beschrijving</th>
+                <th>Default</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Rust tussen diensten</strong></td>
+                <td>Minimum aantal uren rust</td>
+                <td>12 uur</td>
+            </tr>
+            <tr>
+                <td><strong>Max uren per week</strong></td>
+                <td>Maximum werkuren</td>
+                <td>50 uur</td>
+            </tr>
+            <tr>
+                <td><strong>Max werkdagen cyclus</strong></td>
+                <td>Max werkdagen per rode lijn</td>
+                <td>19 dagen</td>
+            </tr>
+            <tr>
+                <td><strong>Max dagen tussen rust</strong></td>
+                <td>Max dagen tussen RX/CX</td>
+                <td>7 dagen</td>
+            </tr>
+            <tr>
+                <td><strong>Max opeenvolgende werkdagen</strong></td>
+                <td>Max aantal dagen achter elkaar</td>
+                <td>7 dagen</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p class="note">⚠️ <strong>LET OP:</strong> Default regels zijn <strong>VOORBEELDEN</strong>. Stem deze af met HR voordat je ze gebruikt!</p>
+
+    <p><strong>Historiek:</strong></p>
+    <ul>
+        <li>Bij wijzigen wordt een nieuwe versie aangemaakt</li>
+        <li>Oude regel wordt gearchiveerd met einddatum</li>
+        <li>Planning van voor de wijziging gebruikt oude regels</li>
+        <li>Planning van na de wijziging gebruikt nieuwe regels</li>
+    </ul>
+
+    <h3 id="rode-lijnen">5.4. Rode Lijnen</h3>
+    <p><strong>Rode lijnen</strong> zijn HR-cycli die gebruikt worden om werkdagen te tellen.</p>
+
+    <p><strong>Configuratie:</strong></p>
+    <ul>
+        <li><strong>Start datum</strong> - Eerste rode lijn datum (bijv. 28 juli 2024)</li>
+        <li><strong>Interval</strong> - Aantal dagen per cyclus (standaard 28 dagen)</li>
+        <li>Automatische generatie van nieuwe rode lijnen</li>
+        <li>Configureerbaar via <em>Instellingen → Rode Lijnen</em></li>
+    </ul>
+
+    <p><strong>Gebruik:</strong></p>
+    <p>Het systeem controleert hoeveel dagen je hebt gewerkt binnen een rode lijn periode en waarschuwt als je het maximum nadert.</p>
+
+    <h3 id="feestdagen">5.5. Feestdagen</h3>
+    <p><strong>Automatische generatie:</strong></p>
+    <ul>
+        <li>Belgische feestdagen worden automatisch aangemaakt per jaar</li>
+        <li>Vaste feestdagen (Nieuwjaar, Nationale feestdag, Kerstmis, etc.)</li>
+        <li>Variabele feestdagen (Pasen, Hemelvaart, Pinksteren - automatisch berekend)</li>
+    </ul>
+
+    <p><strong>Beheer:</strong></p>
+    <ul>
+        <li>Planners kunnen feestdagen handmatig toevoegen of aanpassen</li>
+        <li>Markeren als zondagsrust (dubbele betaling)</li>
+    </ul>
+
+    <hr class="separator">
+
+    <h2 id="veelgebruikte-taken">6. Veelgebruikte taken</h2>
+
+    <h3 id="voor-planners">6.1. Voor Planners</h3>
+
+    <h4 id="planning-maken">6.1.1. Planning maken</h4>
+    <ol>
+        <li>Ga naar <strong>Planning → Planning Editor</strong></li>
+        <li>Selecteer een werkpost in het filter (bijv. "Interventie")</li>
+        <li>Klik op een cel in de kalender</li>
+        <li>Selecteer een shift code uit de lijst</li>
+        <li>Planning verschijnt met kleur van de shift</li>
+        <li>Wijzigingen opslaan</li>
+    </ol>
+
+    <h4 id="planning-valideren">6.1.1a. Planning valideren (HR Regels)</h4>
+    <p>Het systeem controleert automatisch of de planning voldoet aan de HR regels. Violations worden visueel weergegeven in de planning grid.</p>
+
+    <p><strong>"Valideer Planning" knop:</strong></p>
+    <ul>
+        <li>Locatie: Tussen "Volgende Maand" en "Filter Teamleden" knoppen</li>
+        <li>Functie: Controleert alle HR regels voor de huidige maand</li>
+        <li>Duur: Kan enkele seconden duren voor grote teams</li>
+        <li>Resultaat: Toont samenvatting dialog met aantal violations</li>
+    </ul>
+
+    <p><strong>HR Summary Box:</strong></p>
+    <ul>
+        <li>Verschijnt onder de kalender grid na validatie</li>
+        <li>Toont alle violations gegroepeerd per medewerker</li>
+        <li>Scrollbaar (max 200px hoog)</li>
+        <li>Format: <code>👤 Naam: [ERROR] Regel beschrijving (details)</code></li>
+        <li>Voorbeeld: <code>👤 Jan Janssen: [ERROR] Max 50 uur per week (56.5 uur in week 42)</code></li>
+    </ul>
+
+    <p><strong>Visuele Overlays in Grid:</strong></p>
+    <ul>
+        <li>🔴 <strong>Rode overlay (70% opacity)</strong> - ERROR violations
+            <ul>
+                <li>Rusttijd tussen shifts te kort (&lt; 12 uur)</li>
+                <li>Te veel werkdagen in rode lijn periode (&gt; 19 dagen)</li>
+                <li>Verboden shift combinatie (nacht → vroeg)</li>
+            </ul>
+        </li>
+        <li>🟡 <strong>Gele overlay (70% opacity)</strong> - WARNING violations
+            <ul>
+                <li>Te veel uren per week (50+ uur)</li>
+                <li>Te lang tussen rust momenten (&gt; 7 dagen)</li>
+                <li>Te veel opeenvolgende werkdagen (&gt; 7 dagen)</li>
+                <li>Te veel opeenvolgende weekends</li>
+            </ul>
+        </li>
+        <li>Hover over cel: Tooltip toont specifieke violation details</li>
+    </ul>
+
+    <p><strong>Pre-Publicatie Validatie:</strong></p>
+    <p>Bij publiceren van planning wordt automatisch een volledige HR controle uitgevoerd:</p>
+    <ol>
+        <li>Klik op <strong>"Publiceren"</strong> knop</li>
+        <li>Systeem valideert alle gebruikers voor de maand</li>
+        <li>Als violations gevonden:
+            <ul>
+                <li>Waarschuwing dialog verschijnt</li>
+                <li>Aantal violations wordt getoond</li>
+                <li>Keuze: <strong>Annuleren</strong> (terug naar editor) of <strong>Ja</strong> (toch publiceren)</li>
+            </ul>
+        </li>
+        <li>Planning met violations MAG gepubliceerd worden (soft warning, geen blokkering)</li>
+        <li>Excel rapport bevat volledige validatie details</li>
+    </ol>
+
+    <p class="note">💡 <strong>TIP:</strong> Gebruik "Valideer Planning" regelmatig tijdens het maken van de planning om violations vroegtijdig te detecteren en op te lossen.</p>
+
+    <h4>Planning status: Concept vs Gepubliceerd</h4>
+    <p>De planning heeft twee statussen per maand:</p>
+    <ul>
+        <li>🟡 <strong>CONCEPT</strong> (gele waarschuwing bovenaan)
+            <ul>
+                <li>Planning is nog in bewerking</li>
+                <li>Teamleden kunnen deze planning <strong>NIET</strong> zien</li>
+                <li>Je kunt vrijelijk experimenteren en wijzigen</li>
+                <li>Knop "Publiceren" verschijnt</li>
+            </ul>
+        </li>
+        <li>🟢 <strong>GEPUBLICEERD</strong> (groene bevestiging bovenaan)
+            <ul>
+                <li>Planning is definitief en zichtbaar</li>
+                <li>Teamleden kunnen deze planning <strong>WEL</strong> zien</li>
+                <li>Je kunt ALTIJD nog wijzigen (voor zieken, last-minute wijzigingen)</li>
+                <li>Knop "Terug naar Concept" beschikbaar (verbergt planning weer)</li>
+            </ul>
+        </li>
+    </ul>
+
+    <p><strong>Planning publiceren:</strong></p>
+    <ol>
+        <li>Maak planning voor een maand</li>
+        <li>Status is automatisch "CONCEPT"</li>
+        <li>Klik op <strong>"Publiceren"</strong> knop bovenaan</li>
+        <li>Bevestig in de dialog</li>
+        <li>Status wordt "GEPUBLICEERD" voor hele maand</li>
+        <li>Teamleden kunnen planning nu bekijken</li>
+        <li><strong>Automatisch:</strong> Excel bestand wordt gegenereerd in <code>exports/</code> folder</li>
+    </ol>
+
+    <p><strong>Excel export voor HR:</strong></p>
+    <ul>
+        <li>Bestandsnaam: <code>maandnaam_jaartal.xlsx</code> (bijv. <code>oktober_2025.xlsx</code>)</li>
+        <li>Locatie: <code>exports/</code> folder (naast de applicatie)</li>
+        <li>Inhoud: Alle gebruikers (inclusief reserves) met planning per dag</li>
+        <li>Gebruik: Copy/paste naar SharePoint voor HR</li>
+    </ul>
+
+    <p><strong>Waarom concept status?</strong></p>
+    <ul>
+        <li>Je kunt eerst plannen zonder dat teamleden alles zien</li>
+        <li>Experimenteer met verschillende roosters</li>
+        <li>Publiceer pas wanneer je tevreden bent</li>
+        <li>Voorkom verwarring bij teamleden</li>
+    </ul>
+
+    <p><strong>Notities bekijken en toevoegen:</strong></p>
+    <p>Teamleden kunnen notities achterlaten voor specifieke datums (bijv. "Afspraak 14u"). Je kunt deze notities bekijken en beantwoorden in de planning grid:</p>
+
+    <ol>
+        <li><strong>Notitie herkennen:</strong>
+            <ul>
+                <li><strong>Groen hoekje</strong> rechtsboven in cel = notitie aanwezig</li>
+                <li>Hover over cel voor tooltip met notitie tekst</li>
+            </ul>
+        </li>
+        <li><strong>Notitie bekijken/bewerken:</strong>
+            <ul>
+                <li>Rechtermuisklik op cel → <strong>"Notitie toevoegen/bewerken"</strong></li>
+                <li>Dialog toont huidige notitie</li>
+                <li>Je kunt notitie lezen, beantwoorden of verwijderen</li>
+                <li>Notities krijgen automatisch prefix <code>[Planner]:</code> voor duidelijkheid</li>
+            </ul>
+        </li>
+        <li><strong>Notitie van teamlid:</strong>
+            <ul>
+                <li>Prefix toont wie notitie maakte: <code>[Peter]: Afspraak om 14u, kan niet voor late shift</code></li>
+                <li>Je kunt hierop reageren of gewoon de planning aanpassen</li>
+                <li>Teamlid ziet jouw reactie als je notitie bewerkt</li>
+            </ul>
+        </li>
+    </ol>
+
+    <p><strong>Voorbeelden:</strong></p>
+    <ul>
+        <li>Teamlid: <code>[Jan]: Arts afspraak 10u - liefst vrij of late dienst</code></li>
+        <li>Jouw reactie: <code>[Planner]: Late dienst toegewezen, succes bij de dokter!</code></li>
+    </ul>
+
+    <h4>Bulk Operaties: Meerdere cellen tegelijk bewerken ⚡ NIEUW in v0.6.17</h4>
+    <p>Voor efficiënt roosteren kun je meerdere cellen tegelijk selecteren en bewerken:</p>
+
+    <p><strong>Selecteren:</strong></p>
+    <ol>
+        <li><strong>Ctrl+Click</strong> = Individuele cellen selecteren/deselecteren
+            <ul>
+                <li>Voorbeeld: Vrijdag voor Jan, Piet, en Klaas selecteren</li>
+            </ul>
+        </li>
+        <li><strong>Shift+Click</strong> = Rechthoek selectie (zoals Excel)
+            <ul>
+                <li>Voorbeeld: Klik op maandag voor Jan, houd Shift ingedrukt, klik op vrijdag voor Piet</li>
+                <li>Resultaat: Hele week voor Jan tot en met Piet geselecteerd</li>
+            </ul>
+        </li>
+        <li><strong>ESC</strong> = Selectie wissen</li>
+    </ol>
+
+    <p><strong>Visuele feedback:</strong></p>
+    <ul>
+        <li>Geselecteerde cellen krijgen <strong>lichtblauwe overlay</strong></li>
+        <li>Bovenaan: <strong>"X cellen geselecteerd (ESC om te wissen)"</strong></li>
+    </ul>
+
+    <p><strong>Bulk Wissen:</strong></p>
+    <ol>
+        <li>Selecteer meerdere cellen (Ctrl+Click of Shift+Click)</li>
+        <li>Rechtsklik op selectie → <strong>"Wis Selectie (X cellen)"</strong></li>
+        <li>Dialog verschijnt:
+            <ul>
+                <li>Checkbox: "Ook speciale codes verwijderen?" (standaard UIT)</li>
+                <li>Dit betekent: verlof (VV), ziekte (Z), rustdagen (RX, CX) blijven behouden</li>
+                <li>Alleen gewone shift codes worden verwijderd</li>
+            </ul>
+        </li>
+        <li>Klik <strong>Verwijderen</strong></li>
+        <li>Notities blijven ALTIJD behouden!</li>
+    </ol>
+
+    <p><strong>Bulk Invullen:</strong></p>
+    <ol>
+        <li>Selecteer meerdere cellen</li>
+        <li>Rechtsklik → <strong>"Vul Selectie In... (X cellen)"</strong></li>
+        <li>Dialog verschijnt:
+            <ul>
+                <li>Typ shift code (bijv. "V" voor vroege dienst)</li>
+                <li>Checkbox: "Ook speciale codes overschrijven?" (standaard UIT)</li>
+                <li>Dit betekent: cellen met verlof/ziekte blijven onaangetast</li>
+            </ul>
+        </li>
+        <li>Klik <strong>Invullen</strong></li>
+        <li>Alle geselecteerde cellen worden ingevuld met de code</li>
+    </ol>
+
+    <p><strong>Praktische voorbeelden:</strong></p>
+    <p><em>Voorbeeld 1: Vrijdag voor 10 mensen "V" (vroege dienst)</em></p>
+    <ul>
+        <li>Ctrl+Click op vrijdag voor alle 10 medewerkers</li>
+        <li>Rechtsklik → "Vul Selectie In..."</li>
+        <li>Typ "V" → Invullen</li>
+        <li>Klaar in 5 seconden! (voorheen 10x handmatig)</li>
+    </ul>
+
+    <p><em>Voorbeeld 2: Weekend wissen voor team</em></p>
+    <ul>
+        <li>Shift+Click: zaterdag voor eerste persoon tot zondag voor laatste persoon</li>
+        <li>Rechtsklik → "Wis Selectie"</li>
+        <li>Bevestig (speciale codes checkbox blijft UIT)</li>
+        <li>Weekend leeg, maar verlof/ziekte blijft staan!</li>
+    </ul>
+
+    <p><em>Voorbeeld 3: Iemand hele week afwezig</em></p>
+    <ul>
+        <li>Selecteer hele rij voor Peter (ma t/m zo)</li>
+        <li>Rechtsklik → "Vul Selectie In..."</li>
+        <li>Typ "VD" (vrij van dienst) → Invullen</li>
+        <li>Hele week ingevuld!</li>
+    </ul>
+
+    <p><strong>Tijdsbesparing:</strong></p>
+    <ul>
+        <li>Van 20 clicks naar 3 clicks voor typische taken</li>
+        <li>Efficiënt roosteren voor grote teams</li>
+        <li>Minder kans op fouten</li>
+    </ul>
+
+    <h4>HR Rules Kolommen: Werkdagen Tracking ⚡ NIEUW in v0.6.19</h4>
+    <p>De Planning Editor toont nu 2 extra kolommen direct naast de teamlid namen die automatisch het aantal gewerkte dagen tellen per 28-daagse cyclus (rode lijn periode):</p>
+
+    <p><strong>Kolommen:</strong></p>
+    <ol>
+        <li><strong>"Voor RL"</strong> = Werkdagen VÓÓR de rode lijn (vorige periode)</li>
+        <li><strong>"Na RL"</strong> = Werkdagen NA de rode lijn (huidige periode)
+            <ul>
+                <li>Met <strong>rode verticale lijn</strong> (3px) als scheiding</li>
+            </ul>
+        </li>
+    </ol>
+
+    <p><strong>Wat tellen als werkdag?</strong></p>
+    <ul>
+        <li>Alleen shifts die als werkdag gemarkeerd zijn (bijv. V, L, N)</li>
+        <li>Verlof (VV), rustdagen (RX, CX), vrij (VD) tellen NIET mee</li>
+        <li>Lege cellen tellen NIET mee</li>
+    </ul>
+
+    <p><strong>Visuele waarschuwing:</strong></p>
+    <ul>
+        <li>⚠️ <strong>Rode cel</strong> = meer dan 19 werkdagen in DIE specifieke periode</li>
+        <li>Normale cel = binnen de limiet (0-19 dagen)</li>
+        <li>Tooltip: Hover over cijfer voor details (periode nummer, datums, X/19 dagen)</li>
+    </ul>
+
+    <p><strong>Voorbeeld:</strong></p>
+    <pre>
+| Teamlid        | Voor RL | | Na RL |  1  |  2  | ... |
+|                |         | |       |     |     |     |
+| Jan Janssens   |   12    | |   8   | V   | L   | ... |
+| Piet Pieters   |   18    | |  21   | N   | RX  | ... |
+                            ↑
+                    Rode lijn (scheiding)
+    </pre>
+
+    <p>In dit voorbeeld:</p>
+    <ul>
+        <li><strong>Jan:</strong> Beide periodes binnen limiet (12 en 8 dagen)</li>
+        <li><strong>Piet:</strong> "Na RL" is ROOD (21 > 19) = te veel werkdagen in huidige periode</li>
+    </ul>
+
+    <p><strong>Real-time updates:</strong></p>
+    <ul>
+        <li>Cijfers updaten <strong>automatisch</strong> wanneer je shifts invult of wist</li>
+        <li>Geen refresh nodig - direct feedback terwijl je plant!</li>
+    </ul>
+
+    <p><strong>Waarom belangrijk?</strong></p>
+    <ul>
+        <li><strong>Compliance:</strong> Voldoe aan HR regel (max 19 werkdagen per 28 dagen)</li>
+        <li><strong>Preventie:</strong> Zie DIRECT wanneer limiet wordt overschreden</li>
+        <li><strong>Efficiëntie:</strong> Weet meteen of je nog shifts kunt toewijzen</li>
+        <li><strong>Planning:</strong> Plan beter door real-time inzicht in werkdruk</li>
+    </ul>
+
+    <p><strong>Praktisch gebruik:</strong></p>
+    <ol>
+        <li>Open Planning Editor voor een maand</li>
+        <li>Kijk naar "Voor RL" en "Na RL" kolommen per teamlid</li>
+        <li>Plan shifts zoals gewoonlijk</li>
+        <li>Cijfers updaten automatisch terwijl je typt</li>
+        <li>Rode cel? → die persoon heeft al genoeg werkdagen in die periode</li>
+        <li>Overweeg: andere shift type (rustdag), andere persoon, of spreiding</li>
+    </ol>
+
+    <p><strong>Rode lijn periode:</strong></p>
+    <ul>
+        <li>Elke 28 dagen start een nieuwe periode (configureerbaar in Rode Lijnen Beheer)</li>
+        <li>De rode lijn in de grid toont de start van een nieuwe periode</li>
+        <li>"Voor RL" = vorige 28-dagen cyclus</li>
+        <li>"Na RL" = huidige 28-dagen cyclus</li>
+    </ul>
+
+    <p><strong>Let op: Gepubliceerde maanden</strong></p>
+    <ul>
+        <li>Als een maand <strong>gepubliceerd</strong> is (groene rand), kun je NIET meer wijzigen</li>
+        <li>Je krijgt waarschuwing: "Deze maand is gepubliceerd en kan niet worden bewerkt"</li>
+        <li>Oplossing: Klik <strong>"Terug naar Concept"</strong> knop, wijzig, en publiceer opnieuw</li>
+        <li>Dit voorkomt onbedoelde wijzigingen aan planning die teamleden al bekijken</li>
+    </ul>
+
+    <p><strong>Status Indicator:</strong></p>
+    <ul>
+        <li><strong>Gele rand</strong> (8px) rond scherm = Concept modus (bewerken OK)</li>
+        <li><strong>Groene rand</strong> (8px) rond scherm = Gepubliceerd modus (eerst terug naar concept)</li>
+    </ul>
+
+    <h4 id="verlof-goedkeuren">6.1.2. Verlof goedkeuren</h4>
+    <ol>
+        <li>Ga naar <strong>Planning → Verlof Goedkeuring</strong></li>
+        <li>Zie lijst met openstaande aanvragen</li>
+        <li>Klik <strong>Goedkeuren</strong> of <strong>Afwijzen</strong></li>
+        <li>Bij goedkeuring wordt automatisch de verlofcode (VV) in planning gezet</li>
+        <li>Medewerker krijgt bericht van beslissing</li>
+    </ol>
+
+    <h4 id="gebruikers-beheren">6.1.3. Gebruikers beheren</h4>
+    <ol>
+        <li>Ga naar <strong>Beheer → Gebruikersbeheer</strong></li>
+        <li>Klik <strong>Nieuwe Gebruiker</strong> om iemand toe te voegen</li>
+        <li>Vul gegevens in:
+            <ul>
+                <li>Naam en gebruikersnaam</li>
+                <li>Rol (Planner of Teamlid)</li>
+                <li>Is reserve? (voor flexpool)</li>
+                <li>Startweek typedienst (1 t/m N)</li>
+            </ul>
+        </li>
+        <li>Klik <strong>Opslaan</strong></li>
+    </ol>
+
+    <p><strong>Gebruiker bewerken:</strong></p>
+    <ul>
+        <li>Klik op gebruiker in lijst</li>
+        <li>Pas gegevens aan</li>
+        <li>Klik <strong>Wijzigingen Opslaan</strong></li>
+    </ul>
+
+    <p><strong>Gebruiker deactiveren:</strong></p>
+    <ul>
+        <li>Klik <strong>Deactiveer</strong> (wordt niet verwijderd, alleen inactief)</li>
+        <li>Kan later weer geactiveerd worden</li>
+    </ul>
+
+    <h4 id="shift-codes-beheren">6.1.4. Shift codes beheren</h4>
+    <ol>
+        <li>Ga naar <strong>Beheer → Shift Codes & Werkposten</strong></li>
+        <li><strong>Werkpost toevoegen:</strong>
+            <ul>
+                <li>Klik <strong>Nieuwe Werkpost</strong></li>
+                <li>Geef naam (bijv. "Interventie")</li>
+                <li>Vul 3x4 grid in (Vroeg/Laat/Nacht × Ma-Zo/Weekend/Feestdag)</li>
+            </ul>
+        </li>
+        <li><strong>Speciale code aanpassen:</strong>
+            <ul>
+                <li>Codes met <code>[SYSTEEM]</code> label kunnen niet verwijderd</li>
+                <li>Wel de code zelf aanpassen (VV → VL)</li>
+                <li>Beschrijving en kleur wijzigen</li>
+            </ul>
+        </li>
+    </ol>
+
+    <p><strong>Tijd notatie tips:</strong></p>
+    <ul>
+        <li>Gebruik <code>6-14</code> voor snelle invoer</li>
+        <li>Systeem vult automatisch aan naar <code>06:00-14:00</code></li>
+        <li>Kan ook met kwartieren: <code>06:15-14:30</code></li>
+    </ul>
+
+    <h4 id="typetabel-beheren">6.1.5. Typetabel beheren</h4>
+    <ol>
+        <li>Ga naar <strong>Beheer → Typetabel Beheer</strong></li>
+        <li><strong>Nieuwe maken:</strong>
+            <ul>
+                <li>Klik <strong>Nieuw Concept</strong></li>
+                <li>Kies aantal weken (1-52)</li>
+                <li>Vul grid in met shift codes</li>
+            </ul>
+        </li>
+        <li><strong>Bewerken:</strong>
+            <ul>
+                <li>Klik <strong>Bewerk</strong> bij concept</li>
+                <li>Wijzig cellen naar wens</li>
+            </ul>
+        </li>
+        <li><strong>Kopiëren:</strong>
+            <ul>
+                <li>Klik <strong>Kopieer</strong> om variant te maken</li>
+                <li>Geef nieuwe naam</li>
+            </ul>
+        </li>
+        <li><strong>Activeren:</strong>
+            <ul>
+                <li>Klik <strong>Activeer</strong> bij concept</li>
+                <li>Oude actieve typetabel wordt gearchiveerd</li>
+            </ul>
+        </li>
+    </ol>
+
+    <h4 id="hr-regels-aanpassen">6.1.6. HR Regels aanpassen</h4>
+    <ol>
+        <li>Ga naar <strong>Instellingen → HR Regels Beheer</strong></li>
+        <li>Zie actieve regels + historiek</li>
+        <li>Klik <strong>Wijzig</strong> bij een regel</li>
+        <li>Pas waarde aan</li>
+        <li>Kies <strong>Actief vanaf</strong> datum</li>
+        <li>Klik <strong>Nieuwe Versie Opslaan</strong></li>
+    </ol>
+
+    <p class="note">⚠️ <strong>Let op:</strong> Als je een datum in het verleden kiest, moet planning opnieuw gevalideerd worden!</p>
+
+    <h4 id="rode-lijnen-configureren">6.1.7. Rode Lijnen configureren</h4>
+    <ol>
+        <li>Ga naar <strong>Instellingen → Rode Lijnen Beheer</strong></li>
+        <li>Zie huidige configuratie</li>
+        <li>Klik <strong>Wijzig</strong></li>
+        <li>Pas start datum of interval aan</li>
+        <li>Kies <strong>Actief vanaf</strong> datum</li>
+        <li>Klik <strong>Nieuwe Versie Opslaan</strong></li>
+    </ol>
+
+    <p><strong>Gebruik:</strong></p>
+    <ul>
+        <li>Interval van 28 dagen is standaard Nederlandse HR-cyclus</li>
+        <li>Kan aangepast naar andere intervallen (bijv. 21 dagen)</li>
+        <li>Start datum bepaalt wanneer de eerste rode lijn begint</li>
+    </ul>
+
+    <h3 id="voor-teamleden">6.2. Voor Teamleden</h3>
+
+    <h4 id="eigen-planning-bekijken">6.2.1. Eigen planning bekijken</h4>
+    <ol>
+        <li>Ga naar <strong>Planning → Mijn Planning</strong></li>
+        <li>Zie je rooster per maand</li>
+        <li>Gebruik knoppen om door maanden te navigeren</li>
+        <li>Kleuren tonen verschillende shift types</li>
+    </ol>
+
+    <p><strong>Let op:</strong></p>
+    <ul>
+        <li>Je ziet alleen <strong>gepubliceerde</strong> planning</li>
+        <li>Planning in concept status (nog in bewerking) is verborgen</li>
+        <li>Als je geen planning ziet voor een maand, is deze waarschijnlijk nog niet gepubliceerd</li>
+        <li>Neem contact op met je planner als je denkt dat planning wel gepubliceerd zou moeten zijn</li>
+    </ul>
+
+    <h4 id="verlof-aanvragen">6.2.2. Verlof aanvragen</h4>
+    <ol>
+        <li>Ga naar <strong>Planning → Verlof Aanvragen</strong></li>
+        <li>Klik <strong>Nieuwe Aanvraag</strong></li>
+        <li>Selecteer datum met kalender</li>
+        <li>Kies type (Verlof, Zondagsrust, etc.)</li>
+        <li>Voeg eventueel opmerking toe</li>
+        <li>Klik <strong>Aanvraag Indienen</strong></li>
+        <li>Wacht op goedkeuring van planner</li>
+    </ol>
+
+    <p><strong>Status:</strong></p>
+    <ul>
+        <li>🟡 <strong>IN_BEHANDELING</strong> - Wachten op planner</li>
+        <li>🟢 <strong>GOEDGEKEURD</strong> - Geaccepteerd</li>
+        <li>🔴 <strong>AFGEKEURD</strong> - Niet goedgekeurd</li>
+    </ul>
+
+    <h4 id="notitie-naar-planner-sturen">6.2.3. Notitie naar Planner sturen</h4>
+    <p><strong>Wanneer te gebruiken:</strong></p>
+    <ul>
+        <li>Je hebt een afspraak en wil een bepaalde shift</li>
+        <li>Je hebt een voorkeur voor een specifieke datum</li>
+        <li>Je wil de planner informeren over een bijzondere situatie</li>
+    </ul>
+
+    <p><strong>Hoe te gebruiken:</strong></p>
+    <ol>
+        <li>Ga naar <strong>Mijn Planning → Notitie naar Planner</strong></li>
+        <li>Selecteer de <strong>datum</strong> waar je notitie over gaat</li>
+        <li>Schrijf je <strong>notitie</strong> in het tekstveld</li>
+        <li>Klik <strong>Opslaan</strong></li>
+    </ol>
+
+    <p><strong>Voorbeelden:</strong></p>
+    <ul>
+        <li>"Afspraak om 14u, kan niet voor late shift"</li>
+        <li>"Verzoek voor vroege shift ivm vervoer"</li>
+        <li>"Arts afspraak 10u - liefst vrij of late dienst"</li>
+    </ul>
+
+    <p><strong>Wat gebeurt er:</strong></p>
+    <ul>
+        <li>Je notitie wordt opgeslagen met jouw naam: <code>[Peter]: Afspraak om 14u...</code></li>
+        <li>Een <strong>groen hoekje</strong> verschijnt in de planning bij jouw naam op de gekozen datum</li>
+        <li>De planner ziet je notitie en kan hierop reageren</li>
+        <li>Je notitie blijft zichtbaar totdat deze wordt verwijderd</li>
+    </ul>
+
+    <p><strong>Let op:</strong></p>
+    <ul>
+        <li>Houd notities kort en duidelijk</li>
+        <li>Dit is geen garantie voor een specifieke shift, maar helpt de planner bij het maken van de planning</li>
+        <li>Voor officiële verlofaanvragen: gebruik de "Verlof Aanvragen" functie</li>
+    </ul>
+
+    <h4 id="wachtwoord-wijzigen">6.2.4. Wachtwoord wijzigen</h4>
+    <ol>
+        <li>Ga naar <strong>Persoonlijk → Wijzig Wachtwoord</strong></li>
+        <li>Voer oud wachtwoord in</li>
+        <li>Voer nieuw wachtwoord in (2x)</li>
+        <li>Klik <strong>Wijzig Wachtwoord</strong></li>
+    </ol>
+
+    <hr class="separator">
+
+    <h2 id="tips-tricks">7. Tips & Tricks</h2>
+
+    <h3>Voor Planners</h3>
+    <ul>
+        <li>✅ <strong>Gebruik historiek</strong>
+            <ul>
+                <li>HR Regels en Rode Lijnen tonen volledig historiek</li>
+                <li>Handig voor audit trail en compliance</li>
+            </ul>
+        </li>
+        <li>✅ <strong>Planning status</strong>
+            <ul>
+                <li>Concept → zichtbaar alleen voor planners</li>
+                <li>Gepubliceerd → teamleden kunnen zien</li>
+                <li>Gesloten → automatisch na einddatum</li>
+            </ul>
+        </li>
+        <li>✅ <strong>Feestdagen automatisch</strong>
+            <ul>
+                <li>Systeem genereert Belgische feestdagen automatisch</li>
+                <li>Check wel of ze kloppen voor jouw regio</li>
+            </ul>
+        </li>
+        <li>✅ <strong>Filter op werkpost</strong>
+            <ul>
+                <li>In kalenders: gebruik werkpost filter voor overzicht</li>
+                <li>Voorkomt chaos bij meerdere werkposten</li>
+            </ul>
+        </li>
+        <li>✅ <strong>Kopieer typetabellen</strong>
+            <ul>
+                <li>Maak eerst een basis typetabel</li>
+                <li>Kopieer voor varianten (winter/zomer)</li>
+                <li>Scheelt veel handmatig werk</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h3>Voor Teamleden</h3>
+    <ul>
+        <li>✅ <strong>Verlof vroeg aanvragen</strong>
+            <ul>
+                <li>Hoe eerder, hoe groter de kans op goedkeuring</li>
+                <li>Planner heeft meer tijd om te plannen</li>
+            </ul>
+        </li>
+        <li>✅ <strong>Opmerkingen toevoegen</strong>
+            <ul>
+                <li>Geef context bij verlofaanvraag</li>
+                <li>Helpt planner bij beslissing</li>
+            </ul>
+        </li>
+        <li>✅ <strong>Planning regelmatig checken</strong>
+            <ul>
+                <li>Check je rooster wekelijks</li>
+                <li>Let op wijzigingen</li>
+            </ul>
+        </li>
+    </ul>
+
+    <hr class="separator">
+
+    <h2 id="veelgestelde-vragen">8. Veelgestelde vragen</h2>
+
+    <h3>Algemeen</h3>
+    <p><strong>Q: Hoe open ik de handleiding?</strong></p>
+    <p>A: Druk op <strong>F1</strong> in elk scherm, of klik op <strong>Handleiding</strong> knop in dashboard.</p>
+
+    <p><strong>Q: Mijn wachtwoord werkt niet meer</strong></p>
+    <p>A: Neem contact op met je planner. Alleen planners kunnen wachtwoorden resetten.</p>
+
+    <p><strong>Q: Waarom zie ik bepaalde menu's niet?</strong></p>
+    <p>A: Menu's zijn afhankelijk van je rol. Teamleden zien minder opties dan planners.</p>
+
+    <h3>Voor Planners</h3>
+    <p><strong>Q: Kan ik meerdere typetabellen actief hebben?</strong></p>
+    <p>A: Nee, slechts 1 typetabel kan actief zijn. Bij activeren wordt de oude gearchiveerd.</p>
+
+    <p><strong>Q: Hoe verwijder ik een shift code?</strong></p>
+    <p>A: Codes met <code>[SYSTEEM]</code> label kunnen niet verwijderd. Andere codes: klik <strong>Verwijder</strong> in Shift Codes scherm.</p>
+
+    <p><strong>Q: Verlofcode per ongeluk verwijderd, wat nu?</strong></p>
+    <p>A: Sinds v0.6.7 kan dit niet meer - systeemcodes zijn beschermd. Bij oudere versies: run migratie script.</p>
+
+    <p><strong>Q: HR regels wijzigen voor oude planning?</strong></p>
+    <p>A: Oude planning gebruikt oude regels. Kies "Actief vanaf" datum in toekomst om alleen nieuwe planning te beïnvloeden.</p>
+
+    <p><strong>Q: Hoe genereer ik feestdagen voor volgend jaar?</strong></p>
+    <p>A: Gebeurt automatisch zodra je dat jaar opent in een kalender scherm.</p>
+
+    <h3>Voor Teamleden</h3>
+    <p><strong>Q: Mijn verlof is niet goedgekeurd, waarom niet?</strong></p>
+    <p>A: Neem contact op met je planner voor uitleg. Mogelijk conflicteert het met andere planning.</p>
+
+    <p><strong>Q: Kan ik mijn eigen planning wijzigen?</strong></p>
+    <p>A: Nee, alleen planners kunnen planning wijzigen. Je kunt wel verlof aanvragen.</p>
+
+    <p><strong>Q: Hoe ver vooruit kan ik planning zien?</strong></p>
+    <p>A: Afhankelijk van wat je planner heeft gepubliceerd. Meestal enkele maanden vooruit.</p>
+
+    <hr class="separator">
+
+    <h2>Problemen of vragen?</h2>
+    <p>Bij technische problemen of vragen over de applicatie:</p>
+    <ul>
+        <li>Neem contact op met je planner</li>
+        <li>Of met je IT/systeembeheerder</li>
+    </ul>
+
+    <p><strong>Planning Tool versie 0.6.7</strong></p>
+    <p><em>Druk op F1 om deze handleiding te openen</em></p>
+
+</body>
+</html>

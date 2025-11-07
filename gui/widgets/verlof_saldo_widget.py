@@ -1,6 +1,6 @@
 """
 Verlof Saldo Widget
-Versie: 0.6.10
+Versie: 0.6.23
 
 Read-only widget voor weergave van verlof en KD saldo (teamlid view).
 """
@@ -12,6 +12,7 @@ from datetime import datetime
 from gui.styles import Colors, Fonts, Dimensions
 from services.verlof_saldo_service import VerlofSaldoService
 from services.term_code_service import TermCodeService
+from services.hr_regels_service import HRRegelsService
 
 
 class VerlofSaldoWidget(QWidget):
@@ -102,20 +103,35 @@ class VerlofSaldoWidget(QWidget):
         )
         self.kd_label.setText(kd_text)
 
-        # Check voor overgedragen verlof vervaldatum (1 mei)
-        if saldo['vv_overgedragen'] > 0:
+        # Check voor overgedragen verlof vervaldatum (uit HR regels)
+        # FIFO principe: overgedragen verlof wordt eerst opgenomen
+        overgedragen = saldo['vv_overgedragen']
+        opgenomen = saldo['vv_opgenomen']
+
+        # Bereken restant overgedragen verlof (wat nog niet ingepland/opgenomen is)
+        restant_overgedragen = max(0, overgedragen - opgenomen)
+
+        if restant_overgedragen > 0:
             today = datetime.now().date()
             current_year = today.year
-            vervaldatum = datetime(current_year, 5, 1).date()  # 1 mei
+            vervaldatum = HRRegelsService.get_verlof_vervaldatum(current_year)
 
-            if today < vervaldatum:
+            # Warning window: 1 januari t/m vervaldatum (niet het hele jaar)
+            warning_start = datetime(current_year, 1, 1).date()
+
+            if warning_start <= today < vervaldatum:
                 dagen_tot_verval = (vervaldatum - today).days
+                # Format vervaldatum leesbaar (1 mei, 15 juni, etc.)
+                maand_naam = vervaldatum.strftime("%B").lower()
+                dag = vervaldatum.day
+                vervaldatum_str = f"{dag} {maand_naam}"
+
                 self.warning_label.setText(
-                    f"Let op: Overgedragen verlof ({saldo['vv_overgedragen']} dagen) "
-                    f"vervalt op 1 mei {current_year} (nog {dagen_tot_verval} dagen)"
+                    f"Let op: Overgedragen verlof ({restant_overgedragen} dagen) "
+                    f"vervalt op {vervaldatum_str} {current_year} (nog {dagen_tot_verval} dagen)"
                 )
                 self.warning_label.setVisible(True)
-            # Als na 1 mei, toon geen warning (zou al vervallen moeten zijn)
+            # Als voor 1 januari of na vervaldatum: geen warning
 
     def refresh(self):
         """Ververs saldo (na wijziging)"""

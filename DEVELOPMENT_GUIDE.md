@@ -2,8 +2,8 @@
 Planning Tool - Technische Documentatie voor Ontwikkelaars
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.18 (Beta)
-**Laatste update:** 27 Oktober 2025
+**Huidige versie:** 0.6.26 (Beta)
+**Laatste update:** 4 November 2025
 
 ---
 
@@ -18,6 +18,7 @@ Planning Tool - Technische Documentatie voor Ontwikkelaars
 8. [Known Issues](#known-issues)
 9. [Code Templates](#code-templates)
 10. [Dashboard & Main.py](#dashboard--mainpy)
+11. [HR Validatie Systeem](#hr-validatie-systeem-design)
 
 ---
 
@@ -434,6 +435,146 @@ CREATE TABLE rode_lijnen (
 )
 ```
 
+### HR Rules Visualisatie (v0.6.19)
+
+De Planning Editor toont 2 HR kolommen die werkdagen tracking implementeren per 28-daagse rode lijn cyclus.
+
+#### Implementatie Architectuur
+
+**Locatie:** `gui/widgets/planner_grid_kalender.py`
+
+**Kerncomponenten:**
+1. **Periode Detectie** - `get_relevante_rode_lijn_periodes()`
+2. **Werkdagen Telling** - `tel_gewerkte_dagen()`
+3. **Real-time Updates** - `update_hr_cijfers_voor_gebruiker()`
+
+#### Slimme Periode Detectie
+
+```python
+def get_relevante_rode_lijn_periodes(self) -> None:
+    """
+    2-stappen logica voor optimale periode selectie:
+    STAP 1: Zoek rode lijn die START binnen deze maand (meest zichtbaar)
+    STAP 2: Als niet gevonden, gebruik periode waar maand in valt
+    """
+    # Voorbeeld: September 2025
+    # - Rode lijn start 22 sept (periode 16) → gebruik periode 16
+    # - Voor RL = periode 15 (25 aug - 21 sept)
+    # - Na RL = periode 16 (22 sept - 19 okt)
+```
+
+**Business Logic:**
+- **Voor RL**: Vorige periode (periode_nummer - 1)
+- **Na RL**: Huidige periode (gedetecteerde periode)
+- Database-first: Geen date arithmetic, exact start/eind uit `rode_lijnen` tabel
+
+#### Werkdagen Telling Query
+
+```python
+def tel_gewerkte_dagen(self, gebruiker_id: int, start_datum: str, eind_datum: str) -> int:
+    """
+    Tel alleen shifts met telt_als_werkdag = 1
+    Ondersteunt beide werkposten EN speciale codes
+    """
+    cursor.execute("""
+        SELECT COUNT(*) as werkdagen
+        FROM planning p
+        LEFT JOIN shift_codes sc ON p.shift_code = sc.code
+        LEFT JOIN werkposten w ON sc.werkpost_id = w.id
+        LEFT JOIN speciale_codes spc ON p.shift_code = spc.code
+        WHERE p.gebruiker_id = ?
+          AND p.datum BETWEEN ? AND ?
+          AND p.shift_code IS NOT NULL
+          AND p.shift_code != ''
+          AND (
+              (sc.code IS NOT NULL AND w.telt_als_werkdag = 1)
+              OR
+              (spc.code IS NOT NULL AND spc.telt_als_werkdag = 1)
+          )
+    """, (gebruiker_id, start_datum, eind_datum))
+```
+
+**Belangrijk:**
+- Empty cells (NULL/empty string) tellen NIET mee
+- Beide concept EN gepubliceerd status worden geteld
+- Dual-source check: werkposten OF speciale_codes
+
+#### Performance Optimalisatie
+
+**Cache Strategie:**
+```python
+# Instance variables
+self.hr_werkdagen_cache: Dict[int, Dict[str, int]] = {}
+# {gebruiker_id: {'voor': X, 'na': Y}}
+
+self.hr_cel_widgets: Dict[int, Dict[str, QLabel]] = {}
+# {gebruiker_id: {'voor': QLabel, 'na': QLabel}}
+```
+
+**Optimized Update Pattern:**
+```python
+def save_shift(self, datum_str: str, gebruiker_id: int, shift_code: str):
+    # Save to database
+    conn.commit()
+
+    # ✓ Direct cel update (geen rebuild)
+    self.cel_widgets[datum_str][gebruiker_id].setText(shift_code)
+
+    # ✓ Clear cache voor deze gebruiker
+    del self.hr_werkdagen_cache[gebruiker_id]
+
+    # ✓ Update alleen HR cijfers (geen volledige rebuild)
+    self.update_hr_cijfers_voor_gebruiker(gebruiker_id)
+```
+
+**Waarom dit belangrijk is:**
+- Voorkomt crashes (geen rebuild met stale data)
+- Shifts zijn direct zichtbaar (setText vs rebuild)
+- HR cijfers updaten real-time (3 labels vs 1500+ cells rebuild)
+- Geen flicker (alleen gewijzigde cells)
+
+#### UI Specificaties
+
+**Kolom Layout:**
+```
+| Teamlid (280px) | Voor RL (50px) | Na RL (50px) | Datum1 (60px) | ... |
+|                 |       10       |      8       |     7101      | ... |
+```
+
+**Styling Details:**
+- **Border tussen kolommen:** 3px solid #dc3545 (rode lijn visualisatie)
+- **Rode overlay:** `rgba(255, 0, 0, 0.3)` als individuele cel > 19 dagen
+- **Font:** Bold, SIZE_SMALL
+- **Tooltips:** "Gewerkte dagen: X/19\nPeriode N: start t/m eind"
+
+**Rode Overlay Logica:**
+```python
+# Check ELKE periode apart (niet het totaal!)
+is_voor_overschrijding = voor_dagen > 19
+is_na_overschrijding = na_dagen > 19
+
+# Per cel apart stylen
+voor_achtergrond = "rgba(255, 0, 0, 0.3)" if is_voor_overschrijding else Colors.BG_LIGHT
+na_achtergrond = "rgba(255, 0, 0, 0.3)" if is_na_overschrijding else Colors.BG_LIGHT
+```
+
+#### Grid Column Shift
+
+Met HR kolommen:
+```python
+datum_start_col = 3 if self.rode_lijn_periodes else 1
+# Kolom 0: Naam
+# Kolom 1: Voor RL (als HR enabled)
+# Kolom 2: Na RL (als HR enabled)
+# Kolom 3+: Datums
+```
+
+Zonder HR kolommen (fallback):
+```python
+# Kolom 0: Naam
+# Kolom 1+: Datums
+```
+
 ---
 
 ## PYQT6 BEST PRACTICES
@@ -532,6 +673,66 @@ except sqlite3.Error as e:
 ```python
 except Exception as e:  # Te algemeen!
 ```
+
+### 7. Atomic Operations (v0.6.21)
+
+**Principe:** Multi-step operaties moeten atomic zijn - alles slaagt of alles faalt.
+
+**FOUT - Niet-atomisch:**
+```python
+def publiceer_planning():
+    # Database EERST updaten
+    conn = get_connection()
+    cursor.execute("UPDATE planning SET status = 'gepubliceerd' ...")
+    conn.commit()  # ❌ Te vroeg!
+
+    # Excel export daarna (kan falen)
+    try:
+        export_maand_naar_excel(jaar, maand)  # 💥 FAALT
+    except Exception as e:
+        # ❌ Te laat! Database is al gecommit
+        QMessageBox.warning(self, "Error", str(e))
+```
+
+**Gevolg:** Inconsistent state - database gepubliceerd, maar geen Excel.
+
+**CORRECT - Atomisch:**
+```python
+def publiceer_planning():
+    # STAP 1: Excel export EERST (kan falen zonder side-effects)
+    try:
+        excel_pad = export_maand_naar_excel(jaar, maand)
+    except PermissionError:
+        QMessageBox.critical(self, "Geannuleerd",
+                            "Bestand is open in Excel. Sluit eerst het bestand.")
+        return  # ✅ Early return - database blijft ongewijzigd
+    except (IOError, OSError) as e:
+        QMessageBox.critical(self, "Geannuleerd",
+                            f"Kan niet schrijven: {str(e)}")
+        return  # ✅ Early return
+
+    # STAP 2: Database update (alleen als export succesvol)
+    try:
+        conn = get_connection()
+        cursor.execute("UPDATE planning SET status = 'gepubliceerd' ...")
+        conn.commit()  # ✅ Veilig - Excel bestaat al
+
+        QMessageBox.information(self, "Success",
+                                f"Gepubliceerd + Excel: {excel_pad}")
+    except Exception as e:
+        QMessageBox.critical(self, "Fout", str(e))
+```
+
+**Voordelen:**
+- ✅ Data integriteit gegarandeerd
+- ✅ Geen rollback logica nodig (database nooit gewijzigd bij fout)
+- ✅ Duidelijke error messages
+- ✅ Gebruiker kan retry zonder inconsistent state
+
+**Algemene regel:** Bij multi-step operaties - volgorde bewust kiezen:
+1. Voer eerst stappen uit die kunnen falen (external I/O, file ops)
+2. Pas daarna interne state wijzigen (database, memory)
+3. Early return bij elke fout
 
 ---
 
@@ -1042,6 +1243,21 @@ Combineer menu bar met compacte header:
 4. **TableWidget cleanup** - Gebruik TableConfig.setup_table_widget()
 5. **Unicode voorzichtig** - Emoji's in buttons crashen op Windows
 6. **Type ignore voor signals** - Bij connect() en emit()
+7. **Qt CSS overlays met qlineargradient** - Qt CSS ondersteunt GEEN standard CSS `linear-gradient()`, gebruik `qlineargradient()` syntax:
+   ```python
+   # ❌ FOUT - standard CSS syntax werkt NIET in Qt
+   overlay = "linear-gradient(rgba(129, 199, 132, 0.4), rgba(129, 199, 132, 0.4))"
+
+   # ✅ CORRECT - Qt CSS syntax
+   overlay = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(129, 199, 132, 0.4), stop:1 rgba(129, 199, 132, 0.4))"
+
+   # Toepassen: replace background-color met background
+   base_style = base_style.replace(
+       f"background-color: {base_color}",
+       f"background: {overlay}"
+   )
+   ```
+   **Pattern gebruikt in:** Cell selection (v0.6.17), Bemannings overlay (v0.6.20)
 
 ### Database
 1. **Migratie scripts essentieel** - Check schema, pas aan indien nodig
@@ -1103,9 +1319,226 @@ ruff format .
 
 ---
 
+## HR VALIDATIE SYSTEEM (v0.6.26)
+
+**Status:** ✅ GEÏMPLEMENTEERD (74% compleet - FASE 1-4)
+**Versie:** v0.6.26 (Beta - Actief in productie)
+**Design Document:** `docs/architecture/HR_VALIDATIE_SYSTEEM_DESIGN.md`
+**Checklist:** `docs/architecture/HR_VALIDATIE_IMPLEMENTATIE_CHECKLIST.md`
+
+### Overzicht
+
+Automatische validatie van **7 HR regels** tijdens roosteren:
+1. **12u rust tussen shifts** (wettelijk verplicht) ✅
+2. **Max 50u per week** (wettelijk verplicht) ✅
+3. **Max 19 werkdagen per 28-dagen cyclus** (organisatie regel) ✅
+4. **Max 7 dagen tussen RX/CX** (organisatie regel) ✅
+5. **Max 7 werkdagen achter elkaar** (organisatie regel) ✅
+6. **Max weekends achter elkaar** (organisatie regel) ✅
+7. **Nacht gevolgd door vroeg verboden** (organisatie regel - configureerbaar) ✅
+
+### Architectuur (Geïmplementeerd)
+
+**Core Layer (FASE 1):**
+- `services/constraint_checker.py` (~1600 regels) ✅
+  - `ConstraintChecker` class - Pure business logic (geen database)
+  - `PlanningRegel` dataclass - Input data model
+  - `Violation` dataclass - Structured error reporting
+  - `ConstraintCheckResult` - Result wrapper met metadata
+  - 7 check methods: één per HR regel
+  - Segmented planning check (BUG-005 fix)
+
+**Database Wrapper (FASE 2):**
+- `services/planning_validator_service.py` (~540 regels) ✅
+  - `PlanningValidator` class - Database integratie
+  - Query methods: HR config, shift tijden, planning, rode lijnen
+  - Caching: config, shift tijden, planning, violations
+  - Buffer loading: +/- 1 maand voor cross-month checks
+  - Public API: `validate_all()`, `validate_shift()`, `get_violation_level()`
+
+**UI Integratie (FASE 3+4):**
+- `gui/widgets/planner_grid_kalender.py` (+250 regels) ✅
+  - **Rode/gele overlay** in grid cellen (70% opacity)
+  - **Tooltips** met violation details per datum
+  - **HR Summary Box** onderaan grid (scrollable, max 200px)
+  - **"Valideer Planning" knop** voor on-demand batch check
+  - Real-time updates DISABLED (te irritant tijdens invoer)
+- `gui/screens/planning_editor_screen.py` (+60 regels) ✅
+  - **Pre-publicatie validatie** check (STAP 1 voor Excel export)
+  - Warning dialog met violations count per gebruiker
+  - Keuze: annuleren of toch publiceren
+
+**Validatie Strategie (Aangepast):**
+- **On-demand:** Batch via "Valideer Planning" knop ✅
+- **Pre-publicatie:** Full validation voor Excel export ✅
+- **Real-time:** DISABLED (user feedback - te storend) ❌
+- **Soft waarschuwing:** Violations blokkeren niet, alleen waarschuwen ✅
+
+### Geïmplementeerde Bestanden
+
+**Nieuwe bestanden:**
+1. ✅ `services/constraint_checker.py` (1600 regels) - Core logic
+2. ✅ `services/planning_validator_service.py` (540 regels) - DB wrapper
+3. ✅ `scripts/test_constraint_scenarios.py` (489 regels) - Automated tests (13/13 PASSED)
+4. ✅ `scripts/test_segmented_rx_check.py` (230 regels) - Segmented RX tests
+5. ❌ `gui/dialogs/hr_validatie_rapport_dialog.py` - NIET geïmplementeerd (QMessageBox voldoende)
+
+**Gewijzigde bestanden:**
+1. ✅ `gui/widgets/planner_grid_kalender.py` (+250 regels) - Overlay + summary box + validatie knop
+2. ✅ `gui/screens/planning_editor_screen.py` (+60 regels) - Pre-publicatie check
+3. ✅ `gui/dialogs/hr_regel_edit_dialog.py` (+100 regels) - Term-based UI voor nacht→vroeg
+4. ⏸️ `gui/screens/typetabel_beheer_screen.py` - PENDING (FASE 5)
+
+**Daadwerkelijke effort:** 28 uur (74% compleet)
+- FASE 1: ConstraintChecker Core (8u) ✅
+- FASE 2: PlanningValidator Wrapper (6u) ✅
+- FASE 3: UI Grid Overlay (9u) ✅
+- FASE 4: Pre-Publicatie Validatie (5u) ✅
+- FASE 5: Typetabel Pre-Activatie (0u) ⏸️
+
+### Key Features (Geïmplementeerd)
+
+**On-Demand Validatie via Knop:**
+```python
+# In planner_grid_kalender.py (lines 785-859)
+def on_valideer_planning_clicked(self):
+    QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
+    try:
+        # Batch validatie
+        self.load_hr_violations()  # Alle gebruikers
+        self.build_grid()  # Toon rode overlays
+
+        # Tel violations
+        totaal = sum(len(v) for datum_dict in self.hr_violations.values()
+                     for gebruiker_list in datum_dict.values()
+                     for v in gebruiker_list)
+
+        # Show samenvatting
+        if totaal == 0:
+            QMessageBox.information(self, "Validatie Compleet",
+                                   "Geen HR violations gevonden!")
+        else:
+            QMessageBox.warning(self, "HR Violations Gevonden",
+                               f"{totaal} violations - zie grid overlays")
+    finally:
+        QApplication.restoreOverrideCursor()
+```
+
+**Pre-Publicatie Validatie:**
+```python
+# In planning_editor_screen.py (lines 424-482)
+def publiceer_planning(self):
+    # STAP 1: HR Validatie
+    gebruikers = get_actieve_gebruikers()
+    violations_count = 0
+
+    for gebruiker in gebruikers:
+        validator = PlanningValidator(gebruiker['id'], jaar, maand)
+        violations_dict = validator.validate_all()
+        violations_count += sum(len(v) for v in violations_dict.values())
+
+    # Waarschuwing met keuze
+    if violations_count > 0:
+        reply = QMessageBox.warning(
+            self, "Waarschuwing: HR Violations",
+            f"Planning bevat {violations_count} violations.\n"
+            "Bent u zeker dat u wil publiceren?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return  # Annuleren
+
+    # STAP 2: Excel export + publiceer
+    ...
+```
+
+**Grid Overlay & Tooltips:**
+```python
+# In planner_grid_kalender.py
+def get_hr_overlay_kleur(self, datum_str: str, gebruiker_id: int) -> str:
+    violations = self.hr_violations.get(datum_str, {}).get(gebruiker_id, [])
+
+    if not violations:
+        return ""
+
+    # Check severity
+    has_error = any(v.severity == ViolationSeverity.ERROR for v in violations)
+
+    if has_error:
+        return "rgba(229, 115, 115, 0.7)"  # Rood
+    else:
+        return "rgba(255, 213, 79, 0.7)"   # Geel
+```
+
+**Typetabel Pre-validatie:**
+```python
+# PENDING (FASE 5 - Not yet implemented)
+# Planned voor toekomstige release
+```
+
+### Design Highlights
+
+**12u Rust Check (Meest Complex):**
+- Middernacht crossing handling (`22:00-06:00`)
+- Reset flags (RX, CX, Z codes resetten 12u teller)
+- Speciale codes zonder shift tijden
+- Query optimization (LEFT JOIN shift_codes + speciale_codes)
+
+**50u Week Check:**
+- Week definitie parsing (`ma-00:00|zo-23:59`)
+- Overlap berekening (exclusieve grenzen)
+- Shift duur berekening over middernacht
+
+**Performance:**
+- Caching strategie (shift tijden, HR config, validation results)
+- Incremental updates (real-time scope: 1 datum + omliggende)
+- Batch queries (geen N+1 queries)
+- Target: <100ms real-time, <2s batch
+
+### Testing (Status)
+
+**Automated Tests:** ✅ COMPLEET
+- `scripts/test_constraint_scenarios.py` - 13 scenarios (13/13 PASSED)
+  - RX/CX gap detection (10 dagen)
+  - 7 vs 8 werkdagen boundary
+  - RX breekt werkdagen reeks
+  - VV telt als werkdag
+  - 48u vs 56u week boundary
+  - 12u rust cross-month
+  - RX gap cross-year
+  - 19 vs 20 dagen cyclus boundary
+- `scripts/test_segmented_rx_check.py` - 3 scenarios (3/3 PASSED)
+  - Partial planning (weekend-only) geen valse violations
+  - Complete planning met correct gap detection
+  - Gap > 7 dagen binnen segment gedetecteerd
+
+**Manual Tests:** ✅ VERIFIED
+- 30 gebruikers grid loading: <1 sec (met ValidationCache)
+- Violations overlay + tooltips: werkend
+- "Valideer Planning" knop: werkend
+- Pre-publicatie warning: werkend
+
+**Pending Tests:**
+- [ ] Comprehensive unit tests (40+ test cases)
+- [ ] UI integration tests (automated)
+- [ ] Typetabel pre-activatie tests (FASE 5)
+
+### Reference
+
+Voor volledige technische specificatie, zie **`HR_VALIDATIE_SYSTEEM_DESIGN.md`**:
+- Algoritmes per regel (stap-voor-stap pseudocode)
+- SQL queries met comments
+- Edge cases & error handling
+- UI mockups (ASCII art)
+- Implementation roadmap (5 fases)
+- Code voorbeelden
+
+---
+
 *Voor versie geschiedenis en release notes, zie PROJECT_INFO.md*
 *Voor recente development sessies, zie DEV_NOTES.md*
 *Voor historische sessies, zie DEV_NOTES_ARCHIVE.md*
 
-*Laatste update: 27 Oktober 2025*
-*Versie: 0.6.18*
+*Laatste update: 30 Oktober 2025*
+*Versie: 0.6.23*

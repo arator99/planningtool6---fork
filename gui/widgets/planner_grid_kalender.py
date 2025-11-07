@@ -2,7 +2,23 @@
 """
 Planner Grid Kalender
 Editable kalender voor planners met buffer dagen en scroll functionaliteit
-UPDATED: Editable cellen met keyboard navigatie en save functionaliteit
+
+VERSION HISTORY:
+- v0.6.17: Multi-cell selectie met Ctrl+Click en Shift+Click
+- v0.6.19: HR rules visualisatie (rode lijnen werkdagen tracking)
+- v0.6.20: Bemannings controle overlay met kleurcodering
+- v0.6.25: PERFORMANCE - Gebruiker filtering en ValidationCache integratie
+  * Accepteert optional gebruiker_ids parameter voor filtering
+  * Filters gebruikers_data na load (alleen relevante users)
+  * ValidationCache batch preload (900+ queries → 5 queries)
+  * Speedup: 30-60s → 0.01-0.03s (2000x sneller)
+- v0.6.26: HR VALIDATIE SYSTEEM - Batch validation via knop (Fase 3)
+  * Rode/gele overlay op cellen met HR violations (na "Valideer Planning")
+  * Tooltips met violation details per cel
+  * Real-time validation DISABLED (te irritant + ghost violations)
+  * HR Summary Box onderaan grid met overzicht alle violations
+  * Batch validatie via "Valideer Planning" knop (alle 6 HR checks)
+  * Scroll functionaliteit in summary box (max 200px)
 """
 from typing import Dict, Optional, Set, List
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -12,9 +28,12 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QCursor
 from gui.widgets.grid_kalender_base import GridKalenderBase
 from gui.styles import Styles, Colors, Fonts, Dimensions
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from database.connection import get_connection
 from services.data_ensure_service import ensure_jaar_data
+from services.bemannings_controle_service import controleer_bemanning
+from services.planning_validator_service import PlanningValidator
+from services.constraint_checker import Violation
 import sqlite3
 
 
@@ -171,8 +190,11 @@ class PlannerGridKalender(GridKalenderBase):
     data_changed: pyqtSignal = pyqtSignal()  # Planning gewijzigd
     maand_changed: pyqtSignal = pyqtSignal()  # Maand gewijzigd (navigatie)
 
-    def __init__(self, jaar: int, maand: int):
+    def __init__(self, jaar: int, maand: int, gebruiker_ids: Optional[List[int]] = None):
         super().__init__(jaar, maand)
+
+        # PERFORMANCE (v0.6.25): Filter gebruikers - alleen laden wat nodig is
+        self.filtered_gebruiker_ids = gebruiker_ids  # Optionele filter op gebruiker IDs
 
         # Editable state
         self.valid_codes: Set[str] = set()  # Alle codes (voor algemene check)
@@ -190,6 +212,18 @@ class PlannerGridKalender(GridKalenderBase):
         self.last_clicked: Optional[tuple] = None  # (datum_str, gebruiker_id) voor range selectie
         self.selection_label: Optional[QLabel] = None  # Label om aantal geselecteerde cellen te tonen
 
+        # HR rules state (rode lijnen werkdagen tracking)
+        self.rode_lijn_periodes: Optional[Dict[str, Dict[str, str]]] = None  # {periode_type: {start, eind, nummer}}
+        self.hr_werkdagen_cache: Dict[int, Dict[str, int]] = {}  # {gebruiker_id: {voor: X, na: Y}}
+        self.hr_cel_widgets: Dict[int, Dict[str, QLabel]] = {}  # {gebruiker_id: {voor: QLabel, na: QLabel}}
+
+        # Bemannings controle state (v0.6.20)
+        self.bemannings_status: Dict[str, Dict] = {}  # {datum_str: {status, ontbrekende_codes, dubbele_codes, ...}}
+        self.datum_header_widgets: Dict[str, QLabel] = {}  # {datum_str: QLabel} - voor real-time overlay updates
+
+        # HR violations state (v0.6.26 - Fase 3)
+        self.hr_violations: Dict[str, Dict[int, List]] = {}  # {datum_str: {gebruiker_id: [Violation, ...]}}
+
         self.init_ui()
         self.load_initial_data()
 
@@ -201,6 +235,12 @@ class PlannerGridKalender(GridKalenderBase):
         self.valid_codes = codes
         self.valid_codes_per_dag = codes_per_dag
         self.speciale_codes = speciale
+
+    def get_laatste_dag_van_maand(self) -> int:
+        """Get laatste dag nummer van huidige maand"""
+        from calendar import monthrange
+        _, laatste_dag = monthrange(self.jaar, self.maand)
+        return laatste_dag
 
     def init_ui(self) -> None:
         """Bouw UI"""
@@ -239,17 +279,63 @@ class PlannerGridKalender(GridKalenderBase):
         # ALTIJD zichtbaar (met spatie of tekst), nooit hide()
         layout.addWidget(self.selection_label)
 
-        # Scroll area met grid
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        # FROZEN COLUMNS (v0.6.25) - Dual scroll area pattern
+        # Splits grid in frozen deel (naam + HR) en scrollable deel (datums)
+        h_layout = QHBoxLayout()
+        h_layout.setSpacing(0)
+        h_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Grid container (wordt gevuld door build_grid)
-        self.grid_container = QWidget()
-        self.scroll_area.setWidget(self.grid_container)
+        # LINKER deel: Frozen kolommen (naam + Voor RL + Na RL)
+        self.frozen_scroll = QScrollArea()
+        self.frozen_scroll.setWidgetResizable(True)
+        self.frozen_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.frozen_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # Sync met rechts
+        self.frozen_container = QWidget()
+        self.frozen_scroll.setWidget(self.frozen_container)
+        # Width wordt dynamisch gezet in build_grid() (afhankelijk van HR kolommen)
 
-        layout.addWidget(self.scroll_area)
+        # RECHTER deel: Scrollable kolommen (datums)
+        self.scrollable_scroll = QScrollArea()
+        self.scrollable_scroll.setWidgetResizable(True)
+        self.scrollable_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.scrollable_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scrollable_container = QWidget()
+        self.scrollable_scroll.setWidget(self.scrollable_container)
+
+        # Synchroniseer vertical scrollbars (frozen volgt scrollable)
+        self.scrollable_scroll.verticalScrollBar().valueChanged.connect(  # type: ignore
+            self.frozen_scroll.verticalScrollBar().setValue
+        )
+
+        h_layout.addWidget(self.frozen_scroll)
+        h_layout.addWidget(self.scrollable_scroll)
+
+        layout.addLayout(h_layout)
+
+        # HR Violations Summary Box (v0.6.26 - Fase 3 UX + ISSUE-006 fix)
+        # Altijd zichtbaar met scroll functionaliteit
+        self.hr_summary_scroll = QScrollArea()
+        self.hr_summary_scroll.setWidgetResizable(True)
+        self.hr_summary_scroll.setMaximumHeight(200)  # Max hoogte voor scroll
+        self.hr_summary_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+
+        self.hr_summary_label = QLabel()
+        self.hr_summary_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+        self.hr_summary_label.setStyleSheet(f"""
+            QLabel {{
+                background-color: #FFF3CD;
+                color: #856404;
+                padding: 12px;
+                border: 1px solid #FFEAA7;
+                border-radius: 4px;
+            }}
+        """)
+        self.hr_summary_label.setWordWrap(True)
+        self.hr_summary_label.setTextFormat(Qt.TextFormat.RichText)
+        self.hr_summary_label.setText("Geen HR violations gevonden")  # Default tekst
+
+        self.hr_summary_scroll.setWidget(self.hr_summary_label)
+        layout.addWidget(self.hr_summary_scroll)
 
     def get_header_extra_buttons(self) -> List[QPushButton]:
         """Voeg vorige/volgende maand buttons toe (planner-specifiek)"""
@@ -266,6 +352,17 @@ class PlannerGridKalender(GridKalenderBase):
         volgende_btn.clicked.connect(self.volgende_maand)  # type: ignore
         volgende_btn.setStyleSheet(Styles.button_secondary())
         buttons.append(volgende_btn)
+
+        # Valideer Planning knop (v0.6.26 - BUG FIX voor batch validatie)
+        valideer_btn = QPushButton("Valideer Planning")
+        valideer_btn.setFixedSize(140, Dimensions.BUTTON_HEIGHT_NORMAL)
+        valideer_btn.clicked.connect(self.on_valideer_planning_clicked)  # type: ignore
+        valideer_btn.setStyleSheet(Styles.button_primary())
+        valideer_btn.setToolTip(
+            "Controleer alle HR regels voor deze maand\n"
+            "Dit kan enkele seconden duren voor grote teams"
+        )
+        buttons.append(valideer_btn)
 
         return buttons
 
@@ -288,11 +385,25 @@ class PlannerGridKalender(GridKalenderBase):
         # Laad gebruikers (filter wordt automatisch behouden door base class)
         self.load_gebruikers(alleen_actief=True)
 
+        # PERFORMANCE (v0.6.25): Filter gebruikers als filtered_gebruiker_ids opgegeven
+        if self.filtered_gebruiker_ids:
+            self.gebruikers_data = [
+                user for user in self.gebruikers_data
+                if user['id'] in self.filtered_gebruiker_ids
+            ]
+            print(f"[PlannerGrid] Gefilterd naar {len(self.gebruikers_data)} gebruikers (van {len(self.filtered_gebruiker_ids)} gevraagd)")
+
         # Laad feestdagen voor huidig jaar EN aangrenzende jaren (voor buffer dagen)
         self.load_feestdagen_extended()
 
         # Laad rode lijnen (28-daagse HR-cycli)
         self.load_rode_lijnen()
+
+        # Laad relevante rode lijn periodes voor HR columns
+        self.get_relevante_rode_lijn_periodes()
+
+        # Reset HR cache (data is ververst)
+        self.hr_werkdagen_cache.clear()
 
         # Datum range: maand + 8 dagen buffer
         datum_lijst = self.get_datum_lijst(start_offset=8, eind_offset=8)
@@ -303,6 +414,23 @@ class PlannerGridKalender(GridKalenderBase):
             # Laad planning en verlof
             self.load_planning_data(start_datum, eind_datum)
             self.load_verlof_data(start_datum, eind_datum)
+
+        # PERFORMANCE FIX (v0.6.25): Preload ValidationCache VOOR bemannings status
+        # Dit voorkomt N+1 query probleem (900+ queries → 5 queries)
+        from services.validation_cache import ValidationCache
+        cache = ValidationCache.get_instance()
+
+        # Haal gebruiker IDs op voor preload
+        gebruiker_ids = [user['id'] for user in self.gebruikers_data] if self.gebruikers_data else None
+
+        # Preload cache voor deze maand (batch loading)
+        cache.preload_month(self.jaar, self.maand, gebruiker_ids)
+
+        # Laad bemannings controle status (v0.6.20, v0.6.25: gebruikt nu cache)
+        self.load_bemannings_status()
+
+        # Laad HR violations (v0.6.26 - Fase 3)
+        self.load_hr_violations()
 
         # Bouw grid
         self.build_grid()
@@ -331,18 +459,619 @@ class PlannerGridKalender(GridKalenderBase):
                 self.feestdag_namen[datum_str] = row['naam']
         conn.close()
 
+    def get_relevante_rode_lijn_periodes(self) -> None:
+        """
+        Haal relevante rode lijn periodes op voor huidige maand
+        - Zoek EERST rode lijn die START binnen deze maand (meest zichtbaar)
+        - Als die er niet is, gebruik de rode lijn waar de maand in valt
+        - Vorige periode: periode_nummer - 1
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Eerste dag van maand
+        maand_start = f"{self.jaar}-{self.maand:02d}-01"
+
+        # STAP 1: Zoek rode lijn die START binnen deze maand
+        cursor.execute("""
+            SELECT periode_nummer, start_datum, eind_datum
+            FROM rode_lijnen
+            WHERE start_datum LIKE ?
+            ORDER BY start_datum ASC
+            LIMIT 1
+        """, (f"{self.jaar}-{self.maand:02d}-%",))
+
+        huidige = cursor.fetchone()
+
+        # STAP 2: Als geen rode lijn start in deze maand, gebruik de periode waar maand in valt
+        if not huidige:
+            cursor.execute("""
+                SELECT periode_nummer, start_datum, eind_datum
+                FROM rode_lijnen
+                WHERE start_datum <= ? AND eind_datum >= ?
+                ORDER BY start_datum DESC
+                LIMIT 1
+            """, (maand_start, maand_start))
+
+            huidige = cursor.fetchone()
+
+        if not huidige:
+            # Geen rode lijn gevonden - skip HR columns
+            self.rode_lijn_periodes = None
+            conn.close()
+            return
+
+        huidige_periode_nr = huidige['periode_nummer']
+        huidige_start = huidige['start_datum']
+        huidige_eind = huidige['eind_datum']
+
+        # Haal vorige periode op (periode_nummer - 1)
+        vorig_periode_nr = huidige_periode_nr - 1
+        cursor.execute("""
+            SELECT periode_nummer, start_datum, eind_datum
+            FROM rode_lijnen
+            WHERE periode_nummer = ?
+        """, (vorig_periode_nr,))
+
+        vorige = cursor.fetchone()
+
+        if not vorige:
+            # Geen vorige periode - skip HR columns
+            self.rode_lijn_periodes = None
+            conn.close()
+            return
+
+        vorige_start = vorige['start_datum']
+        vorige_eind = vorige['eind_datum']
+
+        # Sla op
+        self.rode_lijn_periodes = {
+            'vorig': {
+                'nummer': str(vorig_periode_nr),
+                'start': vorige_start,
+                'eind': vorige_eind
+            },
+            'huidig': {
+                'nummer': str(huidige_periode_nr),
+                'start': huidige_start,
+                'eind': huidige_eind
+            }
+        }
+
+        conn.close()
+
+    def tel_gewerkte_dagen(self, gebruiker_id: int, start_datum: str, eind_datum: str) -> int:
+        """
+        Tel aantal gewerkte dagen in periode voor gebruiker
+        Alleen tellen als telt_als_werkdag = 1 (uit werkposten of speciale_codes)
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Query beide concept EN gepubliceerde planning (status niet filteren)
+        # Empty cells (shift_code IS NULL or '') tellen NIET mee
+        cursor.execute("""
+            SELECT COUNT(*) as werkdagen
+            FROM planning p
+            LEFT JOIN shift_codes sc ON p.shift_code = sc.code
+            LEFT JOIN werkposten w ON sc.werkpost_id = w.id
+            LEFT JOIN speciale_codes spc ON p.shift_code = spc.code
+            WHERE p.gebruiker_id = ?
+              AND p.datum BETWEEN ? AND ?
+              AND p.shift_code IS NOT NULL
+              AND p.shift_code != ''
+              AND (
+                  (sc.code IS NOT NULL AND w.telt_als_werkdag = 1)
+                  OR
+                  (spc.code IS NOT NULL AND spc.telt_als_werkdag = 1)
+              )
+        """, (gebruiker_id, start_datum, eind_datum))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        return row['werkdagen'] if row else 0
+
+    def load_bemannings_status(self) -> None:
+        """
+        Laad bemannings controle status voor alle datums in datum lijst
+
+        PERFORMANCE OPTIMALISATIE (v0.6.25):
+        Gebruikt ValidationCache ipv database queries (15-30x sneller)
+        Cache moet vooraf geladen zijn via preload_month()
+        """
+        from services.validation_cache import ValidationCache
+
+        self.bemannings_status.clear()
+        cache = ValidationCache.get_instance()
+
+        # Haal datum lijst op (met buffer)
+        datum_lijst = self.get_datum_lijst(start_offset=8, eind_offset=8)
+
+        for datum_str, _ in datum_lijst:
+            # Converteer naar date object
+            datum_obj = datetime.strptime(datum_str, '%Y-%m-%d').date()
+
+            # Haal status uit cache (instant, geen database query!)
+            status = cache.get_bemannings_status(datum_obj)
+
+            if status:
+                # Cache hit - gebruik cached data
+                self.bemannings_status[datum_str] = {
+                    'status': status,
+                    'details': f"Status: {status}",
+                    'verwachte_codes': [],
+                    'werkelijke_codes': [],
+                    'ontbrekende_codes': [],
+                    'dubbele_codes': []
+                }
+            else:
+                # Cache miss - fallback naar oude methode
+                # (Dit zou niet moeten gebeuren als preload_month() correct werd aangeroepen)
+                resultaat = controleer_bemanning(datum_obj)
+                self.bemannings_status[datum_str] = resultaat
+
+    def get_bemannings_overlay_kleur(self, datum_str: str) -> Optional[str]:
+        """
+        Bepaal overlay kleur voor bemannings status
+        Returns: qlineargradient CSS syntax of None
+        """
+        if datum_str not in self.bemannings_status:
+            return None
+
+        status = self.bemannings_status[datum_str]['status']
+
+        if status == 'groen':
+            # Lichtgroen overlay (40% opacity - verhoogd voor betere zichtbaarheid)
+            return "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(129, 199, 132, 0.4), stop:1 rgba(129, 199, 132, 0.4))"
+        elif status == 'geel':
+            # Oranje overlay voor dubbele shifts (55% opacity - Material Orange 600 voor meer intensiteit)
+            # Onderscheidbaar van gele zon-/feestdag achtergrond
+            return "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(251, 140, 0, 0.55), stop:1 rgba(251, 140, 0, 0.55))"
+        elif status == 'rood':
+            # Lichtrood overlay (40% opacity)
+            return "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(229, 115, 115, 0.4), stop:1 rgba(229, 115, 115, 0.4))"
+        else:
+            return None
+
+    def get_bemannings_tooltip(self, datum_str: str) -> str:
+        """
+        Genereer tooltip text voor bemannings status
+        Returns: HTML formatted tooltip string
+        """
+        if datum_str not in self.bemannings_status:
+            return ""
+
+        resultaat = self.bemannings_status[datum_str]
+        status = resultaat['status']
+        datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
+        datum_label = datum_obj.strftime('%d %B')
+
+        # Status emoji
+        if status == 'groen':
+            status_text = f"{datum_label} - Volledig bemand"
+            icon = "✓"
+        elif status == 'geel':
+            status_text = f"{datum_label} - Dubbele code(s)"
+            icon = "⚠"
+        else:  # rood
+            status_text = f"{datum_label} - ONVOLLEDIG"
+            icon = "✗"
+
+        tooltip_parts = [status_text]
+
+        # Toon verwachte codes met status
+        verwachte = resultaat.get('verwachte_codes', [])
+        werkelijke = resultaat.get('werkelijke_codes', [])
+        ontbrekende = resultaat.get('ontbrekende_codes', [])
+        dubbele = resultaat.get('dubbele_codes', [])
+
+        # Groepeer werkelijke codes
+        werkelijk_dict = {}
+        for item in werkelijke:
+            code = item['code']
+            naam = item['gebruiker_naam']
+            if code not in werkelijk_dict:
+                werkelijk_dict[code] = []
+            werkelijk_dict[code].append(naam)
+
+        # Toon elke verwachte code
+        if verwachte:
+            tooltip_parts.append("")  # Lege regel
+            for verwacht_item in verwachte:
+                code = verwacht_item['code']
+                werkpost = verwacht_item['werkpost_naam']
+                shift_type = verwacht_item['shift_type']
+
+                if code in werkelijk_dict:
+                    # Code is ingevuld
+                    namen = werkelijk_dict[code]
+                    if len(namen) == 1:
+                        tooltip_parts.append(f"✓ {werkpost} {shift_type} ({code}): {namen[0]}")
+                    else:
+                        # Dubbel
+                        tooltip_parts.append(f"⚠ {werkpost} {shift_type} ({code}): {', '.join(namen)}")
+                else:
+                    # Code ontbreekt
+                    tooltip_parts.append(f"✗ {werkpost} {shift_type} ({code}): NIET INGEVULD")
+
+        return "\n".join(tooltip_parts)
+
+    def load_hr_violations(self) -> None:
+        """
+        Laad HR violations voor alle gebruikers in huidige maand
+
+        BATCH VALIDATIE (v0.6.26):
+        - Loop door alle gefilterde gebruikers
+        - Create PlanningValidator per gebruiker
+        - Call validate_all() voor batch check
+        - Map violations naar self.hr_violations dict
+
+        Performance: Max 30 gebruikers, ~1-2 sec per gebruiker
+        """
+        self.hr_violations.clear()
+
+        if not self.gebruikers_data:
+            return
+
+        # Loop door alle zichtbare gebruikers
+        for user in self.gebruikers_data:
+            gebruiker_id = user['id']
+
+            try:
+                # Create validator voor deze gebruiker + maand
+                validator = PlanningValidator(
+                    gebruiker_id=gebruiker_id,
+                    jaar=self.jaar,
+                    maand=self.maand
+                )
+
+                # Run batch validatie (alle 6 HR checks)
+                violations_dict = validator.validate_all()
+
+                # DEBUG: Log violations found
+                total_violations = sum(len(v) for v in violations_dict.values())
+                if total_violations > 0:
+                    print(f"[HR Load] Gebruiker {gebruiker_id}: {total_violations} violations found")
+
+                # Flatten violations en map naar datum
+                for regel_naam, violations_list in violations_dict.items():
+                    for violation in violations_list:
+                        # Violation kan exacte datum of datum_range hebben
+                        if violation.datum:
+                            # Filter: alleen violations in huidige maand (ISSUE-009 fix)
+                            if violation.datum.year != self.jaar or violation.datum.month != self.maand:
+                                continue  # Skip violations buiten huidige maand
+
+                            datum_str = violation.datum.strftime('%Y-%m-%d')
+
+                            # Initialiseer datum entry als nodig
+                            if datum_str not in self.hr_violations:
+                                self.hr_violations[datum_str] = {}
+
+                            # Initialiseer gebruiker entry als nodig
+                            if gebruiker_id not in self.hr_violations[datum_str]:
+                                self.hr_violations[datum_str][gebruiker_id] = []
+
+                            # Add violation
+                            self.hr_violations[datum_str][gebruiker_id].append(violation)
+
+                        # Als violation een datum_range heeft, map naar alle dagen in range
+                        if violation.datum_range:
+                            start_datum, eind_datum = violation.datum_range
+                            huidige_datum = start_datum
+
+                            while huidige_datum <= eind_datum:
+                                # Filter: alleen datums in huidige maand (ISSUE-009 fix)
+                                if huidige_datum.year != self.jaar or huidige_datum.month != self.maand:
+                                    huidige_datum += timedelta(days=1)
+                                    continue  # Skip datums buiten huidige maand
+
+                                datum_str = huidige_datum.strftime('%Y-%m-%d')
+
+                                # Initialiseer entries
+                                if datum_str not in self.hr_violations:
+                                    self.hr_violations[datum_str] = {}
+
+                                if gebruiker_id not in self.hr_violations[datum_str]:
+                                    self.hr_violations[datum_str][gebruiker_id] = []
+
+                                # Add violation (alleen als niet al toegevoegd)
+                                if violation not in self.hr_violations[datum_str][gebruiker_id]:
+                                    self.hr_violations[datum_str][gebruiker_id].append(violation)
+
+                                huidige_datum += timedelta(days=1)
+
+            except Exception as e:
+                # Log error maar ga door met andere gebruikers
+                print(f"[HR Violations] Error validating user {gebruiker_id}: {e}")
+                import traceback
+                traceback.print_exc()
+
+        # Update summary box na laden
+        self.update_hr_summary()
+
+    def on_valideer_planning_clicked(self) -> None:
+        """
+        Handler voor "Valideer Planning" knop (v0.6.26 - BUG FIX)
+
+        Probleem: Real-time validatie tijdens plannen checkt NIET de volledige context.
+        Oplossing: Batch validatie on-demand die alle violations toont.
+
+        Process:
+        1. Show progress cursor (kan 1-2 sec duren)
+        2. Run load_hr_violations() (batch check voor alle gebruikers)
+        3. Rebuild grid om violations te tonen
+        4. Show samenvatting dialog met alle violations
+        """
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QApplication
+
+        # Show busy cursor
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
+        try:
+            # Run batch validatie
+            self.load_hr_violations()
+
+            # Rebuild grid om violations te tonen
+            self.build_grid()
+
+            # Tel violations
+            totaal_violations = 0
+            violations_per_type = {}
+
+            for datum_violations in self.hr_violations.values():
+                for gebruiker_violations in datum_violations.values():
+                    for v in gebruiker_violations:
+                        totaal_violations += 1
+                        type_str = v.type.value
+                        violations_per_type[type_str] = violations_per_type.get(type_str, 0) + 1
+
+            # Show samenvatting
+            if totaal_violations == 0:
+                QMessageBox.information(
+                    self,
+                    "Validatie Compleet",
+                    f"Geen HR violations gevonden voor {self.get_maand_naam()} {self.jaar}!\n\n"
+                    "Alle gebruikers voldoen aan de HR regels."
+                )
+            else:
+                # Build detailed message
+                details = []
+                for type_str, count in sorted(violations_per_type.items()):
+                    # Friendly names
+                    type_names = {
+                        'min_rust_12u': '12u rust tussen shifts',
+                        'max_uren_week': 'Max 50u per week',
+                        'max_werkdagen_cyclus': 'Max 19 werkdagen per cyclus',
+                        'max_dagen_tussen_rx': 'Max 7 dagen tussen rustdagen',
+                        'max_werkdagen_reeks': 'Max 7 opeenvolgende werkdagen',
+                        'max_weekends_achter_elkaar': 'Max 6 weekends achter elkaar'
+                    }
+                    naam = type_names.get(type_str, type_str)
+                    details.append(f"• {naam}: {count}x")
+
+                details_str = "\n".join(details)
+
+                QMessageBox.warning(
+                    self,
+                    "HR Violations Gevonden",
+                    f"Gevonden: {totaal_violations} violation(s) voor {self.get_maand_naam()} {self.jaar}\n\n"
+                    f"{details_str}\n\n"
+                    f"Violations zijn nu zichtbaar in de grid met rode overlays.\n"
+                    f"Hover over cellen voor details."
+                )
+
+        finally:
+            # Restore cursor
+            QApplication.restoreOverrideCursor()
+
+    def get_maand_naam(self) -> str:
+        """Helper: Get maand naam in Nederlands"""
+        maanden = ['Januari', 'Februari', 'Maart', 'April', 'Mei', 'Juni',
+                   'Juli', 'Augustus', 'September', 'Oktober', 'November', 'December']
+        return maanden[self.maand - 1]
+
+    def update_hr_summary(self) -> None:
+        """
+        Update HR violations summary box onderaan grid (v0.6.26 - Fase 3 UX)
+
+        Toont overzicht van alle violations voor zichtbare gebruikers:
+        - Gegroepeerd per gebruiker
+        - Error count + warning count
+        - Datums waar violations voorkomen
+        - Top violations per gebruiker
+        """
+        # Verzamel alle violations voor zichtbare gebruikers
+        # Structure: {gebruiker_id: {datum_str: [violations]}}
+        violations_per_gebruiker: Dict[int, Dict[str, List[Violation]]] = {}
+
+        for datum_str, gebruikers_dict in self.hr_violations.items():
+            for gebruiker_id, violations_list in gebruikers_dict.items():
+                if gebruiker_id not in violations_per_gebruiker:
+                    violations_per_gebruiker[gebruiker_id] = {}
+
+                if datum_str not in violations_per_gebruiker[gebruiker_id]:
+                    violations_per_gebruiker[gebruiker_id][datum_str] = []
+
+                violations_per_gebruiker[gebruiker_id][datum_str].extend(violations_list)
+
+        # Check of er violations zijn (ISSUE-006: altijd tonen, niet verbergen)
+        if not violations_per_gebruiker:
+            self.hr_summary_label.setText("<i>Geen HR violations gevonden</i>")
+            return
+
+        # Tel totaal errors en warnings
+        total_errors = 0
+        total_warnings = 0
+
+        for datums_dict in violations_per_gebruiker.values():
+            for violations_list in datums_dict.values():
+                for v in violations_list:
+                    if v.severity.value == 'error':
+                        total_errors += 1
+                    else:
+                        total_warnings += 1
+
+        # Format HTML summary
+        html_parts = [
+            "<b>HR Regel Overtredingen Gevonden:</b><br>",
+            f"<span style='color: #dc3545;'>✗ {total_errors} errors</span> | ",
+            f"<span style='color: #ffc107;'>⚠ {total_warnings} warnings</span><br><br>"
+        ]
+
+        # Group violations per gebruiker (ALLE gebruikers, geen limit)
+        for gebruiker_id, datums_dict in sorted(violations_per_gebruiker.items()):
+            # Haal gebruiker naam op
+            gebruiker_naam = "Onbekend"
+            for user in self.gebruikers_data:
+                if user['id'] == gebruiker_id:
+                    gebruiker_naam = user['volledige_naam']
+                    break
+
+            # Collect alle violations voor deze gebruiker
+            alle_violations = []
+            for violations_list in datums_dict.values():
+                alle_violations.extend(violations_list)
+
+            # Count per severity
+            errors = [v for v in alle_violations if v.severity.value == 'error']
+            warnings = [v for v in alle_violations if v.severity.value == 'warning']
+
+            # Toon naam met totaal counts
+            html_parts.append(f"<b>{gebruiker_naam}</b>: ")
+
+            if errors:
+                html_parts.append(f"<span style='color: #dc3545;'>{len(errors)} errors</span>")
+            if warnings:
+                if errors:
+                    html_parts.append(", ")
+                html_parts.append(f"<span style='color: #ffc107;'>{len(warnings)} warnings</span>")
+
+            html_parts.append("<br>")
+
+            # Toon ALLE violations per datum (geen limit meer)
+            for datum_str in sorted(datums_dict.keys()):
+                datum_violations = datums_dict[datum_str]
+                datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
+                datum_formatted = datum_obj.strftime('%d %B')  # "4 november"
+
+                for v in datum_violations:
+                    icon = "✗" if v.severity.value == 'error' else "⚠"
+                    color = "#dc3545" if v.severity.value == 'error' else "#ffc107"
+
+                    # Beschrijving (volledige tekst, geen truncate)
+                    desc = v.beschrijving
+
+                    html_parts.append(
+                        f"&nbsp;&nbsp;<span style='color: {color};'>{icon}</span> {desc} "
+                        f"<i>(op {datum_formatted})</i><br>"
+                    )
+
+            html_parts.append("<br>")
+
+        html_parts.append("<i>Controleer de planning voordat je publiceert (cellen met rode/gele overlay)</i>")
+
+        # Update label (ISSUE-006: altijd zichtbaar, geen show() nodig)
+        self.hr_summary_label.setText("".join(html_parts))
+
+    def get_hr_overlay_kleur(self, datum_str: str, gebruiker_id: int) -> Optional[str]:
+        """
+        Bepaal HR violation overlay kleur voor cel
+
+        Returns:
+            qlineargradient CSS syntax voor overlay (40% opacity)
+            - Rood voor errors
+            - Geel voor warnings
+            - None voor geen violations
+        """
+        # Check of er violations zijn voor deze datum + gebruiker
+        if datum_str not in self.hr_violations:
+            return None
+
+        if gebruiker_id not in self.hr_violations[datum_str]:
+            return None
+
+        violations = self.hr_violations[datum_str][gebruiker_id]
+        if not violations:
+            return None
+
+        # Check severity: errors = rood, warnings = geel
+        heeft_error = any(v.severity.value == 'error' for v in violations)
+
+        # DEBUG: Print voor troubleshooting
+        print(f"[HR Overlay] {datum_str} gebruiker {gebruiker_id}: {len(violations)} violations (error={heeft_error})")
+
+        if heeft_error:
+            # Rood overlay (70% opacity voor betere zichtbaarheid)
+            # #E57373 = Material Red 300
+            return "rgba(229, 115, 115, 0.7)"
+        else:
+            # Geel overlay (70% opacity voor betere zichtbaarheid)
+            # #FFD54F = Material Amber 300
+            return "rgba(255, 213, 79, 0.7)"
+
+    def get_hr_tooltip(self, datum_str: str, gebruiker_id: int) -> str:
+        """
+        Genereer tooltip tekst met HR violation details
+
+        Returns:
+            Plain text string met violations lijst (geen HTML)
+            - ⚠ voor warnings
+            - ✗ voor errors
+        """
+        # Check of er violations zijn
+        if datum_str not in self.hr_violations:
+            return ""
+
+        if gebruiker_id not in self.hr_violations[datum_str]:
+            return ""
+
+        violations = self.hr_violations[datum_str][gebruiker_id]
+        if not violations:
+            return ""
+
+        # Format datum
+        datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
+        datum_label = datum_obj.strftime('%d %B')
+
+        tooltip_parts = [f"HR Regel Overtredingen ({datum_label}):"]
+
+        # Group violations by type
+        for violation in violations:
+            # Icon based on severity
+            if violation.severity.value == 'error':
+                icon = "✗"
+            else:
+                icon = "⚠"
+
+            # Add violation description
+            tooltip_parts.append(f"{icon} {violation.beschrijving}")
+
+        return "\n".join(tooltip_parts)
+
     def build_grid(self) -> None:
-        """Bouw de grid met namen en datums"""
-        # Clear bestaande layout
-        if self.grid_container.layout():
-            QWidget().setLayout(self.grid_container.layout())
+        """Bouw de grid met namen en datums - SPLIT in frozen + scrollable (v0.6.25)"""
+        # Clear bestaande layouts
+        if self.frozen_container.layout():
+            QWidget().setLayout(self.frozen_container.layout())
+        if self.scrollable_container.layout():
+            QWidget().setLayout(self.scrollable_container.layout())
 
         # Reset cel widgets
         self.cel_widgets.clear()
+        self.hr_cel_widgets.clear()
+        self.datum_header_widgets.clear()
 
-        grid_layout = QGridLayout()
-        grid_layout.setSpacing(0)
-        grid_layout.setContentsMargins(0, 0, 0, 0)
+        # Maak twee aparte layouts
+        frozen_layout = QGridLayout()
+        frozen_layout.setSpacing(0)
+        frozen_layout.setContentsMargins(0, 0, 0, 0)
+
+        scrollable_layout = QGridLayout()
+        scrollable_layout.setSpacing(0)
+        scrollable_layout.setContentsMargins(0, 0, 0, 0)
 
         # Haal datum lijst en zichtbare gebruikers
         datum_lijst = self.get_datum_lijst(start_offset=8, eind_offset=8)
@@ -352,11 +1081,19 @@ class PlannerGridKalender(GridKalenderBase):
             # Geen gebruikers geselecteerd
             info = QLabel("Geen teamleden geselecteerd. Gebruik de filter knop.")
             info.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; padding: 20px;")
-            grid_layout.addWidget(info, 0, 0)
-            self.grid_container.setLayout(grid_layout)
+            frozen_layout.addWidget(info, 0, 0)
+            self.frozen_container.setLayout(frozen_layout)
+            self.scrollable_container.setLayout(scrollable_layout)
             return
 
-        # Header rij: namen kolom + datums
+        # ============== FROZEN HEADERS (naam + HR kolommen) ==============
+        # Dynamische frozen width: 280px (naam) of 380px (naam + HR)
+        frozen_width = 280
+        if self.rode_lijn_periodes:
+            frozen_width = 380  # 280 + 50 + 50
+        self.frozen_scroll.setFixedWidth(frozen_width)
+
+        # Naam header → frozen kolom 0
         naam_header = QLabel("Teamlid")
         naam_header.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL, QFont.Weight.Bold))
         naam_header.setStyleSheet(f"""
@@ -368,63 +1105,145 @@ class PlannerGridKalender(GridKalenderBase):
                 qproperty-alignment: AlignCenter;
             }}
         """)
-        naam_header.setFixedWidth(280)  # Verhoogd van 200 naar 280 voor lange namen
-        grid_layout.addWidget(naam_header, 0, 0)
+        naam_header.setFixedWidth(280)
+        frozen_layout.addWidget(naam_header, 0, 0)
 
-        # Datum headers
-        for col, (datum_str, label) in enumerate(datum_lijst, start=1):
+        # HR kolom headers (alleen als rode lijn periodes beschikbaar zijn)
+        frozen_col_offset = 1  # Start positie voor HR kolommen in frozen layout
+        if self.rode_lijn_periodes:
+            # Voor RL header → frozen kolom 1
+            hr_voor_header = QLabel("Voor\nRL")
+            hr_voor_header.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_TINY, QFont.Weight.Bold))
+            hr_voor_header.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {Colors.PRIMARY};
+                    color: white;
+                    padding: 4px;
+                    border: 1px solid {Colors.BORDER_LIGHT};
+                    qproperty-alignment: AlignCenter;
+                }}
+            """)
+            hr_voor_header.setFixedWidth(50)
+            vorig_periode = self.rode_lijn_periodes['vorig']
+            hr_voor_header.setToolTip(
+                f"Gewerkte dagen vóór rode lijn\n"
+                f"Periode {vorig_periode['nummer']}: {vorig_periode['start']} t/m {vorig_periode['eind']}"
+            )
+            frozen_layout.addWidget(hr_voor_header, 0, 1)
+
+            # Na RL header → frozen kolom 2
+            hr_na_header = QLabel("Na\nRL")
+            hr_na_header.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_TINY, QFont.Weight.Bold))
+            hr_na_header.setStyleSheet(f"""
+                QLabel {{
+                    background-color: {Colors.PRIMARY};
+                    color: white;
+                    padding: 4px;
+                    border: 1px solid {Colors.BORDER_LIGHT};
+                    border-left: 3px solid #dc3545;
+                    qproperty-alignment: AlignCenter;
+                }}
+            """)
+            hr_na_header.setFixedWidth(50)
+            huidig_periode = self.rode_lijn_periodes['huidig']
+            hr_na_header.setToolTip(
+                f"Gewerkte dagen ná rode lijn\n"
+                f"Periode {huidig_periode['nummer']}: {huidig_periode['start']} t/m {huidig_periode['eind']}"
+            )
+            frozen_layout.addWidget(hr_na_header, 0, 2)
+
+        # ============== SCROLLABLE HEADERS (datum kolommen) ==============
+        # Datum headers starten bij scrollable kolom 0
+        for col, (datum_str, label) in enumerate(datum_lijst):
             datum_header = QLabel(label)
             datum_header.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_TINY, QFont.Weight.Bold))
 
-            # Achtergrond kleur voor header
+            # Achtergrond kleur voor header (weekend/feestdag basis)
             achtergrond = self.get_datum_achtergrond(datum_str)
+
+            # Bemannings overlay (v0.6.20 - qlineargradient zoals cell selection)
+            bemannings_overlay = self.get_bemannings_overlay_kleur(datum_str)
 
             # Check of dit het begin van een rode lijn periode is
             is_rode_lijn_start = datum_str in self.rode_lijnen_starts
 
-            # Highlight huidige maand dagen
+            # Blauwe kader ROND de hele huidige maand (v0.6.25)
             datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
-            if datum_obj.month == self.maand:
-                # Huidige maand: donkerder border
-                border_style = f"2px solid {Colors.PRIMARY}"
-            else:
-                # Buffer dagen: normale border
-                border_style = f"1px solid {Colors.BORDER_LIGHT}"
+            is_huidige_maand = datum_obj.month == self.maand
+            is_eerste_dag_maand = is_huidige_maand and datum_obj.day == 1
+            is_laatste_dag_maand = is_huidige_maand and datum_obj.day == self.get_laatste_dag_van_maand()
 
-            # Rode lijn: dikke rode linker border
+            # Base border
+            border_style = f"1px solid {Colors.BORDER_LIGHT}"
+
+            # Blauwe kader rondom hele maand
+            extra_borders = []
+            if is_huidige_maand:
+                extra_borders.append("border-top: 3px solid #2196F3")  # Boven border voor alle maand dagen
+            if is_eerste_dag_maand:
+                extra_borders.append("border-left: 3px solid #2196F3")  # Linker border voor eerste dag
+            if is_laatste_dag_maand:
+                extra_borders.append("border-right: 3px solid #2196F3")  # Rechter border voor laatste dag
+
+            # Tooltip met bemanningsstatus (v0.6.20)
+            bemannings_tooltip = self.get_bemannings_tooltip(datum_str)
+            base_tooltip = ""
             if is_rode_lijn_start:
                 periode_nr = self.rode_lijnen_starts[datum_str]
-                datum_header.setStyleSheet(f"""
-                    QLabel {{
-                        background-color: {achtergrond};
-                        color: #000000;
-                        padding: 4px;
-                        border: {border_style};
-                        border-left: 4px solid #dc3545;
-                        qproperty-alignment: AlignCenter;
-                    }}
-                """)
-                # Tooltip met periode nummer
-                datum_header.setToolTip(f"Start Rode Lijn Periode {periode_nr}")
+                base_tooltip = f"Start Rode Lijn Periode {periode_nr}"
+
+            # Combineer tooltips
+            if bemannings_tooltip and base_tooltip:
+                full_tooltip = f"{bemannings_tooltip}\n\n{base_tooltip}"
+            elif bemannings_tooltip:
+                full_tooltip = bemannings_tooltip
             else:
-                datum_header.setStyleSheet(f"""
-                    QLabel {{
-                        background-color: {achtergrond};
-                        color: #000000;
-                        padding: 4px;
-                        border: {border_style};
-                        qproperty-alignment: AlignCenter;
-                    }}
-                """)
+                full_tooltip = base_tooltip
+
+            # Build style met borders
+            border_parts = [f"border: {border_style}"]
+
+            # Rode lijn: dikke rode linker border (kan combineren met blauwe maand border)
+            if is_rode_lijn_start:
+                border_parts.append("border-left: 4px solid #dc3545")
+
+            # Blauwe maand borders (kunnen rode lijn overschrijven als beide aanwezig)
+            border_parts.extend(extra_borders)
+
+            base_style = f"""
+                QLabel {{
+                    background-color: {achtergrond};
+                    color: #000000;
+                    padding: 4px;
+                    {'; '.join(border_parts)};
+                    qproperty-alignment: AlignCenter;
+                }}
+            """
+
+            # Bemannings overlay toepassen (replace background-color met background + qlineargradient)
+            if bemannings_overlay:
+                base_style = base_style.replace(
+                    f"background-color: {achtergrond}",
+                    f"background: {bemannings_overlay}"
+                )
+
+            datum_header.setStyleSheet(base_style)
+
+            if full_tooltip:
+                datum_header.setToolTip(full_tooltip)
 
             datum_header.setFixedWidth(60)
-            grid_layout.addWidget(datum_header, 0, col)
+            scrollable_layout.addWidget(datum_header, 0, col)  # Scrollable headers
 
-        # Data rijen: per gebruiker
+            # Sla datum header op voor later updaten (v0.6.20)
+            self.datum_header_widgets[datum_str] = datum_header
+
+        # ============== DATA RIJEN (split in frozen + scrollable) ==============
         for row, gebruiker in enumerate(zichtbare_gebruikers, start=1):
             gebruiker_id = gebruiker['id']
+            is_laatste_rij = (row == len(zichtbare_gebruikers))
 
-            # Naam kolom
+            # ---- FROZEN: Naam kolom → frozen kolom 0 ----
             naam_label = QLabel(gebruiker['volledige_naam'])
             naam_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
             naam_label.setStyleSheet(f"""
@@ -434,24 +1253,106 @@ class PlannerGridKalender(GridKalenderBase):
                     border: 1px solid {Colors.BORDER_LIGHT};
                 }}
             """)
-            naam_label.setFixedWidth(280)  # Verhoogd van 200 naar 280 voor lange namen
-            grid_layout.addWidget(naam_label, row, 0)
+            naam_label.setFixedWidth(280)
+            frozen_layout.addWidget(naam_label, row, 0)
 
-            # Shift cellen (editable)
-            for col, (datum_str, _) in enumerate(datum_lijst, start=1):
-                cel = self.create_editable_cel(datum_str, gebruiker_id)
+            # ---- FROZEN: HR kolom cellen → frozen kolom 1, 2 ----
+            if self.rode_lijn_periodes:
+                # Bereken werkdagen (gebruik cache)
+                if gebruiker_id not in self.hr_werkdagen_cache:
+                    vorig_periode = self.rode_lijn_periodes['vorig']
+                    huidig_periode = self.rode_lijn_periodes['huidig']
+
+                    voor_dagen = self.tel_gewerkte_dagen(
+                        gebruiker_id,
+                        vorig_periode['start'],
+                        vorig_periode['eind']
+                    )
+                    na_dagen = self.tel_gewerkte_dagen(
+                        gebruiker_id,
+                        huidig_periode['start'],
+                        huidig_periode['eind']
+                    )
+
+                    self.hr_werkdagen_cache[gebruiker_id] = {
+                        'voor': voor_dagen,
+                        'na': na_dagen
+                    }
+
+                voor_dagen = self.hr_werkdagen_cache[gebruiker_id]['voor']
+                na_dagen = self.hr_werkdagen_cache[gebruiker_id]['na']
+                totaal_dagen = voor_dagen + na_dagen
+
+                # Check ELKE periode apart (niet het totaal!)
+                is_voor_overschrijding = voor_dagen > 19
+                is_na_overschrijding = na_dagen > 19
+
+                # Kolom 1: "Voor RL" aantal (rood als deze periode > 19)
+                voor_achtergrond = "rgba(255, 0, 0, 0.3)" if is_voor_overschrijding else Colors.BG_LIGHT
+                hr_voor_cel = QLabel(str(voor_dagen))
+                hr_voor_cel.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL, QFont.Weight.Bold))
+                hr_voor_cel.setStyleSheet(f"""
+                    QLabel {{
+                        background-color: {voor_achtergrond};
+                        padding: 8px;
+                        border: 1px solid {Colors.BORDER_LIGHT};
+                        qproperty-alignment: AlignCenter;
+                    }}
+                """)
+                hr_voor_cel.setFixedWidth(50)
+                vorig_periode = self.rode_lijn_periodes['vorig']
+                hr_voor_cel.setToolTip(
+                    f"Gewerkte dagen: {voor_dagen}/19\n"
+                    f"Periode {vorig_periode['nummer']}: {vorig_periode['start']} t/m {vorig_periode['eind']}"
+                )
+                frozen_layout.addWidget(hr_voor_cel, row, 1)  # Frozen kolom 1
+
+                # Kolom 2: "Na RL" aantal met rode linker border (rood als deze periode > 19)
+                na_achtergrond = "rgba(255, 0, 0, 0.3)" if is_na_overschrijding else Colors.BG_LIGHT
+                hr_na_cel = QLabel(str(na_dagen))
+                hr_na_cel.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL, QFont.Weight.Bold))
+                hr_na_cel.setStyleSheet(f"""
+                    QLabel {{
+                        background-color: {na_achtergrond};
+                        padding: 8px;
+                        border: 1px solid {Colors.BORDER_LIGHT};
+                        border-left: 3px solid #dc3545;
+                        qproperty-alignment: AlignCenter;
+                    }}
+                """)
+                hr_na_cel.setFixedWidth(50)
+                huidig_periode = self.rode_lijn_periodes['huidig']
+                hr_na_cel.setToolTip(
+                    f"Gewerkte dagen: {na_dagen}/19\n"
+                    f"Periode {huidig_periode['nummer']}: {huidig_periode['start']} t/m {huidig_periode['eind']}"
+                )
+                frozen_layout.addWidget(hr_na_cel, row, 2)  # Frozen kolom 2
+
+                # Sla HR cellen op voor latere updates
+                self.hr_cel_widgets[gebruiker_id] = {
+                    'voor': hr_voor_cel,
+                    'na': hr_na_cel
+                }
+
+            # ---- SCROLLABLE: Datum cellen → scrollable kolom 0+ ----
+            for col, (datum_str, _) in enumerate(datum_lijst):  # Start bij kolom 0 in scrollable
+                cel = self.create_editable_cel(datum_str, gebruiker_id, is_laatste_rij)
                 cel.setFixedWidth(60)
-                grid_layout.addWidget(cel, row, col)
+                scrollable_layout.addWidget(cel, row, col)  # Scrollable layout
 
                 # Track widget
                 if datum_str not in self.cel_widgets:
                     self.cel_widgets[datum_str] = {}
                 self.cel_widgets[datum_str][gebruiker_id] = cel
 
-        self.grid_container.setMaximumHeight(grid_layout.rowCount() * Dimensions.TABLE_ROW_HEIGHT)
-        self.grid_container.setLayout(grid_layout)
+        # Set layouts op containers
+        self.frozen_container.setMaximumHeight(frozen_layout.rowCount() * Dimensions.TABLE_ROW_HEIGHT)
+        self.frozen_container.setLayout(frozen_layout)
 
-    def create_editable_cel(self, datum_str: str, gebruiker_id: int) -> EditableLabel:
+        self.scrollable_container.setMaximumHeight(scrollable_layout.rowCount() * Dimensions.TABLE_ROW_HEIGHT)
+        self.scrollable_container.setLayout(scrollable_layout)
+
+    def create_editable_cel(self, datum_str: str, gebruiker_id: int, is_laatste_rij: bool = False) -> EditableLabel:
         """Maak editable cel voor shift weergave"""
         # Haal shift code op
         shift_code = self.get_display_code(datum_str, gebruiker_id)
@@ -465,9 +1366,19 @@ class PlannerGridKalender(GridKalenderBase):
         # Display text (zonder notitie indicator - die komt via CSS)
         display_text = shift_code
 
-        # Bepaal achtergrond en overlay
+        # Bepaal achtergrond (weekend kleurtjes blijven behouden)
         achtergrond = self.get_datum_achtergrond(datum_str)
-        overlay = self.get_verlof_overlay(datum_str, gebruiker_id, 'planner')
+
+        # Bepaal overlay (verlof + HR violations, bemannings overlay alleen op datum headers)
+        verlof_overlay = self.get_verlof_overlay(datum_str, gebruiker_id, 'planner')
+        hr_overlay = self.get_hr_overlay_kleur(datum_str, gebruiker_id)
+
+        # Prioriteit: verlof overlay eerst, dan HR overlay
+        overlay = verlof_overlay if verlof_overlay else hr_overlay
+
+        # DEBUG: Log overlay status
+        if hr_overlay:
+            print(f"[Cel Create] {datum_str} user {gebruiker_id}: HR overlay={hr_overlay[:50]}...")
 
         # Check of dit een buffer dag is
         datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
@@ -476,6 +1387,10 @@ class PlannerGridKalender(GridKalenderBase):
         # Check of dit het begin van een rode lijn periode is
         is_rode_lijn_start = datum_str in self.rode_lijnen_starts
 
+        # Blauwe kader ROND de hele huidige maand (v0.6.25) - onderste border voor data cellen
+        is_huidige_maand = datum_obj.month == self.maand
+        is_eerste_dag_maand = is_huidige_maand and datum_obj.day == 1
+        is_laatste_dag_maand = is_huidige_maand and datum_obj.day == self.get_laatste_dag_van_maand()
 
         # Maak editable label (met display_text ipv shift_code)
         cel = EditableLabel(display_text, datum_str, gebruiker_id, self)
@@ -504,20 +1419,51 @@ class PlannerGridKalender(GridKalenderBase):
                 "border-top: 3px solid #00E676;\n                    border-right: 3px solid #00E676;\n                    qproperty-alignment: AlignCenter;"
             )
 
+        # Blauwe maand kader - onder border voor ALLEEN de laatste rij (v0.6.25)
+        if is_huidige_maand and is_laatste_rij:
+            base_style = base_style.replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-bottom: 3px solid #2196F3;\n                    qproperty-alignment: AlignCenter;"
+            )
+
+        # Blauwe maand kader - linker border voor eerste dag
+        if is_eerste_dag_maand:
+            base_style = base_style.replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-left: 3px solid #2196F3;\n                    qproperty-alignment: AlignCenter;"
+            )
+
+        # Blauwe maand kader - rechter border voor laatste dag
+        if is_laatste_dag_maand:
+            base_style = base_style.replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-right: 3px solid #2196F3;\n                    qproperty-alignment: AlignCenter;"
+            )
+
         if is_buffer:
             cel.setStyleSheet(base_style + " QLabel { opacity: 0.7; }")
         else:
             cel.setStyleSheet(base_style)
 
-        # Tooltip
+        # Tooltip (combineer alle tooltip components)
         tooltip = self.get_cel_tooltip(datum_str, gebruiker_id, 'planner')
+
+        # Add HR violations tooltip (v0.6.26)
+        hr_tooltip = self.get_hr_tooltip(datum_str, gebruiker_id)
+        if hr_tooltip:
+            tooltip = f"{tooltip}\n\n{hr_tooltip}" if tooltip else hr_tooltip
+
+        # Add rode lijn tooltip
         if is_rode_lijn_start:
             periode_nr = self.rode_lijnen_starts[datum_str]
             rode_lijn_tooltip = f"Start Rode Lijn Periode {periode_nr}"
             tooltip = f"{tooltip}\n{rode_lijn_tooltip}" if tooltip else rode_lijn_tooltip
+
+        # Add notitie tooltip
         if heeft_notitie:
             notitie_tooltip = "Heeft notitie (klik rechts -> Notitie bewerken)"
             tooltip = f"{tooltip}\n{notitie_tooltip}" if tooltip else notitie_tooltip
+
         if tooltip:
             cel.setToolTip(tooltip)
 
@@ -545,10 +1491,14 @@ class PlannerGridKalender(GridKalenderBase):
                 "Deze maand is gepubliceerd en kan niet worden bewerkt.\n\n"
                 "Zet de maand eerst terug naar concept via de Planning Editor."
             )
-            # Reset cel naar oude waarde
+            # Reset cel naar oude waarde met stylesheet rebuild (v0.6.25)
             if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
-                oude_code = self.get_display_code(datum_str, gebruiker_id)
-                self.cel_widgets[datum_str][gebruiker_id].setText(oude_code)
+                zichtbare_gebruikers = self.get_zichtbare_gebruikers()
+                is_laatste_rij = False
+                if zichtbare_gebruikers:
+                    laatste_gebruiker_id = zichtbare_gebruikers[-1]['id']
+                    is_laatste_rij = (gebruiker_id == laatste_gebruiker_id)
+                self.rebuild_cel_style(datum_str, gebruiker_id, is_laatste_rij)
             return
 
         if not code:
@@ -564,10 +1514,14 @@ class PlannerGridKalender(GridKalenderBase):
                 f"'{code}' is geen geldige shift code.\n\n"
                 f"Check de codes lijst in het scherm."
             )
-            # Reset cel
+            # Reset cel met stylesheet rebuild (v0.6.25)
             if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
-                oude_code = self.get_display_code(datum_str, gebruiker_id)
-                self.cel_widgets[datum_str][gebruiker_id].setText(oude_code)
+                zichtbare_gebruikers = self.get_zichtbare_gebruikers()
+                is_laatste_rij = False
+                if zichtbare_gebruikers:
+                    laatste_gebruiker_id = zichtbare_gebruikers[-1]['id']
+                    is_laatste_rij = (gebruiker_id == laatste_gebruiker_id)
+                self.rebuild_cel_style(datum_str, gebruiker_id, is_laatste_rij)
             return
 
         # Check of het een speciale code is (altijd geldig)
@@ -611,14 +1565,76 @@ class PlannerGridKalender(GridKalenderBase):
                     f"'{code}' is geen geldige shift code."
                 )
 
-            # Reset cel
+            # Reset cel met stylesheet rebuild (v0.6.25)
             if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
-                oude_code = self.get_display_code(datum_str, gebruiker_id)
-                self.cel_widgets[datum_str][gebruiker_id].setText(oude_code)
+                zichtbare_gebruikers = self.get_zichtbare_gebruikers()
+                is_laatste_rij = False
+                if zichtbare_gebruikers:
+                    laatste_gebruiker_id = zichtbare_gebruikers[-1]['id']
+                    is_laatste_rij = (gebruiker_id == laatste_gebruiker_id)
+                self.rebuild_cel_style(datum_str, gebruiker_id, is_laatste_rij)
             return
+
+        # Check voor dubbele shift_code (v0.6.20 - waarschuwing, maar kan doorgaan)
+        if code not in self.speciale_codes:
+            # Check of deze code al gebruikt wordt door andere gebruiker op deze datum
+            dubbel_gebruiker = self.check_dubbele_shift_code(datum_str, code, gebruiker_id)
+            if dubbel_gebruiker:
+                # Toon waarschuwing dialog met keuze
+                antwoord = QMessageBox.question(
+                    self,
+                    "Dubbele Shift Code",
+                    f"Code '{code}' wordt al gebruikt door {dubbel_gebruiker} op deze datum.\n\n"
+                    f"Dit kan correct zijn bij opleidingen of dubbele bemanning.\n\n"
+                    f"Weet je zeker dat je dit wilt?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+
+                if antwoord == QMessageBox.StandardButton.No:
+                    # Annuleren - reset cel met stylesheet rebuild (v0.6.25)
+                    if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
+                        zichtbare_gebruikers = self.get_zichtbare_gebruikers()
+                        is_laatste_rij = False
+                        if zichtbare_gebruikers:
+                            laatste_gebruiker_id = zichtbare_gebruikers[-1]['id']
+                            is_laatste_rij = (gebruiker_id == laatste_gebruiker_id)
+                        self.rebuild_cel_style(datum_str, gebruiker_id, is_laatste_rij)
+                    return
+                # Anders: gebruiker heeft "Yes" gekozen, ga door met opslaan
 
         # Alles OK - save
         self.save_shift(datum_str, gebruiker_id, code)
+
+    def check_dubbele_shift_code(self, datum_str: str, code: str, huidige_gebruiker_id: int) -> Optional[str]:
+        """
+        Check of een shift_code al gebruikt wordt door een andere gebruiker op deze datum.
+
+        Args:
+            datum_str: Datum string (YYYY-MM-DD)
+            code: Shift code om te checken
+            huidige_gebruiker_id: ID van gebruiker die de code wil gebruiken (excludeer deze)
+
+        Returns:
+            Naam van gebruiker die code al gebruikt, of None als code niet dubbel is
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT g.volledige_naam
+            FROM planning p
+            JOIN gebruikers g ON p.gebruiker_id = g.id
+            WHERE p.datum = ?
+            AND p.shift_code = ?
+            AND p.gebruiker_id != ?
+            LIMIT 1
+        """, (datum_str, code, huidige_gebruiker_id))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        return row['volledige_naam'] if row else None
 
     def bepaal_dag_type(self, datum_str: str) -> str:
         """
@@ -642,6 +1658,313 @@ class PlannerGridKalender(GridKalenderBase):
         """Haal feestdag naam op voor een datum"""
         return self.feestdag_namen.get(datum_str, "Feestdag")
 
+    def update_hr_cijfers_voor_gebruiker(self, gebruiker_id: int) -> None:
+        """Update HR cijfers voor specifieke gebruiker zonder volledige rebuild"""
+        # Check of HR kolommen beschikbaar zijn
+        if not self.rode_lijn_periodes:
+            return
+
+        # Check of deze gebruiker HR cellen heeft
+        if gebruiker_id not in self.hr_cel_widgets:
+            return
+
+        # Bereken nieuwe werkdagen
+        vorig_periode = self.rode_lijn_periodes['vorig']
+        huidig_periode = self.rode_lijn_periodes['huidig']
+
+        voor_dagen = self.tel_gewerkte_dagen(
+            gebruiker_id,
+            vorig_periode['start'],
+            vorig_periode['eind']
+        )
+        na_dagen = self.tel_gewerkte_dagen(
+            gebruiker_id,
+            huidig_periode['start'],
+            huidig_periode['eind']
+        )
+
+        # Update cache
+        self.hr_werkdagen_cache[gebruiker_id] = {
+            'voor': voor_dagen,
+            'na': na_dagen
+        }
+
+        # Check overschrijdingen per cel
+        is_voor_overschrijding = voor_dagen > 19
+        is_na_overschrijding = na_dagen > 19
+
+        # Update "Voor RL" cel
+        voor_cel = self.hr_cel_widgets[gebruiker_id]['voor']
+        voor_cel.setText(str(voor_dagen))
+        voor_achtergrond = "rgba(255, 0, 0, 0.3)" if is_voor_overschrijding else Colors.BG_LIGHT
+        voor_cel.setStyleSheet(f"""
+            QLabel {{
+                background-color: {voor_achtergrond};
+                padding: 8px;
+                border: 1px solid {Colors.BORDER_LIGHT};
+                qproperty-alignment: AlignCenter;
+            }}
+        """)
+        voor_cel.setToolTip(
+            f"Gewerkte dagen: {voor_dagen}/19\n"
+            f"Periode {vorig_periode['nummer']}: {vorig_periode['start']} t/m {vorig_periode['eind']}"
+        )
+
+        # Update "Na RL" cel
+        na_cel = self.hr_cel_widgets[gebruiker_id]['na']
+        na_cel.setText(str(na_dagen))
+        na_achtergrond = "rgba(255, 0, 0, 0.3)" if is_na_overschrijding else Colors.BG_LIGHT
+        na_cel.setStyleSheet(f"""
+            QLabel {{
+                background-color: {na_achtergrond};
+                padding: 8px;
+                border: 1px solid {Colors.BORDER_LIGHT};
+                border-left: 3px solid #dc3545;
+                qproperty-alignment: AlignCenter;
+            }}
+        """)
+        na_cel.setToolTip(
+            f"Gewerkte dagen: {na_dagen}/19\n"
+            f"Periode {huidig_periode['nummer']}: {huidig_periode['start']} t/m {huidig_periode['eind']}"
+        )
+
+    def update_bemannings_status_voor_datum(self, datum_str: str) -> None:
+        """
+        Update bemannings controle status voor specifieke datum zonder volledige rebuild.
+        Herberekent alleen de status voor deze datum en update de overlay kleuren.
+
+        PERFORMANCE OPTIMALISATIE (v0.6.25):
+        Invalideerd cache na wijziging en haalt nieuwe status op
+        """
+        from services.validation_cache import ValidationCache
+
+        # Converteer naar date object
+        datum_obj = datetime.strptime(datum_str, '%Y-%m-%d').date()
+
+        # PERFORMANCE FIX: Invalideer cache voor deze datum
+        cache = ValidationCache.get_instance()
+        cache.invalidate_date(datum_obj)
+
+        # Re-preload cache voor deze maand (snel - gebruikt batch queries)
+        gebruiker_ids = [user['id'] for user in self.gebruikers_data] if self.gebruikers_data else None
+        cache.preload_month(self.jaar, self.maand, gebruiker_ids)
+
+        # Haal nieuwe status uit cache
+        status = cache.get_bemannings_status(datum_obj)
+
+        if status:
+            # Update status dictionary (minimale data voor UI)
+            self.bemannings_status[datum_str] = {
+                'status': status,
+                'details': f"Status: {status}",
+                'verwachte_codes': [],
+                'werkelijke_codes': [],
+                'ontbrekende_codes': [],
+                'dubbele_codes': []
+            }
+        else:
+            # Fallback naar oude methode
+            resultaat = controleer_bemanning(datum_obj)
+            self.bemannings_status[datum_str] = resultaat
+
+        # Update alle cellen voor deze datum (alleen tooltips, geen overlay wijziging)
+        if datum_str in self.cel_widgets:
+            # Haal basis achtergrond op (weekend kleurtjes blijven behouden)
+            nieuwe_achtergrond = self.get_datum_achtergrond(datum_str)
+
+            for gebruiker_id, cel in self.cel_widgets[datum_str].items():
+                # Bepaal overlay (alleen verlof, bemannings overlay alleen op datum headers)
+                verlof_overlay = self.get_verlof_overlay(datum_str, gebruiker_id, 'planner')
+                overlay = verlof_overlay if verlof_overlay else None
+
+                # Bepaal of het een buffer dag is
+                datum_obj_check = datetime.strptime(datum_str, '%Y-%m-%d')
+                is_buffer = datum_obj_check.month != self.maand
+
+                # Check rode lijn
+                is_rode_lijn_start = datum_str in self.rode_lijnen_starts
+
+                # Check notitie
+                heeft_notitie = False
+                if datum_str in self.planning_data and gebruiker_id in self.planning_data[datum_str]:
+                    notitie = self.planning_data[datum_str][gebruiker_id].get('notitie', '')
+                    heeft_notitie = bool(notitie and notitie.strip())
+
+                # Maak stylesheet (geen bemannings overlay op cellen)
+                base_style = self.create_cel_stylesheet(nieuwe_achtergrond, overlay)
+
+                # Rode lijn indicator
+                if is_rode_lijn_start:
+                    base_style = base_style.replace(
+                        "border: 1px solid",
+                        "border: 1px solid"
+                    ).replace(
+                        "qproperty-alignment: AlignCenter;",
+                        "border-left: 4px solid #dc3545;\n                    qproperty-alignment: AlignCenter;"
+                    )
+
+                # Notitie indicator
+                if heeft_notitie:
+                    base_style = base_style.replace(
+                        "border: 1px solid",
+                        "border: 1px solid"
+                    ).replace(
+                        "qproperty-alignment: AlignCenter;",
+                        "border-top: 3px solid #00E676;\n                    border-right: 3px solid #00E676;\n                    qproperty-alignment: AlignCenter;"
+                    )
+
+                if is_buffer:
+                    cel.setStyleSheet(base_style + " QLabel { opacity: 0.7; }")
+                else:
+                    cel.setStyleSheet(base_style)
+
+        # Update ook de datum header (v0.6.20 - real-time overlay update)
+        if datum_str in self.datum_header_widgets:
+            header = self.datum_header_widgets[datum_str]
+
+            # Haal basis achtergrond op
+            achtergrond = self.get_datum_achtergrond(datum_str)
+
+            # Haal bemannings overlay op (v0.6.20)
+            bemannings_overlay = self.get_bemannings_overlay_kleur(datum_str)
+
+            # Check rode lijn
+            is_rode_lijn_start = datum_str in self.rode_lijnen_starts
+
+            # Highlight huidige maand
+            datum_obj_check = datetime.strptime(datum_str, '%Y-%m-%d')
+            if datum_obj_check.month == self.maand:
+                border_style = f"2px solid {Colors.PRIMARY}"
+            else:
+                border_style = f"1px solid {Colors.BORDER_LIGHT}"
+
+            # Update tooltip
+            bemannings_tooltip = self.get_bemannings_tooltip(datum_str)
+            base_tooltip = ""
+            if is_rode_lijn_start:
+                periode_nr = self.rode_lijnen_starts[datum_str]
+                base_tooltip = f"Start Rode Lijn Periode {periode_nr}"
+
+            if bemannings_tooltip and base_tooltip:
+                full_tooltip = f"{bemannings_tooltip}\n\n{base_tooltip}"
+            elif bemannings_tooltip:
+                full_tooltip = bemannings_tooltip
+            else:
+                full_tooltip = base_tooltip
+
+            # Build base stylesheet
+            if is_rode_lijn_start:
+                base_style = f"""
+                    QLabel {{
+                        background-color: {achtergrond};
+                        color: #000000;
+                        padding: 4px;
+                        border: {border_style};
+                        border-left: 4px solid #dc3545;
+                        qproperty-alignment: AlignCenter;
+                    }}
+                """
+            else:
+                base_style = f"""
+                    QLabel {{
+                        background-color: {achtergrond};
+                        color: #000000;
+                        padding: 4px;
+                        border: {border_style};
+                        qproperty-alignment: AlignCenter;
+                    }}
+                """
+
+            # Bemannings overlay toepassen (replace background-color met background + qlineargradient)
+            if bemannings_overlay:
+                base_style = base_style.replace(
+                    f"background-color: {achtergrond}",
+                    f"background: {bemannings_overlay}"
+                )
+
+            header.setStyleSheet(base_style)
+
+            if full_tooltip:
+                header.setToolTip(full_tooltip)
+
+    def rebuild_cel_style(self, datum_str: str, gebruiker_id: int, is_laatste_rij: bool = False) -> None:
+        """
+        Rebuild cel stylesheet na wijziging (v0.6.25)
+        Herstelt alle custom borders: blauwe maand kader, rode lijn, notitie indicator
+        """
+        if datum_str not in self.cel_widgets or gebruiker_id not in self.cel_widgets[datum_str]:
+            return
+
+        cel = self.cel_widgets[datum_str][gebruiker_id]
+
+        # Haal shift code en notitie op
+        shift_code = self.get_display_code(datum_str, gebruiker_id)
+
+        heeft_notitie = False
+        if datum_str in self.planning_data and gebruiker_id in self.planning_data[datum_str]:
+            notitie = self.planning_data[datum_str][gebruiker_id].get('notitie', '')
+            heeft_notitie = bool(notitie and notitie.strip())
+
+        # Bepaal achtergrond en overlay
+        achtergrond = self.get_datum_achtergrond(datum_str)
+        verlof_overlay = self.get_verlof_overlay(datum_str, gebruiker_id, 'planner')
+        overlay = verlof_overlay if verlof_overlay else None
+
+        # Check flags
+        datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
+        is_buffer = datum_obj.month != self.maand
+        is_rode_lijn_start = datum_str in self.rode_lijnen_starts
+        is_huidige_maand = datum_obj.month == self.maand
+        is_eerste_dag_maand = is_huidige_maand and datum_obj.day == 1
+        is_laatste_dag_maand = is_huidige_maand and datum_obj.day == self.get_laatste_dag_van_maand()
+
+        # Rebuild stylesheet (same logic as create_editable_cel)
+        base_style = self.create_cel_stylesheet(achtergrond, overlay)
+
+        # Rode lijn indicator
+        if is_rode_lijn_start:
+            base_style = base_style.replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-left: 4px solid #dc3545;\n                    qproperty-alignment: AlignCenter;"
+            )
+
+        # Notitie indicator
+        if heeft_notitie:
+            base_style = base_style.replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-top: 3px solid #00E676;\n                    border-right: 3px solid #00E676;\n                    qproperty-alignment: AlignCenter;"
+            )
+
+        # Blauwe maand kader - onder border voor laatste rij
+        if is_huidige_maand and is_laatste_rij:
+            base_style = base_style.replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-bottom: 3px solid #2196F3;\n                    qproperty-alignment: AlignCenter;"
+            )
+
+        # Blauwe maand kader - linker border voor eerste dag
+        if is_eerste_dag_maand:
+            base_style = base_style.replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-left: 3px solid #2196F3;\n                    qproperty-alignment: AlignCenter;"
+            )
+
+        # Blauwe maand kader - rechter border voor laatste dag
+        if is_laatste_dag_maand:
+            base_style = base_style.replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-right: 3px solid #2196F3;\n                    qproperty-alignment: AlignCenter;"
+            )
+
+        # Apply stylesheet
+        if is_buffer:
+            cel.setStyleSheet(base_style + " QLabel { opacity: 0.7; }")
+        else:
+            cel.setStyleSheet(base_style)
+
+        # Update text
+        cel.setText(shift_code)
+
     def save_shift(self, datum_str: str, gebruiker_id: int, shift_code: str):
         """Sla shift op in database"""
         try:
@@ -651,7 +1974,7 @@ class PlannerGridKalender(GridKalenderBase):
             cursor.execute("""
                 INSERT INTO planning (gebruiker_id, datum, shift_code, status)
                 VALUES (?, ?, ?, 'concept')
-                ON CONFLICT(gebruiker_id, datum) 
+                ON CONFLICT(gebruiker_id, datum)
                 DO UPDATE SET shift_code = ?
                 WHERE status = 'concept'
             """, (gebruiker_id, datum_str, shift_code, shift_code))
@@ -659,9 +1982,52 @@ class PlannerGridKalender(GridKalenderBase):
             conn.commit()
             conn.close()
 
-            # Update cel display
+            # UPDATE PLANNING DATA CACHE (v0.6.26 - CRITICAL FIX)
+            # Anders verschijnen nieuwe shifts niet in de grid tot herstart
+            if datum_str not in self.planning_data:
+                self.planning_data[datum_str] = {}
+
+            # Behoud bestaande notitie als die er is
+            bestaande_notitie = ""
+            if gebruiker_id in self.planning_data.get(datum_str, {}):
+                bestaande_notitie = self.planning_data[datum_str][gebruiker_id].get('notitie', '')
+
+            self.planning_data[datum_str][gebruiker_id] = {
+                'shift_code': shift_code,
+                'notitie': bestaande_notitie,
+                'status': 'concept'
+            }
+
+            # Update cel display met volledige stylesheet rebuild (v0.6.25 fix)
             if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
-                self.cel_widgets[datum_str][gebruiker_id].setText(shift_code)
+                # Bepaal of dit de laatste rij is voor blauwe border
+                is_laatste_rij = False
+                zichtbare_gebruikers = self.get_zichtbare_gebruikers()
+                if zichtbare_gebruikers:
+                    laatste_gebruiker_id = zichtbare_gebruikers[-1]['id']
+                    is_laatste_rij = (gebruiker_id == laatste_gebruiker_id)
+
+                self.rebuild_cel_style(datum_str, gebruiker_id, is_laatste_rij)
+
+            # Clear HR cache voor deze gebruiker
+            if gebruiker_id in self.hr_werkdagen_cache:
+                del self.hr_werkdagen_cache[gebruiker_id]
+
+            # Update alleen HR cijfers (geen volledige rebuild)
+            self.update_hr_cijfers_voor_gebruiker(gebruiker_id)
+
+            # Update bemannings status voor deze datum (v0.6.20)
+            self.update_bemannings_status_voor_datum(datum_str)
+
+            # DISABLED (v0.6.26 - USER FEEDBACK):
+            # Real-time validation is te irritant (popup bij elke edit)
+            # Ghost violations door verkeerde datum mapping
+            # Gebruiker moet "Valideer Planning" knop gebruiken
+            # Update HR violations voor deze gebruiker (v0.6.26 - Fase 3.4)
+            # violations = self.update_hr_violations_voor_gebruiker(datum_str, gebruiker_id, shift_code)
+            # Toon warning dialog als er violations zijn (non-blocking)
+            # if violations:
+            #     self.show_hr_violation_warning(violations)
 
             # Emit signal
             self.data_changed.emit()  # type: ignore
@@ -684,9 +2050,42 @@ class PlannerGridKalender(GridKalenderBase):
             conn.commit()
             conn.close()
 
-            # Update cel display
+            # UPDATE PLANNING DATA CACHE (v0.6.26 - CRITICAL FIX)
+            # Anders blijven verwijderde shifts zichtbaar in de grid tot herstart
+            if datum_str in self.planning_data:
+                if gebruiker_id in self.planning_data[datum_str]:
+                    del self.planning_data[datum_str][gebruiker_id]
+
+                # Verwijder datum entry als geen gebruikers meer shifts hebben
+                if not self.planning_data[datum_str]:
+                    del self.planning_data[datum_str]
+
+            # Update cel display met volledige stylesheet rebuild (v0.6.25 fix)
             if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
-                self.cel_widgets[datum_str][gebruiker_id].setText("")
+                # Bepaal of dit de laatste rij is voor blauwe border
+                is_laatste_rij = False
+                zichtbare_gebruikers = self.get_zichtbare_gebruikers()
+                if zichtbare_gebruikers:
+                    laatste_gebruiker_id = zichtbare_gebruikers[-1]['id']
+                    is_laatste_rij = (gebruiker_id == laatste_gebruiker_id)
+
+                self.rebuild_cel_style(datum_str, gebruiker_id, is_laatste_rij)
+
+            # Clear HR cache voor deze gebruiker
+            if gebruiker_id in self.hr_werkdagen_cache:
+                del self.hr_werkdagen_cache[gebruiker_id]
+
+            # Update alleen HR cijfers (geen volledige rebuild)
+            self.update_hr_cijfers_voor_gebruiker(gebruiker_id)
+
+            # Update bemannings status voor deze datum (v0.6.20)
+            self.update_bemannings_status_voor_datum(datum_str)
+
+            # DISABLED (v0.6.26 - USER FEEDBACK):
+            # Real-time validation uitgeschakeld, gebruiker moet "Valideer Planning" knop gebruiken
+            # Update HR violations voor deze gebruiker (v0.6.26 - BUG FIX)
+            # CRITICAL: Clear violations na delete, anders blijft oude "te veel uren" warning zichtbaar
+            # self.clear_hr_violations_voor_gebruiker(datum_str, gebruiker_id)
 
             # Emit signal
             self.data_changed.emit()  # type: ignore
@@ -812,6 +2211,129 @@ class PlannerGridKalender(GridKalenderBase):
 
             except sqlite3.Error as e:
                 QMessageBox.critical(self, "Database Fout", f"Kon notitie niet opslaan:\n{e}")
+
+    def clear_hr_violations_voor_gebruiker(self, datum_str: str, gebruiker_id: int) -> None:
+        """
+        Clear HR violations cache voor gebruiker op datum (v0.6.26 - BUG FIX)
+
+        Aangeroepen na delete_shift() om oude violations te verwijderen.
+        Zonder deze clear blijft de oude "te veel uren" warning zichtbaar na shift verwijdering.
+
+        Args:
+            datum_str: Datum (YYYY-MM-DD)
+            gebruiker_id: Gebruiker ID
+        """
+        if datum_str in self.hr_violations:
+            if gebruiker_id in self.hr_violations[datum_str]:
+                del self.hr_violations[datum_str][gebruiker_id]
+
+            # Verwijder datum entry als geen gebruikers meer violations hebben
+            if not self.hr_violations[datum_str]:
+                del self.hr_violations[datum_str]
+
+        # Update cel styling om overlay te verwijderen
+        if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
+            zichtbare_gebruikers = self.get_zichtbare_gebruikers()
+            is_laatste_rij = False
+            if zichtbare_gebruikers:
+                laatste_gebruiker_id = zichtbare_gebruikers[-1]['id']
+                is_laatste_rij = (gebruiker_id == laatste_gebruiker_id)
+
+            self.rebuild_cel_style(datum_str, gebruiker_id, is_laatste_rij)
+
+    def update_hr_violations_voor_gebruiker(self, datum_str: str, gebruiker_id: int, shift_code: str) -> List[Violation]:
+        """
+        Re-valideer HR violations voor gebruiker na shift wijziging (v0.6.26 - Fase 3.4)
+
+        Args:
+            datum_str: Datum die gewijzigd is
+            gebruiker_id: Gebruiker ID
+            shift_code: Nieuwe shift code
+
+        Returns:
+            List van nieuwe violations (voor warning dialog)
+        """
+        try:
+            # Convert datum_str naar date object
+            datum_obj = datetime.strptime(datum_str, '%Y-%m-%d').date()
+
+            # Create validator voor deze gebruiker
+            validator = PlanningValidator(
+                gebruiker_id=gebruiker_id,
+                jaar=self.jaar,
+                maand=self.maand
+            )
+
+            # Run real-time validatie (alleen snelle checks: 12u rust + 50u week)
+            violations = validator.validate_shift(datum_obj, shift_code)
+
+            # Update cache voor deze datum + gebruiker
+            if violations:
+                # Initialiseer entries als nodig
+                if datum_str not in self.hr_violations:
+                    self.hr_violations[datum_str] = {}
+
+                # Update violations voor deze gebruiker
+                self.hr_violations[datum_str][gebruiker_id] = violations
+            else:
+                # Geen violations - clear cache voor deze gebruiker op deze datum
+                if datum_str in self.hr_violations:
+                    if gebruiker_id in self.hr_violations[datum_str]:
+                        del self.hr_violations[datum_str][gebruiker_id]
+
+                    # Verwijder datum entry als geen gebruikers meer violations hebben
+                    if not self.hr_violations[datum_str]:
+                        del self.hr_violations[datum_str]
+
+            # Update cel styling om overlay te reflecteren
+            if datum_str in self.cel_widgets and gebruiker_id in self.cel_widgets[datum_str]:
+                zichtbare_gebruikers = self.get_zichtbare_gebruikers()
+                is_laatste_rij = False
+                if zichtbare_gebruikers:
+                    laatste_gebruiker_id = zichtbare_gebruikers[-1]['id']
+                    is_laatste_rij = (gebruiker_id == laatste_gebruiker_id)
+
+                self.rebuild_cel_style(datum_str, gebruiker_id, is_laatste_rij)
+
+            # Update summary box (real-time)
+            self.update_hr_summary()
+
+            return violations
+
+        except Exception as e:
+            print(f"[HR Violations] Error updating violations for user {gebruiker_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    def show_hr_violation_warning(self, violations: List[Violation]) -> None:
+        """
+        Toon non-blocking warning dialog met HR violations (v0.6.26 - Fase 3.5)
+
+        Args:
+            violations: List van Violation objects
+        """
+        if not violations:
+            return
+
+        # Format violations voor display
+        violations_text = []
+        for v in violations:
+            # Icon based on severity
+            icon = "✗" if v.severity.value == 'error' else "⚠"
+            violations_text.append(f"{icon} {v.beschrijving}")
+
+        message = (
+            "De wijziging is opgeslagen, maar er zijn HR regel overtredingen:\n\n"
+            + "\n".join(violations_text) +
+            "\n\nControleer de planning voordat je publiceert."
+        )
+
+        QMessageBox.warning(
+            self,
+            "HR Regel Overtredingen",
+            message
+        )
 
     def navigate_to_cell(self, huidige_datum: str, huidige_gebruiker_id: int, richting: str):
         """Navigeer naar andere cel"""

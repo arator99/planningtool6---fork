@@ -410,12 +410,14 @@ class GridKalenderBase(QWidget):
     def create_cel_stylesheet(self, achtergrond: str, overlay: Optional[str] = None) -> str:
         """
         Genereer stylesheet voor cel met optionele overlay
+
+        Overlay wordt als achtergrondkleur gebruikt (met opacity voor transparantie)
         """
         if overlay:
-            # Linear gradient overlay over achtergrond
+            # Overlay overschrijft achtergrond (overlay heeft al opacity voor transparantie effect)
             return f"""
                 QLabel {{
-                    background: linear-gradient({overlay}, {overlay}), {achtergrond};
+                    background-color: {overlay};
                     color: #000000;
                     font-size: {Fonts.SIZE_SMALL}px;
                     font-weight: bold;

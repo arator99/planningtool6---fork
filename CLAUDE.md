@@ -33,6 +33,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **DEVELOPMENT_GUIDE.md** (990 lines): Tijdloze technische referentie
 - **PROJECT_INFO.md** (928 lines): User-facing info + volledige versie geschiedenis
 - **CLAUDE.md** (548 lines): Claude instructies
+- **bugs.md**: USER'S PERSONAL BUG TRACKING - Do NOT add extensive bug reports/solutions here! User maintains this file for their own bug notes.
+
+## Bug Tracking & Documentation
+
+**IMPORTANT:** The user maintains `bugs.md` for their own bug notes. Do NOT add extensive bug reports or solutions to this file.
+
+**For documenting bug fixes:**
+- Document bugs and fixes in **SESSION_LOG.md** during active session
+- Summarize in **DEV_NOTES.md** after session completion
+- Technical details can go in **DEVELOPMENT_GUIDE.md** if they reveal architectural patterns
+- User-facing bug fixes go in **PROJECT_INFO.md** version history
+
+**If user reports a bug:**
+1. Fix the bug
+2. Document the fix in SESSION_LOG.md (detailed)
+3. Let the user decide if they want to track it in bugs.md
+4. Do NOT proactively add entries to bugs.md
 
 ## Version Update Workflow (v0.6.13+)
 
@@ -89,8 +106,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Planning Tool** - A shift scheduling application for self-rostering teams, built with Python and PyQt6. The application manages team schedules, leave requests, shift codes, and schedule templates (typetabellen) for shift-based work environments.
 
-**Current Version:** 0.6.18 (Beta)
-**Status:** Active development - Grid Kalender Refactoring & Teamlid Features
+**Current Version:** 0.6.26 (Beta)
+**Status:** Active development - HR Validatie Systeem (74% compleet: Core ✅ + UI ✅ + Pre-Publicatie ✅)
 
 ## Running the Application
 
@@ -98,18 +115,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Run the application
 python main.py
 
-# Upgrade bestaande database (v0.6.13 → v0.6.14)
-python migratie_gebruiker_werkposten.py  # Voegt gebruiker_werkposten tabel toe voor werkpost koppeling
+# Upgrade bestaande database (v0.6.23 → v0.6.24)
+python migrations/upgrade_to_v0_6_24.py             # Week definitie systeem (configureerbare werkweek start/eind)
+
+# Older migrations
+python migrations/upgrade_to_v0_6_23.py             # v0.6.22 → v0.6.23 (vervaldatum overgedragen verlof vereenvoudigd)
 
 # Run database migrations (if upgrading from older versions)
-python upgrade_to_v0_6_13.py             # v0.6.12 → v0.6.13 (db_metadata tabel)
-python migratie_theme_per_gebruiker.py  # v0.6.11 → v0.6.12 (theme per gebruiker)
-python migratie_shift_voorkeuren.py      # v0.6.10 → v0.6.11 (shift voorkeuren)
-python migratie_verlof_saldo.py          # v0.6.9 → v0.6.10 (verlof & KD saldo)
-python migratie_rode_lijnen_config.py    # v0.6.7 → v0.6.8 (rode lijnen config)
-python migratie_systeem_termen.py        # v0.6.6 → v0.6.7 (term-based codes)
-python migratie_typetabel_versioned.py   # v0.6.5 → v0.6.6 (typetabel system)
-python database_shift_codes_migration.py # Earlier → v0.6.4+ (shift codes)
+python migrations/upgrade_to_v0_6_21.py             # v0.6.20 → v0.6.21 (shift_codes.is_kritisch kolom)
+python migrations/migratie_gebruiker_werkposten.py  # v0.6.13 → v0.6.14 (gebruiker_werkposten tabel)
+python migrations/upgrade_to_v0_6_13.py             # v0.6.12 → v0.6.13 (db_metadata tabel)
+python migrations/migratie_theme_per_gebruiker.py  # v0.6.11 → v0.6.12 (theme per gebruiker)
+python migrations/migratie_shift_voorkeuren.py      # v0.6.10 → v0.6.11 (shift voorkeuren)
+python migrations/migratie_verlof_saldo.py          # v0.6.9 → v0.6.10 (verlof & KD saldo)
+python migrations/migratie_rode_lijnen_config.py    # v0.6.7 → v0.6.8 (rode lijnen config)
+python migrations/migratie_systeem_termen.py        # v0.6.6 → v0.6.7 (term-based codes)
+python migrations/migratie_typetabel_versioned.py   # v0.6.5 → v0.6.6 (typetabel system)
+python migrations/database_shift_codes_migration.py # Earlier → v0.6.4+ (shift codes)
 ```
 
 **Default login credentials:**
@@ -130,7 +152,7 @@ python database_shift_codes_migration.py # Earlier → v0.6.4+ (shift codes)
 - `gebruikers` - Users with UUID-based identification (kolom: `volledige_naam`, niet `naam`)
 - `gebruiker_werkposten` - Many-to-many user-to-werkpost mapping with priority (v0.6.14: NIEUW)
 - `typetabel_versies` + `typetabel_data` - Versioned schedule templates (v0.6.6)
-- `werkposten` + `shift_codes` - Team-specific shift codes
+- `werkposten` + `shift_codes` - Team-specific shift codes (v0.6.21: + `is_kritisch` kolom)
 - `speciale_codes` - Global codes with optional term field (v0.6.7)
   - System codes: verlof, kompensatiedag, zondagrust, zaterdagrust, ziek, arbeidsduurverkorting (v0.6.10)
   - Free codes: VD, RDS, TCR, SCR, T, etc.
@@ -140,6 +162,7 @@ python database_shift_codes_migration.py # Earlier → v0.6.4+ (shift codes)
 - `feestdagen` - Holidays (fixed and variable, GEEN `is_actief` kolom)
 - `rode_lijnen` - 28-day HR cycles
 - `rode_lijnen_config` - Versioned configuration for HR cycles (v0.6.8)
+- `week_definitie` - Werkweek start/eind definitie voor HR regels (v0.6.24: NIEUW)
 
 ### Version Management (v0.6.13)
 **Centralized Version Control:**
@@ -243,6 +266,36 @@ Two-tier system:
 - Typetabel: "N" op maandag
 - PAT heeft geen nacht op weekdag → skip
 - Interventie heeft wel nacht op weekdag = "7201" → gebruik deze
+
+### Week & Weekend Definitie Systeem (v0.6.24)
+**Configureerbare periode definities in HR Regels:**
+- Geïntegreerd in HR Regels Beheer scherm
+- Eenheid: "periode" triggert custom edit dialog
+- Format: `dag-HH:MM|dag-HH:MM` (bijv. `ma-00:00|zo-23:59`)
+- Versioning via bestaand HR regels systeem
+
+**Week Definitie:**
+- Default: Maandag 00:00 - Zondag 23:59
+- Gebruikt voor: "Maximum 50 uur per week" regel
+
+**Weekend Definitie:**
+- Default: Vrijdag 22:00 - Maandag 06:00
+- Gebruikt voor: "Maximum weekends achter elkaar" regel
+
+**BELANGRIJK: Validatie Logica (Exclusieve Grenzen)**
+Een shift overlapt met een periode ALS:
+```python
+(shift_start < periode_eind) AND (shift_eind > periode_start)
+```
+
+**Voorbeelden weekend overlap:**
+- ✅ Shift 14:00-22:00 (vr): eindigt OM 22:00 → GEEN overlap (op de grens)
+- ✅ Shift 14:00-22:01 (vr): eindigt NA 22:00 → WEL overlap (1 min binnen weekend)
+- ✅ Shift 06:00-14:00 (ma): begint OM 06:00 → GEEN overlap (op de grens)
+- ✅ Shift 05:59-14:00 (ma): begint VOOR 06:00 → WEL overlap (1 min binnen weekend)
+
+**Regel:** Shift moet BINNEN periode vallen, niet OP de grens eindigen/beginnen.
+**Bron:** HR reglement organisatie (optie 2: inclusieve grenzen)
 
 ### Verlof & KD Saldo Systeem (v0.6.10)
 **Admin beheer:**
@@ -468,11 +521,12 @@ def maximize_on_primary_screen(self) -> None:
 ## Database Migrations
 
 When schema changes are needed:
-1. Create a migration script (e.g., `migrate_*.py`)
+1. Create a migration script in `migrations/` folder (e.g., `migrations/upgrade_to_vX_Y_Z.py`)
 2. Check if migration already applied using `PRAGMA table_info(table_name)`
 3. Apply changes safely with transaction handling
 4. Update `database/connection.py` seed functions for clean installs
 5. Test both migration path AND clean install path
+6. Update `db_metadata` table with new version (CRITICAL!)
 
 **Example migration check:**
 ```python
@@ -498,10 +552,11 @@ if 'versie_naam' not in columns:
 - `gui/screens/verlof_goedkeuring_screen.py` - Leave approval (type selection v0.6.10)
 - `gui/screens/verlof_saldo_beheer_screen.py` - Leave balance management (v0.6.10)
 - `gui/screens/rode_lijnen_beheer_screen.py` - HR cycles config (v0.6.8)
+- `gui/screens/week_definitie_screen.py` - Week definition config (v0.6.24: NIEUW)
 
 **Reusable Components:**
 - `gui/widgets/grid_kalender_base.py` - Base calendar widget (filter preservation v0.6.15, alleen_gepubliceerd parameter v0.6.15)
-- `gui/widgets/planner_grid_kalender.py` - Planner calendar view (feestdagen extended + rode lijnen v0.6.9, maand_changed signal v0.6.15)
+- `gui/widgets/planner_grid_kalender.py` - Planner calendar view (feestdagen extended + rode lijnen v0.6.9, maand_changed signal v0.6.15, HR rules kolommen v0.6.19, bemannings overlay v0.6.20)
 - `gui/widgets/teamlid_grid_kalender.py` - Teamlid calendar view (rode lijnen v0.6.9, gepubliceerd filter v0.6.15)
 - `gui/widgets/verlof_saldo_widget.py` - Leave balance display widget (v0.6.10)
 - `gui/widgets/theme_toggle_widget.py` - Theme toggle component (v0.6.9)
@@ -509,23 +564,58 @@ if 'versie_naam' not in columns:
 
 **Dialogs:**
 - `gui/dialogs/auto_generatie_dialog.py` - Auto-generate planning from typetabel (v0.6.14: NIEUW)
+- `gui/dialogs/shift_codes_grid_dialog.py` - Edit shift codes grid with kritisch checkbox (v0.6.21: + kritisch kolom)
 - `gui/dialogs/verlof_saldo_bewerken_dialog.py` - Edit user leave balance (v0.6.10)
+- `gui/dialogs/week_definitie_edit_dialog.py` - Edit week definition with validation (v0.6.24: NIEUW)
+
+**Services:**
+- `services/constraint_checker.py` - HR validation core logic (v0.6.26: NIEUW, 1600 lines, 7 HR checks)
+- `services/planning_validator_service.py` - HR validation DB wrapper (v0.6.26: NIEUW, 540 lines)
+- `services/bemannings_controle_service.py` - Shift staffing validation (v0.6.20: NIEUW, v0.6.21: alleen kritische shifts)
+- `services/validation_cache.py` - Singleton cache voor bemannings validatie (v0.6.25: NIEUW, 2000x performance)
+- `services/data_ensure_service.py` - Auto-generation holidays and HR cycles
+- `services/term_code_service.py` - Term-to-code mapping with cache (v0.6.7)
+- `services/verlof_saldo_service.py` - Leave and KD balance management (v0.6.10)
+- `services/export_service.py` - Excel export with validation report (v0.6.20: extended, v0.6.21: kritische shifts labels)
 
 **Documentation:**
 - `PROJECT_INFO.md` - User-facing documentation
 - `DEVELOPMENT_GUIDE.md` - Technical architecture details (~1000 lines)
 - `DEV_NOTES.md` - Development log and session notes
+- `DEV_NOTES_ARCHIVE.md` - Archived development sessions (>1 month old)
+- `CLAUDE.md` - Claude Code instructions
+- `Handleiding.html` - User manual (HTML format, v0.6.25)
+- `SESSION_LOG.md` - Real-time session tracking for crash recovery
 - `proposed_improvements.md` - Pragmatic code quality improvement plan
+
+**Supporting Folders:**
+- `migrations/` - Database migration scripts (upgrade_to_vX_Y_Z.py, migratie_*.py)
+- `tests/` - Test scripts (test_*.py)
+- `scripts/` - Utility scripts (enable_wal_mode.py, debug_*.py, check_*.py, test_constraint_scenarios.py, test_segmented_rx_check.py)
+- `docs/release_notes/` - Release notes per version (RELEASE_NOTES_vX.Y.Z.md)
+- `docs/architecture/` - Architecture documentation (design docs, refactoring plans)
+- `archive/` - Archived files (old builds, database backups, deprecated code)
+  - `archive/old_builds/` - Build artifacts from previous versions
+  - `archive/database_backups/` - Database backup files
 
 ## Roadmap
 
 **For v1.0 (December 2025):**
-- Typetabel activation flow with validation
-- HR rules management UI
+- 🔄 HR Validatie Systeem (74% COMPLEET - v0.6.26)
+  - ✅ 7 HR regels geïmplementeerd (12u rust, 50u/week, 19 dagen/cyclus, 7 dagen tussen RX/CX, 7 werkdagen reeks, max weekends, nacht→vroeg)
+  - ✅ Rode/gele overlay + tooltips bij violations (planner_grid_kalender.py)
+  - ✅ HR Summary Box onderaan grid (real-time feedback)
+  - ✅ "Valideer Planning" knop voor on-demand batch check
+  - ✅ Pre-publicatie validatie warning (soft warning, blokkeren niet)
+  - ✅ 13 automated test scenarios (ALL PASSED)
+  - ⏸️ Typetabel pre-activatie check (FASE 5 - pending)
+  - **Effort:** 28/38 uur (FASE 1-4 compleet)
+  - **Files:** `services/constraint_checker.py` (1600 lines), `services/planning_validator_service.py` (540 lines)
+- ⏸️ Typetabel activation flow with pre-validation (FASE 5)
+- ✅ HR rules management UI (compleet + term-based configuratie voor nacht→vroeg)
 - Complete planning editor (bulk operaties, validatie feedback) ← concept/gepubliceerd ✅ compleet in v0.6.15
-- Validation system with visual feedback
-- Export functionality (Excel to HR)
-- .EXE build for deployment
+- Export functionality (Excel to HR) ← Basis ✅ compleet in v0.6.15, uitbreidingen pending
+- .EXE build for deployment (✅ Build process werkend)
 
 **Known Limitations:**
 - Network latency when database on network drive
@@ -533,6 +623,97 @@ if 'versie_naam' not in columns:
 - Theme toggle only available in dashboard (v0.6.9)
 - QCalendarWidget behouden light mode styling (Qt limitation v0.6.9)
 - Geen automatische cleanup overgedragen verlof op 1 mei (v0.6.10)
+
+**v0.6.25 Features Completed:**
+- ✅ HTML Handleiding - Statische HTML file ipv hardcoded Python
+  - **Bestand:** `Handleiding.html` in root directory
+  - **QWebEngineView:** Gebruikt PyQt6 WebEngine voor HTML rendering
+  - **Base URL:** `QUrl.fromLocalFile()` voor lokale afbeeldingen (screenshots)
+  - **Voordeel:** Makkelijker te onderhouden (geen Python code voor inhoud)
+  - **Bug fix:** Typo in HTML tag (`<boy>` → `<body>`) gefixed
+- ✅ Dashboard Reorganisatie - Nieuwe tab indeling voor planners
+  - **4 tabs voor planners:** Persoonlijk, Planning, Beheer, HR-instellingen
+  - **Planning tab (NIEUW):** Dedicated tab voor planning gerelateerde taken
+    - Planning Editor
+    - Verlof Goedkeuring (met notificatie badge)
+  - **Beheer tab:** Gebruikersbeheer, Shift Codes, Werkpost Koppeling, Verlof Saldo, Typetabel
+  - **HR-instellingen tab:** HR Regels, Rode Lijnen, Feestdagen
+  - **Persoonlijk tab:** Voor alle gebruikers (Mijn Planning, Verlof, Wachtwoord, etc.)
+- ✅ Notificatie Badge Systeem - Visual feedback voor openstaande verlofaanvragen
+  - **Rode bol met cijfer:** Aantal pending verlofaanvragen rechts in knop
+  - **Implementatie:** `get_pending_leave_count()` query's `verlof_aanvragen` tabel
+  - **Custom widget:** `create_verlof_button_with_badge()` met hover effect
+  - **Positionering:** Badge rechts in knop (50x50px cirkel, 25px border-radius)
+  - **Refresh mechanisme:** `refresh_verlof_badge()` herlaadt Planning tab na goedkeuring/weigering
+  - **Real-time update:** Badge cijfer updatet na elke statuswijziging verlofaanvraag
+- ✅ ValidationCache Service - Dramatische performance verbetering voor netwerk database
+  - **Probleem opgelost:** 30-60 seconden laden Planning Editor over netwerk (N+1 query probleem)
+  - **Nieuwe service:** `services/validation_cache.py` - Singleton cache voor bemannings validatie
+  - **Batch preloading:** `preload_month()` laadt hele maand in 5 queries (was: 900+ queries)
+  - **Instant lookup:** `get_bemannings_status()` haalt data uit cache (geen database roundtrip)
+  - **Smart invalidation:** `invalidate_date()` verwijdert alleen gewijzigde datum uit cache
+  - **Performance:** 2000x sneller (30-60s → 0.01-0.03s voor grid laden)
+  - **Gebruiker filtering:** Grid accepteert optional `gebruiker_ids` parameter voor gefilterde preload
+  - **Integratie:** PlannerGridKalender roept `cache.preload_month()` aan voor refresh_data()
+  - **Fallback:** Bij cache miss automatisch fallback naar oude bemannings_controle_service
+- ✅ HR Werkdagen Cache - Prevent redundante berekeningen
+  - **Cache dictionary:** `self.hr_werkdagen_cache` per gebruiker (voor/na rode lijn)
+  - **Smart invalidation:** Cache clear bij shift wijziging voor betreffende gebruiker
+  - **Grid rebuild optimalisatie:** Hergebruik cached werkdagen telling
+  - **Real-time update:** Alleen betreffende HR cijfers updaten (geen volledige rebuild)
+
+**v0.6.21 Features Completed:**
+- ✅ Kritische Shift Codes Systeem - Selectieve bemanningscontrole
+  - **Database kolom:** shift_codes.is_kritisch BOOLEAN DEFAULT 0
+  - **Edit Dialog:** Nieuwe "Kritisch" kolom tussen Code en Tijd met checkboxes (12 per werkpost)
+  - **Bemanningscontrole filter:** Alleen shifts met is_kritisch = 1 worden gevalideerd
+  - **Visual indicator:** ⚠ symbool bij kritische shifts in Shift Codes Beheer overzicht
+  - **Excel export labels:** "Bemannings Validatie (Kritische Shifts)" titel + kolom headers
+  - **Praktische toepassing:** Planner kan zelf bepalen welke shifts kritiek zijn (bijv. vroeg = kritisch, laat = niet)
+  - **Grid kalender overlay:** Rood/groen/geel status gebaseerd op kritische shifts
+  - **Migration script:** migrations/upgrade_to_v0_6_21.py voor database upgrade
+
+**v0.6.20 Features Completed:**
+- ✅ Bemannings Controle Service - Intelligent shift staffing validation
+  - **Automatic detection:** shift_codes table defines expected staffing (1 code = 1 person, 2 codes = 2 people)
+  - **Status system:** groen (volledig), geel (dubbel), rood (onvolledig)
+  - **No database changes:** Uses existing shift_codes as configuration
+- ✅ Datum Header Overlay Visualisatie - Real-time staffing feedback
+  - **Lichtgroene overlay:** Volledig bemand (40% opacity #81C784)
+  - **Oranje overlay:** Dubbele code gebruikt (40% opacity #FFA726 - Material Orange 400)
+  - **Rode overlay:** Ontbrekende code(s) (40% opacity #E57373)
+  - **Only on datum headers:** Cells remain free for future HR error indicators
+  - **Weekend colors preserved:** Overlay blends with existing background colors
+  - **Qt CSS technique:** Uses `qlineargradient()` syntax (not standard CSS linear-gradient)
+  - **Tooltips per dag:** Toon welke codes wel/niet ingevuld met gebruikersnamen
+  - **Real-time updates:** Overlay updatet direct na cel wijziging
+- ✅ Dubbele Code Waarschuwing - Prevent accidental duplicate assignments
+  - **Warning dialog:** "Code X al gebruikt door Naam - Weet je zeker dat je dit wilt?"
+  - **Keuze opties:** Annuleren of Toch opslaan
+  - **Smart filtering:** Alleen shift_codes (niet speciale codes zoals VV, KD)
+  - **Context aware:** Correct voor opleidingen of dubbele bemanning
+- ✅ Excel Validatie Rapport - Automated staffing report generation
+  - **Tweede sheet:** "Validatie Rapport" tab in Excel export
+  - **Dag-per-dag overzicht:** Datum, Dag, Status, Ontbrekende Shifts
+  - **Kleurcodering:** Groen (volledig), Oranje (dubbel), Rood (onvolledig) backgrounds
+  - **Samenvatting sectie:** Totaal overzicht met cijfers
+  - **Details kolom:** Specifieke ontbrekende/dubbele codes met werkpost info
+- ✅ Publicatie Flow met Validatie - Informed decision making
+  - **Samenvatting dialog:** Toon bemannings status voor publiceren
+  - **Preview cijfers:** "✓ Volledig: X dagen, ⚠ Dubbel: Y dagen, ✗ Onvolledig: Z dagen"
+  - **Automated workflow:** Validatie rapport automatisch toegevoegd aan Excel
+
+**v0.6.19 Features Completed:**
+- ✅ HR Rules Visualisatie - Rode Lijnen Werkdagen Tracking
+  - **2 nieuwe kolommen:** "Voor RL" en "Na RL" (50px breed)
+  - **Rode lijn scheiding:** 3px rode border tussen beide kolommen
+  - **Slimme periode detectie:** Zoekt eerst rode lijn die start in maand, anders periode waar maand in valt
+  - **Werkdagen telling:** Alleen shifts met telt_als_werkdag=1 (werkposten + speciale codes)
+  - **Rode overlay per cel:** Waarschuwing als individuele periode > 19 dagen (niet totaal)
+  - **Real-time updates:** HR cijfers updaten direct na shift wijziging (geen volledige rebuild)
+  - **Tooltips:** Toon werkdagen X/19 + periode nummer + datumbereik
+  - **Performance:** Optimized update pattern met hr_cel_widgets cache
+  - **Bug fixes:** Crash preventie + zichtbaarheid issues opgelost
 
 **v0.6.17 Features Completed:**
 - ✅ Multi-Cell Selectie Systeem - Bulk operaties in Planning Editor
