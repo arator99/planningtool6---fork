@@ -107,8 +107,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Planning Tool** - A shift scheduling application for self-rostering teams, built with Python and PyQt6. The application manages team schedules, leave requests, shift codes, and schedule templates (typetabellen) for shift-based work environments.
 
-**Current Version:** 0.6.28 (Beta)
-**Status:** Active development - Database Schema Uitbreiding (Voornaam/Achternaam Split)
+**Current Version:** 0.6.29 (Beta)
+**Status:** Active development - Notitie Gelezen/Ongelezen Tracking + Badge Systeem
 
 ## Running the Application
 
@@ -636,7 +636,6 @@ if 'versie_naam' not in columns:
 
 **Known Limitations:**
 - Network latency when database on network drive
-- Typetabel activation not yet implemented (next priority)
 - Theme toggle only available in dashboard (v0.6.9)
 - QCalendarWidget behouden light mode styling (Qt limitation v0.6.9)
 - Geen automatische cleanup overgedragen verlof op 1 mei (v0.6.10)

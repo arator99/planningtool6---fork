@@ -25,20 +25,14 @@ Active Development Notes & Session Logs
 
 **Impact:** Systeem gereed voor productie gebruik
 
-### Prioriteit 2: Typetabel Activatie Flow (v0.6.18+)
-- Activeren dialog met datum picker
-- Validatie (alle weken ingevuld?)
-- Status transitie (concept → actief, oud actief → archief)
-- Gebruikers controle (startweek binnen bereik?)
-
-### Prioriteit 3: Validatie Systeem (HR Regels)
+### Prioriteit 2: Validatie Systeem (HR Regels)
 - PlanningValidator class implementeren
 - 12u rust check tussen shifts
 - 50u/week maximum check
 - 19 dagen per 28-dagen cyclus check
 - Visuele feedback (rood/geel/groen in grid)
 
-### Prioriteit 4: QMenuBar voor Planning Editor (Medium Prioriteit)
+### Prioriteit 3: QMenuBar voor Planning Editor (Medium Prioriteit)
 **Doel:** Ruimte optimalisatie en betere organisatie van functionaliteit
 **Scenario:** Na implementatie alle features kan GUI te druk worden
 
@@ -2443,27 +2437,6 @@ IOError/OSError:
    - Ctrl+C: Copy selected week
    - Ctrl+V: Paste to current week
    - Delete: Clear selected cells
-
-**Geschatte tijd:** 3-4 uur
-
----
-
-**Prioriteit 2: Typetabel Activatie Flow**
-
-1. **Activeren Dialog:**
-   - Datum picker voor startdatum
-   - Validatie checklist tonen
-   - Gebruikers impact preview
-
-2. **Validatie:**
-   - Check: Alle weken ingevuld?
-   - Check: Realistische codes?
-   - Check: Gebruikers startweek binnen bereik?
-
-3. **Status transitie:**
-   - Oud actief → archief (met actief_tot datum)
-   - Nieuw concept → actief (met actief_vanaf datum)
-   - Database transactie (rollback bij fout)
 
 **Geschatte tijd:** 3-4 uur
 
