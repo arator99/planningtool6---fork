@@ -1,10 +1,10 @@
 # DEV NOTES
 Active Development Notes & Session Logs
 
-## CURRENT VERSION: 0.6.26
+## CURRENT VERSION: 0.6.28
 
-**Last Updated:** 4 November 2025
-**Status:** Beta - Actieve Ontwikkeling
+**Last Updated:** 12 November 2025
+**Status:** Beta - Werkpost Validatie UI + ISSUE-005 Fix
 
 **Rolling Window:** Dit document bevat alleen sessies van de laatste maand (20 okt+)
 **Voor oudere sessies:** Zie DEV_NOTES_ARCHIVE.md
@@ -201,6 +201,301 @@ Weergave menu:
 ---
 
 ## 📝 RECENTE SESSIES
+
+### Sessie 12 November 2025 (Avond, ~3 uur) - Werkpost Validatie UI + ISSUE-005 Fix (v0.6.28)
+
+**Focus:** Werkpost validatie UI integratie + HR overlay persistence bug fix
+
+**Context:**
+- Backend werkpost validatie was al 100% compleet in vorige sessie (constraint_checker.py)
+- UI toonde violations NIET -> integratie nodig
+- ISSUE-005 (HR overlay verdwijnt bij cel klik) bleek nog niet opgelost ondanks bugs.md entry
+
+**Voltooid:**
+
+**1. Werkpost Validatie - UI Integratie**
+Files: `services/constraint_checker.py`, `gui/screens/typetabel_beheer_screen.py`, `gui/widgets/planner_grid_kalender.py`
+
+**Probleem:** Violation constructor kreeg niet alle vereiste velden
+**Fix:**
+- Added gebruiker_id en datum_range parameters to Violation constructor (constraint_checker.py:1622-1629)
+- Added friendly name mapping: 'werkpost_onbekend': 'Onbekende werkpost koppeling'
+- Visual feedback: gele overlay (WARNING severity), tooltip, HR Summary box
+
+**Testing:**
+- Created test_werkpost_validation.py with 2 scenarios (positive + negative)
+- All tests PASSED
+
+**2. ISSUE-005 Fix: HR Overlay Verdwijnt Bij Cel Klik**
+File: `gui/widgets/planner_grid_kalender.py`
+
+**Root Cause:** QLineEdit editor had hard-coded `background-color: white`, hiding underlying HR overlay
+
+**Solution (8 code changes):**
+- Added `overlay_kleur: Optional[str]` attribute to EditableLabel (line 55)
+- Modified editor stylesheet to use overlay color if present (lines 84-96)
+- Updated overlay in 4 methods: create_editable_cel(), update_bemannings_status_voor_datum(), refresh_data(), apply_selection_styling()
+- Also discovered HR overlay was missing in several update flows (only verlof overlay was being applied)
+
+**Result:**
+- HR overlay blijft zichtbaar tijdens cel edit (rode/gele achtergrond in editor)
+- Planner heeft constante visuele feedback over violations
+- Verlof overlays ook behouden tijdens edit
+
+**3. Unicode Cleanup - ASCII Conversie**
+Files: `services/constraint_checker.py`, `gui/screens/typetabel_beheer_screen.py`
+
+**Probleem:** Unicode pijltjes (→) kunnen encoding problemen geven op Windows cmd/PowerShell
+**Fix:** 13 voorkomens vervangen met ASCII -> in actieve Python code
+
+**4. Code Documentatie - Section Comments**
+Files: `services/constraint_checker.py`, `services/planning_validator_service.py`
+
+**Toegevoegd:**
+- constraint_checker.py: 4 major section headers (HR REGEL CHECKS, DATA CONSISTENCY CHECKS, INTEGRATION & CONVENIENCE)
+- planning_validator_service.py: 2 major section headers (DATABASE QUERIES, VALIDATION METHODS)
+- Voordeel: makkelijker navigeren door grote bestanden (1600+ regels)
+
+**Bug Status Update:**
+- ISSUE-005: OPEN -> FIXED (HR overlay persistence)
+- ISSUE-011: OPEN -> PARTIAL FIX (post-validatie geïmplementeerd, pre-filtering nog niet)
+
+**Files Changed:**
+- `services/constraint_checker.py` - Violation constructor fix, section comments, Unicode cleanup
+- `services/planning_validator_service.py` - Section comments
+- `gui/widgets/planner_grid_kalender.py` - ISSUE-005 fix (8 changes), friendly name
+- `gui/screens/typetabel_beheer_screen.py` - Friendly name, Unicode cleanup
+- `bugs.md` - ISSUE-005 moved to Fixed Bugs
+- `test_werkpost_validation.py` - NEW: unit tests (all passed)
+
+**Impact:**
+- Planners zien werkpost violations in UI (gele overlay + tooltip)
+- HR overlays blijven zichtbaar tijdens bewerken (constant feedback)
+- Veiligere ASCII karakters (Windows compatible)
+- Betere code navigatie met section headers
+
+**Manual Testing Pending:**
+- ISSUE-005 fix op netwerk database (handmatige verificatie door gebruiker)
+- Werkpost validatie met echte planning data
+
+---
+
+### Sessie 11 November 2025 (Avond, ~2 uur) - Database Schema Uitbreiding: Sortering op Achternaam (v0.6.28)
+
+**Focus:** Bug fix ISSUE-002 - Planning Editor kolom sortering op achternaam ipv voornaam
+
+**Context:**
+- User report: Teamlid kolommen in Planning Editor gesorteerd op voornaam, moet op achternaam
+- Belgische namen format: "ACHTERNAAM VOORNAAM" (bijv. "Turlinckx Tim", "Van Geert Koen")
+- Database had alleen `volledige_naam` kolom → sortering op eerste letter
+- Gewenst: vaste mensen eerst (op achternaam), dan reserves (op achternaam)
+
+**Voltooid:**
+
+**1. ✅ Database Schema Uitbreiding**
+Files: `database/connection.py`, `migrations/upgrade_to_v0_6_28.py`
+
+**Schema Changes:**
+- Nieuwe kolommen in `gebruikers` tabel:
+  ```sql
+  voornaam TEXT,
+  achternaam TEXT,
+  ```
+- Behouden: `volledige_naam` voor backward compatibility + display
+- Clean install schema ge-update
+- Seed function ge-update voor admin user
+
+**Migration Script:**
+- Parse functie met heuristiek voor Belgische namen:
+  - Laatste woord = voornaam
+  - Rest (alle woorden behalve laatste) = achternaam
+  - Ondersteunt samengestelde achternamen: "Van Den Ackerveken Stef" → voornaam="Stef", achternaam="Van Den Ackerveken"
+- Safe upgrade check: detect kolommen + data vulling
+- Idempotent: kan opnieuw uitgevoerd zonder errors
+- Unicode fix: Alle arrows → ASCII voor Windows console compatibility
+
+**2. ✅ SQL Sortering Update**
+File: `gui/widgets/grid_kalender_base.py` (line 59)
+
+```python
+# VOOR (v0.6.27):
+query += " ORDER BY volledige_naam"
+
+# NA (v0.6.28):
+query += " ORDER BY is_reserve, achternaam, voornaam"
+```
+
+**3. ✅ Data Correctie**
+- Fixed "Bob Aerts" → "Aerts Bob" in database (was verkeerd ingevoerd)
+- Alle namen conform "ACHTERNAAM VOORNAAM" format
+
+**4. ✅ Typetabel Validatie Improvements**
+Files: `gui/screens/typetabel_beheer_screen.py`
+
+**Improvements:**
+- Standalone "Valideer" knop voor concept typetabellen (pre-activatie check)
+- Detailed violation report met exact locaties (Week X, Dagnaam)
+- Theoretische validatie (geen feestdagen, 1 dummy user, start op maandag)
+- Fixed: Week alignment (Week 1 Dag 1 = maandag)
+
+**Rationale:**
+- Typetabel is theoretisch patroon, geen concrete planning
+- Feestdagen niet relevant (geen specifieke datums)
+- Multi-user validatie niet nodig (patroon geldt voor 1 gebruiker)
+- Start op maandag voor correcte week/dag nummering
+
+**5. ✅ Bug Tracking**
+- ISSUE-001: Verified FIXED in v0.6.25 (feestdag herkenning werkt correct)
+- ISSUE-002: FIXED in v0.6.28 (achternaam sortering geïmplementeerd)
+- Updated `bugs.md` met gedetailleerde fix documentatie
+
+**Test Results:**
+Sortering na migratie (correct):
+1. Vaste mensen (alfabetisch op achternaam):
+   - Aerts Bob
+   - Hegelmeers Alpha
+   - Jacobs Tom
+   - Test User
+   - Turlinckx Tim
+   - Van Den Ackerveken Stef
+   - Van Geert Koen
+   - Wouters Joeri
+2. Reserves (alfabetisch op achternaam):
+   - Dekrem Sander
+   - Docx Glen
+   - Theunis Glenn
+
+**Impact:**
+- ✅ Planners zien teamleden gesorteerd op achternaam (meer intuïtief)
+- ✅ Vaste mensen verschijnen voor reserves (belangrijkste eerst)
+- ✅ Samengestelde achternamen correct gesorteerd (Van Geert, Van Den Ackerveken)
+- ✅ Backward compatibility: volledige_naam behouden
+- ✅ Typetabel pre-validatie verbeterd (exacte locaties + theoretische modus)
+- ✅ Database versie tracking: v0.6.28 in db_metadata
+
+**Files Changed:**
+- `config.py` - Version bump to 0.6.28
+- `database/connection.py` - Schema update (voornaam/achternaam kolommen)
+- `gui/widgets/grid_kalender_base.py` - SQL sortering update
+- `migrations/upgrade_to_v0_6_28.py` - Migration script (NEW)
+- `gui/screens/typetabel_beheer_screen.py` - Validatie improvements
+- `bugs.md` - ISSUE-002 moved to Fixed Bugs
+- `DEV_NOTES.md`, `CLAUDE.md` - Documentation updates
+
+---
+
+### Sessie 11 November 2025 (~10 uur) - FASE 5 Complete + Excel HR Layout (v0.6.27) 🎉
+
+**Focus:** Typetabel Pre-Activatie HR Validatie (laatste 26% van HR Validatie roadmap) + Excel HR Layout Migration
+
+**Context:**
+- FASE 1-4 compleet (74% van roadmap) in v0.6.26
+- FASE 5: Pre-validatie bij typetabel activatie (laatste feature voor v1.0)
+- HR feedback: Excel export layout voldoet niet aan hun verwachtingen
+- Design: Simuleer 2.5 cycli om cross-boundary violations te detecteren
+
+**Voltooid:**
+
+**1. ✅ Excel HR Layout Migration**
+File: `services/export_service.py`
+
+**Layout Changes:**
+- Row structure: Empty row 1, header row 2 (B2 = "mmm/jj" format), column headers row 3
+- Color scheme: Feestdag (geel) > Weekend (oranje) > Werkdag (grijs) prioriteit
+- Cell coloring in both headers and data rows
+- Professional formatting: merged cells, borders, consistent widths
+
+**Iterative Refinements (5 rounds):**
+- Fix: Feestdag kleur ook in data cellen (niet alleen headers)
+- Fix: Vakantie "V" NIET speciaal kleuren
+- Fix: B2 datum format "mmm/jj" ipv volle datum
+- Fix: Alle weekdagen zelfde grijs (geen speciale maandag kleur)
+- Fix: Weekend/feestdag priority handling
+
+**2. ✅ FASE 5: Typetabel Pre-Activatie HR Validatie**
+File: `gui/screens/typetabel_beheer_screen.py`
+
+**9 Nieuwe Methoden:**
+1. `bereken_shift_slim()` (lines 570-653) - Copied from auto_generatie_dialog.py
+2. `_load_hr_config()` (lines 684-729) - Load HR regels met fallback defaults
+3. `_load_shift_tijden()` (lines 731-780) - Load shift_codes + speciale_codes
+4. `_load_rode_lijnen()` (lines 782-810) - Load rode lijnen as List[Dict]
+5. `_get_friendly_violation_name()` (lines 812-822) - Dutch labels voor violations
+6. `simuleer_typetabel_planning()` (lines 824-901) - Simuleer 2.5 cycli
+7. `pre_valideer_typetabel()` (lines 903-1026) - Run ConstraintChecker
+8. `toon_validatie_warning_dialog()` (lines 1028-1064) - Rich HTML dialog
+9. `activeer_versie()` integration (lines 487-505) - Pre-validatie voor datum dialog
+
+**Simulatie Logic:**
+- 2.5 cycli: bijv. 6-weekse tabel → 105 dagen simulatie
+- Hergebruikt `bereken_shift_slim()` voor shift code berekening
+- Genereert List[PlanningRegel] voor ConstraintChecker
+- Skip gebruikers zonder startweek
+
+**Warning Dialog Features:**
+- Simulatie info: cycli × weken = dagen
+- Error/warning counts met kleurcodering
+- Breakdown per violation type (7 HR regels)
+- User choice: annuleren of doorgaan
+- Soft warning: niet blokkerend (user in control)
+
+**3. ✅ Database Schema Fixes (9 issues resolved)**
+1. NULL startweek → Skip gebruikers zonder startweek
+2. hr_regels kolommen → `naam`/`waarde`/`eenheid` (niet `regel_code`)
+3. shift_codes kolommen → `start_uur`/`eind_uur` (niet `begin_tijd`/`eind_tijd`)
+4. speciale_codes tijden → Geen time columns (set NULL)
+5. rode_lijnen kolom → `start_datum` (niet `datum`)
+6. Ontbrekende HR regels → Fallback defaults toegevoegd
+7. rode_lijnen structuur → List[Dict] (niet Dict)
+8. Datum conversie → String → date objecten
+9. Term type conversie → REAL → string voor term-based regels
+
+**Resultaat:**
+- 🎉 **HR VALIDATIE SYSTEEM v1.0 COMPLEET (100% van 38 uur)**
+- FASE 1-4: Core logic, DB, UI, pre-publicatie (28u)
+- FASE 5: Typetabel pre-activatie (10u)
+- 7 HR regels: 12u rust, 50u/week, 19 dagen/cyclus, 7 dagen tussen RX, 7 werkdagen reeks, max weekends, nacht→vroeg
+- Real-time feedback: Rode/gele overlays in planning grid
+- On-demand validatie: "Valideer Planning" knop
+- Pre-publicatie warning: Soft warning voor publiceren
+- Pre-activatie warning: Soft warning voor typetabel activatie (NIEUW)
+- 13 automated tests: All passed
+- Excel HR layout: Professioneel en HR-conform
+
+**Impact:**
+- Planning Tool now ready for production use
+- HR validatie beschermt tegen arbeidsrecht violations
+- Typetabel pre-validatie voorkomt problematische roosters
+- Excel export voldoet aan HR verwachtingen
+
+---
+
+### Sessie 10 November 2025 (~2.5 uur) - HR Violations Deduplicatie (v0.6.26.2)
+
+**Focus:** Fix HR violations summary box deduplicatie + FASE 5 voorbereid
+
+**Voltooid:**
+- HR violations summary box: 10 items → 1 item voor datum range
+- Object ID deduplicatie voor accurate counts
+- Smart datum formatting: "1 januari - 10 januari" voor periodes
+- FASE 5 voorbereidend werk: imports, plan, checklist
+
+---
+
+### Sessie 7-8 November 2025 (~3 uur) - Realtime validatie uitgeschakeld getest in fork (v0.6.26.1)
+
+**Focus:** Realtime validatie uitgeschakeld na live testing
+
+**Context:**
+- User feedback na live testing: van cel tot cel wisselen latency van +/- 9 seconden
+- Latency waarschijnlijk afkomstig van grid rebuild voor realtime validatie
+- Design change: geen realtime validatie, enkel validatie op aanroep
+
+**Voltooid:"
+- Alle realtime validatie van HR-regels uitgeschakeld
+- Alle realtime validatie van bemanning van kritische posten uitschakeld
+- Alle validatie op aanroep via de knop "Valideer planning"
+- Wijzigingen voorzien van commentaar
 
 ### Sessie 5 November 2025 (~4 uur) - FASE 3 HR Validatie UI + Test Suite Completion (v0.6.26)
 

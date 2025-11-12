@@ -2,8 +2,8 @@
 Planning Tool - Technische Documentatie voor Ontwikkelaars
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.26 (Beta)
-**Laatste update:** 4 November 2025
+**Huidige versie:** 0.6.27 (Beta)
+**Laatste update:** 11 November 2025
 
 ---
 
@@ -248,7 +248,9 @@ CREATE TABLE gebruikers (
     gebruiker_uuid TEXT UNIQUE NOT NULL,
     gebruikersnaam TEXT UNIQUE NOT NULL,
     wachtwoord_hash BLOB NOT NULL,
-    volledige_naam TEXT NOT NULL,
+    volledige_naam TEXT NOT NULL,        -- Display name (backward compatibility)
+    voornaam TEXT,                       -- v0.6.28: Voor sortering
+    achternaam TEXT,                     -- v0.6.28: Voor sortering
     rol TEXT CHECK(rol IN ('planner', 'teamlid')),
     is_reserve BOOLEAN DEFAULT 0,
     startweek_typedienst INTEGER,      -- 1 tot aantal_weken actieve typetabel

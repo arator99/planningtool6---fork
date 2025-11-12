@@ -114,10 +114,10 @@ class GebruikersbeheerScreen(QWidget):
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT id, gebruiker_uuid, gebruikersnaam, volledige_naam, rol, 
-                   is_reserve, startweek_typedienst, is_actief, aangemaakt_op
+            SELECT id, gebruiker_uuid, gebruikersnaam, volledige_naam, voornaam, achternaam,
+                   rol, is_reserve, startweek_typedienst, is_actief, aangemaakt_op
             FROM gebruikers
-            ORDER BY volledige_naam
+            ORDER BY is_reserve, achternaam, voornaam
         """)
 
         self.alle_gebruikers = cursor.fetchall()
@@ -256,15 +256,18 @@ class GebruikersbeheerScreen(QWidget):
             gebruiker_uuid = str(uuid.uuid4())
 
             cursor.execute("""
-                INSERT INTO gebruikers 
-                (gebruiker_uuid, gebruikersnaam, wachtwoord_hash, volledige_naam, rol,
-                 is_reserve, startweek_typedienst, is_actief, aangemaakt_op)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO gebruikers
+                (gebruiker_uuid, gebruikersnaam, wachtwoord_hash, volledige_naam,
+                 voornaam, achternaam, rol, is_reserve, startweek_typedienst,
+                 is_actief, aangemaakt_op)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """, (
                 gebruiker_uuid,
                 data['gebruikersnaam'],
                 wachtwoord_hash,
                 data['volledige_naam'],
+                data['voornaam'],
+                data['achternaam'],
                 data['rol'],
                 data['is_reserve'],
                 data['startweek_typedienst'],
@@ -314,6 +317,8 @@ class GebruikersbeheerScreen(QWidget):
                     SET gebruikersnaam = ?,
                         wachtwoord_hash = ?,
                         volledige_naam = ?,
+                        voornaam = ?,
+                        achternaam = ?,
                         rol = ?,
                         is_reserve = ?,
                         startweek_typedienst = ?
@@ -322,6 +327,8 @@ class GebruikersbeheerScreen(QWidget):
                     data['gebruikersnaam'],
                     wachtwoord_hash,
                     data['volledige_naam'],
+                    data['voornaam'],
+                    data['achternaam'],
                     data['rol'],
                     data['is_reserve'],
                     data['startweek_typedienst'],
@@ -332,6 +339,8 @@ class GebruikersbeheerScreen(QWidget):
                     UPDATE gebruikers
                     SET gebruikersnaam = ?,
                         volledige_naam = ?,
+                        voornaam = ?,
+                        achternaam = ?,
                         rol = ?,
                         is_reserve = ?,
                         startweek_typedienst = ?
@@ -339,6 +348,8 @@ class GebruikersbeheerScreen(QWidget):
                 """, (
                     data['gebruikersnaam'],
                     data['volledige_naam'],
+                    data['voornaam'],
+                    data['achternaam'],
                     data['rol'],
                     data['is_reserve'],
                     data['startweek_typedienst'],
@@ -418,7 +429,8 @@ class GebruikerDialog(QDialog):
 
         # Instance attributes declareren in __init__
         self.gebruikersnaam_input: QLineEdit = QLineEdit()
-        self.naam_input: QLineEdit = QLineEdit()
+        self.achternaam_input: QLineEdit = QLineEdit()
+        self.voornaam_input: QLineEdit = QLineEdit()
         self.wachtwoord_input: QLineEdit = QLineEdit()
         self.rol_combo: QComboBox = QComboBox()
         self.reserve_check: QCheckBox = QCheckBox("Is reserve")
@@ -441,10 +453,34 @@ class GebruikerDialog(QDialog):
             self.gebruikersnaam_input.setText(self.gebruiker['gebruikersnaam'])
         form_layout.addRow("Gebruikersnaam:", self.gebruikersnaam_input)
 
-        # Volledige naam
+        # Achternaam
+        self.achternaam_input.setPlaceholderText("Uytebrouck")
         if self.edit_mode and self.gebruiker:
-            self.naam_input.setText(self.gebruiker['volledige_naam'])
-        form_layout.addRow("Volledige Naam:", self.naam_input)
+            # Try to get achternaam from database, fallback to parsing volledige_naam
+            if self.gebruiker.get('achternaam'):
+                self.achternaam_input.setText(self.gebruiker['achternaam'])
+            else:
+                # Parse volledige_naam (format: ACHTERNAAM VOORNAAM)
+                naam_parts = self.gebruiker['volledige_naam'].strip().split()
+                if len(naam_parts) > 1:
+                    self.achternaam_input.setText(' '.join(naam_parts[:-1]))
+                else:
+                    self.achternaam_input.setText(naam_parts[0] if naam_parts else '')
+        form_layout.addRow("Achternaam:", self.achternaam_input)
+
+        # Voornaam
+        self.voornaam_input.setPlaceholderText("Piet")
+        if self.edit_mode and self.gebruiker:
+            # Try to get voornaam from database, fallback to parsing volledige_naam
+            if self.gebruiker.get('voornaam'):
+                self.voornaam_input.setText(self.gebruiker['voornaam'])
+            else:
+                # Parse volledige_naam (format: ACHTERNAAM VOORNAAM)
+                naam_parts = self.gebruiker['volledige_naam'].strip().split()
+                if len(naam_parts) > 1:
+                    self.voornaam_input.setText(naam_parts[-1])
+                # else: leave empty
+        form_layout.addRow("Voornaam:", self.voornaam_input)
 
         # Wachtwoord
         self.wachtwoord_input.setEchoMode(QLineEdit.EchoMode.Password)
@@ -489,6 +525,13 @@ class GebruikerDialog(QDialog):
         format_label.setStyleSheet(
             f"color: {Colors.TEXT_SECONDARY}; font-style: italic; font-size: {Fonts.SIZE_SMALL}px;")
         info_layout.addWidget(format_label)
+
+        naam_label = QLabel(
+            "Naam format: Achternaam Voornaam (bijv. Uytebrouck Piet)"
+        )
+        naam_label.setStyleSheet(
+            f"color: {Colors.TEXT_SECONDARY}; font-style: italic; font-size: {Fonts.SIZE_SMALL}px;")
+        info_layout.addWidget(naam_label)
 
         reserve_label = QLabel(
             "Reserves volgen geen typetabel en worden handmatig gepland."
@@ -547,8 +590,8 @@ class GebruikerDialog(QDialog):
                                 "Gebruikersnaam moet 3 hoofdletters + 4 cijfers zijn (bijv. AZE3601)!")
             return
 
-        if not self.naam_input.text().strip():
-            QMessageBox.warning(self, "Fout", "Volledige naam is verplicht!")
+        if not self.achternaam_input.text().strip():
+            QMessageBox.warning(self, "Fout", "Achternaam is verplicht!")
             return
 
         if not self.edit_mode and not self.wachtwoord_input.text():
@@ -564,9 +607,20 @@ class GebruikerDialog(QDialog):
 
     def get_data(self) -> Dict[str, Any]:
         """Haal data op uit dialog"""
+        achternaam = self.achternaam_input.text().strip()
+        voornaam = self.voornaam_input.text().strip()
+
+        # Generate volledige_naam in format "ACHTERNAAM VOORNAAM"
+        if voornaam:
+            volledige_naam = f"{achternaam} {voornaam}"
+        else:
+            volledige_naam = achternaam
+
         return {
             'gebruikersnaam': self.gebruikersnaam_input.text().strip(),
-            'volledige_naam': self.naam_input.text().strip(),
+            'achternaam': achternaam,
+            'voornaam': voornaam,
+            'volledige_naam': volledige_naam,
             'wachtwoord': self.wachtwoord_input.text(),
             'rol': 'planner' if self.rol_combo.currentText() == 'Planner' else 'teamlid',
             'is_reserve': 1 if self.reserve_check.isChecked() else 0,

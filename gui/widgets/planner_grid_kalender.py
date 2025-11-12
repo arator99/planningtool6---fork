@@ -12,12 +12,13 @@ VERSION HISTORY:
   * Filters gebruikers_data na load (alleen relevante users)
   * ValidationCache batch preload (900+ queries → 5 queries)
   * Speedup: 30-60s → 0.01-0.03s (2000x sneller)
-- v0.6.26: HR VALIDATIE SYSTEEM - Batch validation via knop (Fase 3)
-  * Rode/gele overlay op cellen met HR violations (na "Valideer Planning")
-  * Tooltips met violation details per cel
-  * Real-time validation DISABLED (te irritant + ghost violations)
-  * HR Summary Box onderaan grid met overzicht alle violations
-  * Batch validatie via "Valideer Planning" knop (alle 6 HR checks)
+- v0.6.26: VALIDATIE SYSTEEM - On-demand validation only (UX verbetering)
+  * HR Violations: Rode/gele overlay op cellen (ALLEEN na "Valideer Planning" klik)
+  * Bemannings Controle: Rood/oranje/groen overlay op datum headers (ALLEEN na knopklik)
+  * Tooltips met violation en bemannings details per cel
+  * Real-time validation VOLLEDIG DISABLED (validatie alleen op knopklik)
+  * HR Summary Box toont instructie: "Klik op 'Valideer Planning' om HR regels te controleren"
+  * Batch validatie via "Valideer Planning" knop (alle 6 HR checks + bemannings controle on-demand)
   * Scroll functionaliteit in summary box (max 200px)
 """
 from typing import Dict, Optional, Set, List
@@ -51,6 +52,7 @@ class EditableLabel(QLabel):
         self.parent_grid = parent_grid
         self.editor: Optional[QLineEdit] = None
         self.is_editing = False
+        self.overlay_kleur: Optional[str] = None  # Track HR/verlof overlay (v0.6.28 - ISSUE-005 fix)
 
     def mousePressEvent(self, event):
         """Start edit mode bij klik (of toggle selectie met Ctrl/Shift)"""
@@ -78,13 +80,20 @@ class EditableLabel(QLabel):
         self.editor.setText(self.text())
         self.editor.setMaxLength(5)
         self.editor.setGeometry(self.rect())
-        self.editor.setStyleSheet("""
-            QLineEdit {
-                background-color: white;
+
+        # Bepaal achtergrond kleur (gebruik overlay als die er is - v0.6.28 ISSUE-005 fix)
+        if self.overlay_kleur:
+            background = self.overlay_kleur  # Behoud HR/verlof overlay tijdens edit
+        else:
+            background = "white"  # Default wit voor normale cellen
+
+        self.editor.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {background};
                 border: 2px solid #2196F3;
                 padding: 2px;
                 font-weight: bold;
-            }
+            }}
         """)
 
         # Uppercase automatisch
@@ -332,7 +341,13 @@ class PlannerGridKalender(GridKalenderBase):
         """)
         self.hr_summary_label.setWordWrap(True)
         self.hr_summary_label.setTextFormat(Qt.TextFormat.RichText)
-        self.hr_summary_label.setText("Geen HR violations gevonden")  # Default tekst
+        self.hr_summary_label.setText(
+            "<b>💡 Klik op 'Valideer Planning' om alle controles uit te voeren</b><br>"
+            "<i>Validatie controleert:<br>"
+            "• HR Regels: 12u rust, max 50u/week, max 19 werkdagen/cyclus, "
+            "max 7 dagen tussen rustdagen, max 7 opeenvolgende werkdagen, max 6 weekends achter elkaar<br>"
+            "• Bemannings Controle: volledig/dubbel/onvolledig bemand per dag (kritische shifts)</i>"
+        )  # Default tekst (geen validatie uitgevoerd)
 
         self.hr_summary_scroll.setWidget(self.hr_summary_label)
         layout.addWidget(self.hr_summary_scroll)
@@ -359,7 +374,9 @@ class PlannerGridKalender(GridKalenderBase):
         valideer_btn.clicked.connect(self.on_valideer_planning_clicked)  # type: ignore
         valideer_btn.setStyleSheet(Styles.button_primary())
         valideer_btn.setToolTip(
-            "Controleer alle HR regels voor deze maand\n"
+            "Controleer alle HR regels en bemannings status voor deze maand\n"
+            "- HR violations: 12u rust, 50u/week, 19 werkdagen, etc.\n"
+            "- Bemannings controle: volledig/dubbel/onvolledig per dag\n"
             "Dit kan enkele seconden duren voor grote teams"
         )
         buttons.append(valideer_btn)
@@ -417,20 +434,25 @@ class PlannerGridKalender(GridKalenderBase):
 
         # PERFORMANCE FIX (v0.6.25): Preload ValidationCache VOOR bemannings status
         # Dit voorkomt N+1 query probleem (900+ queries → 5 queries)
-        from services.validation_cache import ValidationCache
-        cache = ValidationCache.get_instance()
+        # v0.6.26.2: Conditioneel obv config.ENABLE_VALIDATION_CACHE flag
+        from config import ENABLE_VALIDATION_CACHE
+        if ENABLE_VALIDATION_CACHE:
+            from services.validation_cache import ValidationCache
+            cache = ValidationCache.get_instance()
 
-        # Haal gebruiker IDs op voor preload
-        gebruiker_ids = [user['id'] for user in self.gebruikers_data] if self.gebruikers_data else None
+            # Haal gebruiker IDs op voor preload
+            gebruiker_ids = [user['id'] for user in self.gebruikers_data] if self.gebruikers_data else None
 
-        # Preload cache voor deze maand (batch loading)
-        cache.preload_month(self.jaar, self.maand, gebruiker_ids)
+            # Preload cache voor deze maand (batch loading)
+            cache.preload_month(self.jaar, self.maand, gebruiker_ids)
 
-        # Laad bemannings controle status (v0.6.20, v0.6.25: gebruikt nu cache)
-        self.load_bemannings_status()
+        # Clear bemannings controle status (v0.6.26: REAL-TIME DISABLED)
+        # Bemannings status wordt alleen geladen bij "Valideer Planning" knop
+        self.bemannings_status.clear()
 
-        # Laad HR violations (v0.6.26 - Fase 3)
-        self.load_hr_violations()
+        # Clear HR violations (v0.6.26 - Fase 3: REAL-TIME DISABLED)
+        # Violations worden alleen geladen bij "Valideer Planning" knop
+        self.hr_violations.clear()
 
         # Bouw grid
         self.build_grid()
@@ -793,16 +815,17 @@ class PlannerGridKalender(GridKalenderBase):
 
     def on_valideer_planning_clicked(self) -> None:
         """
-        Handler voor "Valideer Planning" knop (v0.6.26 - BUG FIX)
+        Handler voor "Valideer Planning" knop (v0.6.26 - UX verbetering)
 
-        Probleem: Real-time validatie tijdens plannen checkt NIET de volledige context.
-        Oplossing: Batch validatie on-demand die alle violations toont.
+        Probleem: Real-time validatie tijdens plannen was te irritant.
+        Oplossing: Batch validatie on-demand (alleen op knopklik).
 
         Process:
         1. Show progress cursor (kan 1-2 sec duren)
-        2. Run load_hr_violations() (batch check voor alle gebruikers)
-        3. Rebuild grid om violations te tonen
-        4. Show samenvatting dialog met alle violations
+        2. Run load_hr_violations() (batch check HR regels voor alle gebruikers)
+        3. Run load_bemannings_status() (batch check bemannings controle alle dagen)
+        4. Rebuild grid om violations en bemannings status te tonen
+        5. Show samenvatting dialog met alle violations
         """
         from PyQt6.QtCore import Qt
         from PyQt6.QtWidgets import QApplication
@@ -811,10 +834,13 @@ class PlannerGridKalender(GridKalenderBase):
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 
         try:
-            # Run batch validatie
+            # Run batch validatie - HR violations
             self.load_hr_violations()
 
-            # Rebuild grid om violations te tonen
+            # Run batch validatie - Bemannings controle
+            self.load_bemannings_status()
+
+            # Rebuild grid om violations en bemannings status te tonen
             self.build_grid()
 
             # Tel violations
@@ -847,7 +873,8 @@ class PlannerGridKalender(GridKalenderBase):
                         'max_werkdagen_cyclus': 'Max 19 werkdagen per cyclus',
                         'max_dagen_tussen_rx': 'Max 7 dagen tussen rustdagen',
                         'max_werkdagen_reeks': 'Max 7 opeenvolgende werkdagen',
-                        'max_weekends_achter_elkaar': 'Max 6 weekends achter elkaar'
+                        'max_weekends_achter_elkaar': 'Max 6 weekends achter elkaar',
+                        'werkpost_onbekend': 'Onbekende werkpost koppeling'
                     }
                     naam = type_names.get(type_str, type_str)
                     details.append(f"• {naam}: {count}x")
@@ -880,8 +907,10 @@ class PlannerGridKalender(GridKalenderBase):
         Toont overzicht van alle violations voor zichtbare gebruikers:
         - Gegroepeerd per gebruiker
         - Error count + warning count
-        - Datums waar violations voorkomen
-        - Top violations per gebruiker
+        - GEDEPLICEERDE violations (1x per periode, niet 1x per datum)
+        - Datum range formatting voor periode-violations
+
+        v0.6.26.2: Deduplicatie op basis van object ID voor periode-violations
         """
         # Verzamel alle violations voor zichtbare gebruikers
         # Structure: {gebruiker_id: {datum_str: [violations]}}
@@ -899,20 +928,32 @@ class PlannerGridKalender(GridKalenderBase):
 
         # Check of er violations zijn (ISSUE-006: altijd tonen, niet verbergen)
         if not violations_per_gebruiker:
-            self.hr_summary_label.setText("<i>Geen HR violations gevonden</i>")
+            self.hr_summary_label.setText(
+                "<b>💡 Klik op 'Valideer Planning' om alle controles uit te voeren</b><br>"
+                "<i>Validatie controleert:<br>"
+                "• HR Regels: 12u rust, max 50u/week, max 19 werkdagen/cyclus, "
+                "max 7 dagen tussen rustdagen, max 7 opeenvolgende werkdagen, max 6 weekends achter elkaar<br>"
+                "• Bemannings Controle: volledig/dubbel/onvolledig bemand per dag (kritische shifts)</i>"
+            )
             return
 
-        # Tel totaal errors en warnings
+        # DEDUPLICATIE: Tel unieke violations (niet per datum)
+        # Violations met datum_range worden meerdere keren opgeslagen (1x per datum in range)
+        # → Tel op basis van object ID voor accurate counts
         total_errors = 0
         total_warnings = 0
+        seen_violation_ids: set = set()
 
         for datums_dict in violations_per_gebruiker.values():
             for violations_list in datums_dict.values():
                 for v in violations_list:
-                    if v.severity.value == 'error':
-                        total_errors += 1
-                    else:
-                        total_warnings += 1
+                    violation_id = id(v)
+                    if violation_id not in seen_violation_ids:
+                        seen_violation_ids.add(violation_id)
+                        if v.severity.value == 'error':
+                            total_errors += 1
+                        else:
+                            total_warnings += 1
 
         # Format HTML summary
         html_parts = [
@@ -930,14 +971,20 @@ class PlannerGridKalender(GridKalenderBase):
                     gebruiker_naam = user['volledige_naam']
                     break
 
-            # Collect alle violations voor deze gebruiker
-            alle_violations = []
-            for violations_list in datums_dict.values():
-                alle_violations.extend(violations_list)
+            # DEDUPLICATIE: Collect unieke violations voor deze gebruiker
+            unieke_violations = []
+            seen_ids: set = set()
 
-            # Count per severity
-            errors = [v for v in alle_violations if v.severity.value == 'error']
-            warnings = [v for v in alle_violations if v.severity.value == 'warning']
+            for violations_list in datums_dict.values():
+                for v in violations_list:
+                    violation_id = id(v)
+                    if violation_id not in seen_ids:
+                        seen_ids.add(violation_id)
+                        unieke_violations.append(v)
+
+            # Count per severity (nu correct - unieke violations)
+            errors = [v for v in unieke_violations if v.severity.value == 'error']
+            warnings = [v for v in unieke_violations if v.severity.value == 'warning']
 
             # Toon naam met totaal counts
             html_parts.append(f"<b>{gebruiker_naam}</b>: ")
@@ -951,23 +998,33 @@ class PlannerGridKalender(GridKalenderBase):
 
             html_parts.append("<br>")
 
-            # Toon ALLE violations per datum (geen limit meer)
-            for datum_str in sorted(datums_dict.keys()):
-                datum_violations = datums_dict[datum_str]
-                datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
-                datum_formatted = datum_obj.strftime('%d %B')  # "4 november"
+            # Toon unieke violations met correcte datum formatting
+            for v in unieke_violations:
+                icon = "✗" if v.severity.value == 'error' else "⚠"
+                color = "#dc3545" if v.severity.value == 'error' else "#ffc107"
 
-                for v in datum_violations:
-                    icon = "✗" if v.severity.value == 'error' else "⚠"
-                    color = "#dc3545" if v.severity.value == 'error' else "#ffc107"
+                # Beschrijving (volledige tekst)
+                desc = v.beschrijving
 
-                    # Beschrijving (volledige tekst, geen truncate)
-                    desc = v.beschrijving
+                # DATUM FORMATTING: periode vs point-in-time
+                if v.datum_range:
+                    # Periode violation (bijv. werkdagen reeks, week, cyclus)
+                    start_datum, eind_datum = v.datum_range
+                    start_formatted = start_datum.strftime('%d %B')  # "1 januari"
+                    eind_formatted = eind_datum.strftime('%d %B')    # "10 januari"
+                    datum_text = f"{start_formatted} - {eind_formatted}"
+                elif v.datum:
+                    # Point-in-time violation (bijv. 12u rust)
+                    datum_formatted = v.datum.strftime('%d %B')
+                    datum_text = f"op {datum_formatted}"
+                else:
+                    # Geen datum info (rare case)
+                    datum_text = ""
 
-                    html_parts.append(
-                        f"&nbsp;&nbsp;<span style='color: {color};'>{icon}</span> {desc} "
-                        f"<i>(op {datum_formatted})</i><br>"
-                    )
+                html_parts.append(
+                    f"&nbsp;&nbsp;<span style='color: {color};'>{icon}</span> {desc} "
+                    f"<i>({datum_text})</i><br>"
+                )
 
             html_parts.append("<br>")
 
@@ -1396,6 +1453,10 @@ class PlannerGridKalender(GridKalenderBase):
         cel = EditableLabel(display_text, datum_str, gebruiker_id, self)
         cel.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL, QFont.Weight.Bold))
 
+        # Sla overlay kleur op voor editor styling (v0.6.28 - ISSUE-005 fix)
+        if overlay:
+            cel.overlay_kleur = overlay
+
         # Stylesheet met optionele rode lijn en notitie indicator
         base_style = self.create_cel_stylesheet(achtergrond, overlay)
 
@@ -1735,22 +1796,32 @@ class PlannerGridKalender(GridKalenderBase):
 
         PERFORMANCE OPTIMALISATIE (v0.6.25):
         Invalideerd cache na wijziging en haalt nieuwe status op
+
+        v0.6.26.2: Conditioneel obv config.ENABLE_VALIDATION_CACHE flag
         """
-        from services.validation_cache import ValidationCache
+        from config import ENABLE_VALIDATION_CACHE
 
         # Converteer naar date object
         datum_obj = datetime.strptime(datum_str, '%Y-%m-%d').date()
 
-        # PERFORMANCE FIX: Invalideer cache voor deze datum
-        cache = ValidationCache.get_instance()
-        cache.invalidate_date(datum_obj)
+        # PERFORMANCE FIX: Gebruik cache indien ingeschakeld
+        if ENABLE_VALIDATION_CACHE:
+            from services.validation_cache import ValidationCache
 
-        # Re-preload cache voor deze maand (snel - gebruikt batch queries)
-        gebruiker_ids = [user['id'] for user in self.gebruikers_data] if self.gebruikers_data else None
-        cache.preload_month(self.jaar, self.maand, gebruiker_ids)
+            cache = ValidationCache.get_instance()
+            cache.invalidate_date(datum_obj)
 
-        # Haal nieuwe status uit cache
-        status = cache.get_bemannings_status(datum_obj)
+            # Re-preload cache voor deze maand (snel - gebruikt batch queries)
+            gebruiker_ids = [user['id'] for user in self.gebruikers_data] if self.gebruikers_data else None
+            cache.preload_month(self.jaar, self.maand, gebruiker_ids)
+
+            # Haal nieuwe status uit cache
+            status = cache.get_bemannings_status(datum_obj)
+        else:
+            # Fallback: Direct query (v0.6.26.2)
+            from services.bemannings_controle_service import controleer_bemanning
+            status_dict = controleer_bemanning(datum_obj)
+            status = status_dict.get('status', 'groen')
 
         if status:
             # Update status dictionary (minimale data voor UI)
@@ -1773,9 +1844,12 @@ class PlannerGridKalender(GridKalenderBase):
             nieuwe_achtergrond = self.get_datum_achtergrond(datum_str)
 
             for gebruiker_id, cel in self.cel_widgets[datum_str].items():
-                # Bepaal overlay (alleen verlof, bemannings overlay alleen op datum headers)
+                # Bepaal overlay (verlof + HR, bemannings overlay alleen op datum headers)
                 verlof_overlay = self.get_verlof_overlay(datum_str, gebruiker_id, 'planner')
-                overlay = verlof_overlay if verlof_overlay else None
+                hr_overlay = self.get_hr_overlay_kleur(datum_str, gebruiker_id)
+
+                # Prioriteit: verlof overlay eerst, dan HR overlay (v0.6.28 - ISSUE-005 fix)
+                overlay = verlof_overlay if verlof_overlay else hr_overlay
 
                 # Bepaal of het een buffer dag is
                 datum_obj_check = datetime.strptime(datum_str, '%Y-%m-%d')
@@ -1817,6 +1891,9 @@ class PlannerGridKalender(GridKalenderBase):
                     cel.setStyleSheet(base_style + " QLabel { opacity: 0.7; }")
                 else:
                     cel.setStyleSheet(base_style)
+
+                # Update overlay kleur voor editor styling (v0.6.28 - ISSUE-005 fix)
+                cel.overlay_kleur = overlay if overlay else None
 
         # Update ook de datum header (v0.6.20 - real-time overlay update)
         if datum_str in self.datum_header_widgets:
@@ -1908,7 +1985,10 @@ class PlannerGridKalender(GridKalenderBase):
         # Bepaal achtergrond en overlay
         achtergrond = self.get_datum_achtergrond(datum_str)
         verlof_overlay = self.get_verlof_overlay(datum_str, gebruiker_id, 'planner')
-        overlay = verlof_overlay if verlof_overlay else None
+        hr_overlay = self.get_hr_overlay_kleur(datum_str, gebruiker_id)
+
+        # Prioriteit: verlof overlay eerst, dan HR overlay (v0.6.28 - ISSUE-005 fix)
+        overlay = verlof_overlay if verlof_overlay else hr_overlay
 
         # Check flags
         datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
@@ -1961,6 +2041,9 @@ class PlannerGridKalender(GridKalenderBase):
             cel.setStyleSheet(base_style + " QLabel { opacity: 0.7; }")
         else:
             cel.setStyleSheet(base_style)
+
+        # Update overlay kleur voor editor styling (v0.6.28 - ISSUE-005 fix)
+        cel.overlay_kleur = overlay if overlay else None
 
         # Update text
         cel.setText(shift_code)
@@ -2016,8 +2099,9 @@ class PlannerGridKalender(GridKalenderBase):
             # Update alleen HR cijfers (geen volledige rebuild)
             self.update_hr_cijfers_voor_gebruiker(gebruiker_id)
 
+            # DISABLED (v0.6.26 - USER FEEDBACK): Real-time bemannings controle uitgeschakeld
             # Update bemannings status voor deze datum (v0.6.20)
-            self.update_bemannings_status_voor_datum(datum_str)
+            # self.update_bemannings_status_voor_datum(datum_str)
 
             # DISABLED (v0.6.26 - USER FEEDBACK):
             # Real-time validation is te irritant (popup bij elke edit)
@@ -2078,8 +2162,9 @@ class PlannerGridKalender(GridKalenderBase):
             # Update alleen HR cijfers (geen volledige rebuild)
             self.update_hr_cijfers_voor_gebruiker(gebruiker_id)
 
+            # DISABLED (v0.6.26 - USER FEEDBACK): Real-time bemannings controle uitgeschakeld
             # Update bemannings status voor deze datum (v0.6.20)
-            self.update_bemannings_status_voor_datum(datum_str)
+            # self.update_bemannings_status_voor_datum(datum_str)
 
             # DISABLED (v0.6.26 - USER FEEDBACK):
             # Real-time validation uitgeschakeld, gebruiker moet "Valideer Planning" knop gebruiken
@@ -2470,7 +2555,11 @@ class PlannerGridKalender(GridKalenderBase):
         # Haal basis styling op
         shift_code = self.get_display_code(datum_str, gebruiker_id)
         achtergrond = self.get_datum_achtergrond(datum_str)
-        overlay = self.get_verlof_overlay(datum_str, gebruiker_id, 'planner')
+        verlof_overlay = self.get_verlof_overlay(datum_str, gebruiker_id, 'planner')
+        hr_overlay = self.get_hr_overlay_kleur(datum_str, gebruiker_id)
+
+        # Prioriteit: verlof overlay eerst, dan HR overlay (v0.6.28 - ISSUE-005 fix)
+        overlay = verlof_overlay if verlof_overlay else hr_overlay
 
         # Check buffer dag
         datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
@@ -2519,6 +2608,9 @@ class PlannerGridKalender(GridKalenderBase):
             cel.setStyleSheet(base_style + " QLabel { opacity: 0.7; }")
         else:
             cel.setStyleSheet(base_style)
+
+        # Update overlay kleur voor editor styling (v0.6.28 - ISSUE-005 fix)
+        cel.overlay_kleur = overlay if overlay else None
 
     def keyPressEvent(self, event):
         """Handle keyboard events (ESC voor selectie wissen)"""

@@ -434,32 +434,176 @@ for v_list in violations_dict.values():
 
 ---
 
+### ISSUE-001: Feestdag Herkenning bij Kritische Shifts
+**Status:** FIXED (v0.6.25)
+**Severity:** LOW
+
+**Probleem:**
+1 januari werd niet herkend als feestdag bij kritische shifts bemanningscontrole.
+
+**Root Cause:**
+`get_dag_type()` functie in `services/bemannings_controle_service.py` checkte niet of een datum een feestdag was voordat weekdag type werd bepaald.
+
+**Fix:**
+Expliciete feestdag check toegevoegd in `get_dag_type()` (line 41-43):
+```python
+# BELANGRIJK: Feestdagen worden behandeld als 'zondag' (v0.6.25 fix)
+if is_feestdag(datum):
+    return 'zondag'
+```
+
+**Code Changes:**
+- File: `services/bemannings_controle_service.py`
+- Method: `get_dag_type()` (line 28-53)
+- Change: Feestdag check vóór weekdag check
+
+**Test Results:**
+Getest met `test_issue_001.py` voor 1 januari 2025:
+- ✅ is_feestdag(2025-01-01) returnt True
+- ✅ get_dag_type(2025-01-01) returnt 'zondag'
+- ✅ Verwachte kritische codes: zondag shifts (vroeg, laat, nacht)
+- ✅ Bemanningscontrole werkt correct voor feestdagen
+
+**Impact:**
+- ✅ Alle feestdagen worden correct behandeld als zondag voor bemanningscontrole
+- ✅ Verwachte kritische shifts zijn zondag shifts (niet weekdag shifts)
+- ✅ Consistent met shift invoer logica (feestdagen accepteren zondag codes)
+
+---
+
+### ISSUE-002: Planning Editor - Kolom Sortering op Achternaam
+**Status:** FIXED (2025-11-11)
+**Versie:** v0.6.28
+**Severity:** LOW
+
+**Probleem:**
+Teamlid kolommen in Planning Editor waren gesorteerd op volledige_naam (voornaam + achternaam als 1 string). Dit resulteerde in alfabetische sortering op voornaam ipv achternaam.
+
+**User Scenario:**
+1. Open Planning Editor
+2. Kolommen tonen: Bob Aerts, Hegelmeers Alpha, Jacobs Tom, ... (gesorteerd op "B", "H", "J")
+3. User wil: Aerts Bob, Hegelmeers Alpha, Jacobs Tom, ... (gesorteerd op achternaam)
+4. Bovendien: vaste mensen eerst, dan reserves (beide gesorteerd op achternaam)
+
+**Root Cause:**
+Database had alleen `volledige_naam` kolom. Sortering gebeurde via:
+```sql
+ORDER BY volledige_naam
+```
+
+Voor Belgische namen (format "ACHTERNAAM VOORNAAM" zoals "Turlinckx Tim") sorteerde dit op voornaam ipv achternaam.
+
+**Fix:**
+Database schema uitbreiding (v0.6.28):
+1. Nieuwe kolommen: `voornaam TEXT`, `achternaam TEXT`
+2. Parse `volledige_naam` met heuristiek:
+   - Laatste woord = voornaam
+   - Rest = achternaam (ondersteunt samengestelde achternamen zoals "Van Geert")
+3. Nieuwe sortering: `ORDER BY is_reserve, achternaam, voornaam`
+
+**Code Changes:**
+- **Database schema** (`database/connection.py` line 142-143):
+  ```python
+  voornaam TEXT,
+  achternaam TEXT,
+  ```
+- **Migration script** (`migrations/upgrade_to_v0_6_28.py`):
+  - Parse logica: laatste woord = voornaam, rest = achternaam
+  - Voorbeeld: "Van Den Ackerveken Stef" → voornaam="Stef", achternaam="Van Den Ackerveken"
+- **SQL sortering** (`gui/widgets/grid_kalender_base.py` line 59):
+  ```python
+  query += " ORDER BY is_reserve, achternaam, voornaam"
+  ```
+
+**Test Results:**
+Sortering na fix (correct):
+1. Vaste mensen (alfabetisch op achternaam):
+   - Aerts Bob
+   - Hegelmeers Alpha
+   - Jacobs Tom
+   - Test User
+   - Turlinckx Tim
+   - Van Den Ackerveken Stef
+   - Van Geert Koen
+   - Wouters Joeri
+2. Reserves (alfabetisch op achternaam):
+   - Dekrem Sander
+   - Docx Glen
+   - Theunis Glenn
+
+**Impact:**
+- ✅ Planners zien teamleden gesorteerd op achternaam
+- ✅ Vaste mensen verschijnen voor reserves
+- ✅ Samengestelde achternamen correct gesorteerd
+- ✅ Backward compatibility: volledige_naam behouden voor display
+
+---
+
+### ISSUE-005: Planning Editor - HR Overlay Verdwijnt Bij Cel Klik
+**Status:** FIXED (2025-11-12)
+**Versie:** v0.6.28
+**Severity:** MID
+
+**Probleem:**
+Wanneer een cel een HR violation overlay heeft (rood/geel), verdwijnt deze overlay zodra je op de cel klikt om te bewerken. De planner verliest visuele feedback over de violation tijdens het bewerken.
+
+**Root Cause:**
+Bij cel klik wordt een QLineEdit editor bovenop het EditableLabel geplaatst. Deze editor kreeg een harde `background-color: white` stylesheet (regel 84), waardoor de onderliggende HR overlay (rood rgba 70% opacity) volledig werd verborgen.
+
+**Fix:**
+1. **EditableLabel.overlay_kleur attribuut** toegevoegd om huidige overlay kleur te tracken
+2. **Editor stylesheet aangepast** om overlay te behouden tijdens edit:
+   ```python
+   if self.overlay_kleur:
+       background = self.overlay_kleur  # Behoud HR/verlof overlay
+   else:
+       background = "white"  # Default voor normale cellen
+   ```
+3. **Overlay updates** toegevoegd op 4 plaatsen waar cel styling wordt bijgewerkt:
+   - `create_editable_cel()` - Bij cel creatie
+   - `update_bemannings_status_voor_datum()` - Na bemannings update
+   - `refresh_data()` - Na shift save/delete
+   - `apply_selection_styling()` - Bij cel selectie
+
+4. **HR overlay integratie** toegevoegd waar deze ontbrak:
+   - Prioriteit: verlof overlay eerst, dan HR overlay
+   - Consistent toegepast op alle cel update flows
+
+**Code Changes:**
+- File: `gui/widgets/planner_grid_kalender.py`
+- Class: `EditableLabel` - `overlay_kleur` attribuut (regel 55)
+- Method: `start_edit()` - Editor styling met overlay (regel 84-96)
+- Method: `create_editable_cel()` - Overlay opslaan (regel 1455-1457)
+- Method: `update_bemannings_status_voor_datum()` - HR overlay + opslaan (regel 1847-1851, 1894-1895)
+- Method: `refresh_data()` - HR overlay + opslaan (regel 1980-1984, 2038-2039)
+- Method: `apply_selection_styling()` - HR overlay + opslaan (regel 2557-2561, 2611-2612)
+- Method: `on_valideer_planning_clicked()` - Friendly name werkpost_onbekend toegevoegd (regel 877)
+
+**Impact:**
+- ✅ HR overlay blijft zichtbaar tijdens cel edit (rood/geel achtergrond in editor)
+- ✅ Planner heeft constante visuele feedback over violations
+- ✅ Editor blends naadloos met onderliggende violation status
+- ✅ Verlof overlays behouden ook tijdens edit
+- ✅ Consistent gedrag op alle plaatsen waar cellen worden bijgewerkt
+
+**Gerelateerd:**
+- HR Validatie Systeem v0.6.26
+- Werkpost Validatie v0.6.28
+
+---
+
 ## Open Issues
 
-### ISSUE-001: Feestdag Herkenning bij Kritische Shifts
-**Status:** OPEN
-**Severity:** LOW
-**Beschrijving:** 1 januari wordt niet herkend als feestdag bij kritische shifts bemanningscontrole.
-
-### ISSUE-002: Planning Editor - Kolom Sortering
-**Status:** OPEN
-**Severity:** LOW
-**Beschrijving:** Teamlid kolom gesorteerd op voornaam ipv achternaam. Te verbeteren: wissen ganse maand met beschermde cellen aangeven.
-
 ### ISSUE-003: Planning Editor - Focus Behavior
-**Status:** OPEN
+**Status:** OPEN (mogelijk opgelost, wacht op netwerk test)
 **Severity:** LOW
 **Beschrijving:** Blauwe rand rond ganse maand. Als cel met blauwe rand focus verliest, verspringt die naar headers met dagen.
+**Notitie (11 nov 2025):** Lijkt opgelost door realtime validatie fixes (v0.6.26). Nog testen op netwerk database voordat definitief closed.
 
 ### ISSUE-004: Mijn Planning - Notitie Indicator
 **Status:** OPEN
 **Severity:** LOW
 **Beschrijving:** Geen visuele aanduiding van gemaakte notities in grid (hover tooltip wel OK).
-
-### ISSUE-005: Planning Editor - Focus Behavior
-**Status:** OPEN
-**Severity:** MID
-**Beschrijving:** Lay-overkleur van planningfouten verdwijnen door op de cel te klikken
 
 ### ISSUE-008: Planning Editor - bulk menu
 **Status:** OPEN
@@ -470,3 +614,53 @@ for v_list in violations_dict.values():
 **Status:** OPEN
 **Severity:** LOW
 **Beschrijving:** In de handleiding wordt bij de planning verwezen naar een filter om het team te selecteren. Deze filter is er (nog) niet.
+
+### ISSUE-011: Planning Editor - Werkpost Dropdown Filtering Ontbreekt
+**Status:** PARTIAL FIX (2025-11-12)
+**Severity:** MID (was: HIGH)
+**Beschrijving:** Planning Editor filtert shift codes dropdown NIET op basis van gebruiker's werkpost koppelingen.
+
+**Notitie (12 nov 2025):** Post-validatie geïmplementeerd in v0.6.28 (gele warning NA toewijzing verkeerde werkpost). Pre-filtering van dropdown nog niet geïmplementeerd, maar impact gereduceerd door waarschuwing.
+
+**Probleem:**
+Een planner kan elke shift code toewijzen aan elke gebruiker, ZONDER te checken of die gebruiker die werkpost kent (via gebruiker_werkposten tabel).
+
+**User Scenario:**
+1. Jan kent alleen PAT (werkpost_id = 1)
+2. Planner opent cel voor Jan
+3. Dropdown toont ALLE shift codes (PAT, Interventie, Servicecentrum)
+4. Planner kan Interventie code "7201" toewijzen aan Jan
+5. GEEN validatie → Jan krijgt shift voor werkpost die hij niet kent ❌
+
+**Impact:**
+- Gebruikers krijgen shifts voor onbekende werkposten
+- Planning inconsistent met werkpost koppelingen
+- Auto-generatie WEL correct (gebruikt werkpost prioriteit)
+- Handmatige invoer NIET correct (geen check)
+
+**Root Cause:**
+`get_available_codes()` in `planner_grid_kalender.py` haalt ALLE shift codes op zonder filtering:
+```python
+# Huidige implementatie (INCORRECT):
+cursor.execute("SELECT * FROM shift_codes")
+# → Toont alle werkposten zonder check
+
+# Zou moeten zijn:
+cursor.execute("""
+    SELECT sc.* FROM shift_codes sc
+    INNER JOIN gebruiker_werkposten gw ON sc.werkpost_id = gw.werkpost_id
+    WHERE gw.gebruiker_id = ?
+    ORDER BY gw.prioriteit
+""", (gebruiker_id,))
+# → Toont alleen bekende werkposten
+```
+
+**Fix Nodig:**
+1. Filter shift codes op gebruiker's werkpost koppelingen
+2. Speciale codes (VV, KD, RX, CX, etc.) ALTIJD tonen
+3. Tooltip: "Geen werkposten gekoppeld" als gebruiker geen werkposten kent
+4. Mogelijk: Pre-validatie warning bij handmatige invoer (zoals typetabel validatie)
+
+**Verwant aan:**
+- Werkpost koppeling systeem (v0.6.14)
+- Auto-generatie logic (gebruikt WEL werkpost filtering)

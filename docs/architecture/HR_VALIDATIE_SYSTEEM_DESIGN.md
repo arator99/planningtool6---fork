@@ -1,12 +1,36 @@
 # HR Validatie Systeem - Technisch Design Document
 
-**Versie:** 1.0
+**Versie:** 1.1 (Updated 10 nov 2025)
 **Datum:** 30 Oktober 2025
-**Status:** ✅ **ACTIEF DESIGN** - Ready for Implementation (3 nov 2025)
-**Target Release:** v0.6.26 of later (na v0.6.25 cache release)
+**Status:** ✅ **GEÏMPLEMENTEERD** - 74% compleet (v0.6.26 - v0.6.26.2)
+**Target Release:** v1.0 (December 2025 - FASE 5 pending)
+
+---
+
+## 🔄 IMPLEMENTATIE STATUS UPDATE (10 November 2025)
+
+**Wat is COMPLEET:**
+- ✅ Core logica (7 HR checks geïmplementeerd + getest)
+- ✅ UI integration (grid overlay, tooltips, summary box)
+- ✅ Pre-publicatie validatie rapport
+- ✅ Performance testing (cache toggle v0.6.26.2)
+
+**Design Wijziging (v0.6.26.1):**
+- ⚠️ **Real-time validatie UITGESCHAKELD** (performance reden: 9 sec lag)
+- ✅ **On-demand validatie VIA KNOP** ("Valideer Planning")
+- **Rationale:** Gebruiker bepaalt wanneer validatie gebeurt = betere UX
+
+**Nog TE DOEN:**
+- ⏸️ Typetabel pre-activatie check (FASE 5 - 10 uur)
+
+**Zie ook:**
+- `docs/HR_VALIDATIE_STATUS.md` - Huidige status rapport
+- `SESSION_LOG.md` - Laatste sessie details
+
+---
 
 ⚠️ **Implementatie Strategie:** Hybride benadering
-- **Dit document:** Concrete implementatie details, algoritmes, edge cases
+- **Dit document:** Concrete implementatie details, algoritmes, edge cases (design referentie)
 - **Geïntegreerde Architectuur:** Zie `GEINTEGREERDE_CONSTRAINT_ARCHITECTUUR.md` voor toekomstbestendige structuur
 - **Doel:** Slim bouwen met ConstraintChecker laag zodat AI integratie later geen volledige refactor vereist
 

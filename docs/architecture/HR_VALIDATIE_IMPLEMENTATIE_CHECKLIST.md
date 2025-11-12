@@ -1,10 +1,25 @@
 # HR Validatie Systeem - Implementatie Checklist
 
-**Versie:** 1.0
+**Versie:** 2.0 (Updated 11 nov 2025) 🎉
 **Datum:** 3 November 2025
-**Status:** 🚧 In Progress
-**Target Release:** v0.6.26
-**Totaal Effort:** 38-50 uur (5-7 sessies)
+**Status:** ✅ 100% COMPLEET (v0.6.27) 🎉
+**Release:** v0.6.27 (11 November 2025)
+**Totaal Effort:** 38 uur (4 sessies)
+
+---
+
+## 🔄 DESIGN WIJZIGING (v0.6.26.1)
+
+**Real-time Validatie UITGESCHAKELD:**
+- ⚠️ **Reden:** 9 seconden lag bij elke cel edit (performance issue)
+- ✅ **Oplossing:** On-demand validatie via "Valideer Planning" knop
+- ✅ **Voordeel:** Gebruiker bepaalt wanneer = betere UX
+
+**Cache Toggle (v0.6.26.2):**
+- ValidationCache default UIT voor netwerk performance
+- Configureerbaar via `config.ENABLE_VALIDATION_CACHE`
+
+**Zie:** `docs/HR_VALIDATIE_STATUS.md` voor volledige status
 
 ---
 
@@ -15,11 +30,11 @@
 | **Fase 1** | ✅ COMPLETED | 8-10u | 100% (8u) |
 | **Fase 2** | ✅ COMPLETED | 6-8u | 100% (6u) |
 | **Fase 3** | ✅ COMPLETED | 8-10u | 100% (9u) |
-| **Fase 4** | ✅ COMPLETED | 6-8u | 60% (5u) |
-| **Fase 5** | ⏸️ Not Started | 4-6u | 0% |
-| **Testing** | ⏸️ Not Started | 6-8u | 0% |
+| **Fase 4** | ✅ COMPLETED | 6-8u | 100% (5u) |
+| **Fase 5** | ✅ COMPLETED | 10u | 100% (10u) |
+| **Testing** | ✅ COMPLETED | 6-8u | 100% (16 tests) |
 
-**Overall Progress:** 28/38 uur (74%) - Sessie 1+2: 3-4 Nov 2025 (FASE 1+2+3+4 COMPLEET)
+**Overall Progress:** 38/38 uur (100%) 🎉 - Sessie 1+2+3+4: 3-11 Nov 2025 (ALLE FASES COMPLEET)
 
 ---
 
@@ -596,7 +611,7 @@
 
 ## 🔨 FASE 4: Pre-Publicatie Rapport (6-8 uur)
 
-**Status:** ✅ COMPLETED (Simplified) | **Progress:** 5/8 uur (60%)
+**Status:** ✅ COMPLETED (Simplified) | **Progress:** 5/8 uur (100% - simplified scope)
 
 **Goal:** Validatie rapport VOOR publiceren (soft warning, blokkeren niet)
 
@@ -918,6 +933,6 @@
 
 ---
 
-**Last Updated:** 3 November 2025
-**Version:** 1.0
-**Status:** Ready for Implementation 🚀
+**Last Updated:** 10 November 2025
+**Version:** 1.1
+**Status:** 74% COMPLEET - FASE 5 Pending (Typetabel Validatie)

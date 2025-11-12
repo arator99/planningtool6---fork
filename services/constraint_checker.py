@@ -36,7 +36,8 @@ from typing import Dict, List, Optional, Tuple, Any
 # ============================================================================
 
 class ViolationType(Enum):
-    """HR regel types"""
+    """HR regel types + data consistency checks"""
+    # HR regels (arbeidsrecht)
     MIN_RUST_12U = "min_rust_12u"
     MAX_UREN_WEEK = "max_uren_week"
     MAX_WERKDAGEN_CYCLUS = "max_werkdagen_cyclus"
@@ -44,6 +45,9 @@ class ViolationType(Enum):
     MAX_WERKDAGEN_REEKS = "max_werkdagen_reeks"
     MAX_WEEKENDS = "max_weekends_achter_elkaar"
     NACHT_VROEG_VERBODEN = "nacht_vroeg_verboden"
+
+    # Data consistency checks (bedrijfslogica)
+    WERKPOST_ONBEKEND = "werkpost_onbekend"
 
 
 class ViolationSeverity(Enum):
@@ -229,8 +233,8 @@ class ConstraintChecker:
             Uren als float, of None als geen tijden (speciale code)
 
         Examples:
-            _bereken_shift_duur('7101')  # "06:00-14:00" → 8.0
-            _bereken_shift_duur('7103')  # "22:00-06:00" → 8.0
+            _bereken_shift_duur('7101')  # "06:00-14:00" -> 8.0
+            _bereken_shift_duur('7103')  # "22:00-06:00" -> 8.0
             _bereken_shift_duur('VV')    # None (geen tijden)
         """
         if shift_code not in self.shift_tijden:
@@ -293,11 +297,11 @@ class ConstraintChecker:
         Logica: (shift_start < periode_eind) AND (shift_eind > periode_start)
 
         Voorbeelden:
-            Shift 14:00-22:00 (vr), Weekend vr-22:00 → ma-06:00
-            → shift_eind (22:00) == periode_start (22:00) → GEEN overlap
+            Shift 14:00-22:00 (vr), Weekend vr-22:00 -> ma-06:00
+            -> shift_eind (22:00) == periode_start (22:00) -> GEEN overlap
 
-            Shift 14:00-22:01 (vr), Weekend vr-22:00 → ma-06:00
-            → shift_eind (22:01) > periode_start (22:00) → WEL overlap
+            Shift 14:00-22:01 (vr), Weekend vr-22:00 -> ma-06:00
+            -> shift_eind (22:01) > periode_start (22:00) -> WEL overlap
 
         Args:
             shift_start: Shift start datetime
@@ -429,7 +433,16 @@ class ConstraintChecker:
         return code_term and code_term in terms
 
     # ========================================================================
-    # CONSTRAINT CHECKS (Sectie 1.3 - 1.8)
+    # HR REGEL CHECKS - Arbeidsrecht validaties
+    # ========================================================================
+    # Deze sectie bevat alle 7 HR regel checks:
+    # 1. check_12u_rust - Minimaal 12u tussen shifts
+    # 2. check_max_uren_week - Max 50u per week
+    # 3. check_max_werkdagen_cyclus - Max 19 werkdagen per 28-dagen cyclus
+    # 4. check_max_dagen_tussen_rx - Max 7 dagen tussen RX codes
+    # 5. check_max_werkdagen_reeks - Max 7 opeenvolgende werkdagen
+    # 6. check_max_weekends_achter_elkaar - Max weekends zonder rustdag
+    # 7. check_nacht_gevolgd_door_vroeg - Nacht->vroeg verboden
     # ========================================================================
 
     def check_12u_rust(
@@ -565,13 +578,13 @@ class ConstraintChecker:
             _bereken_rust_tussen_shifts(
                 date(2025, 11, 15), "06:00", "14:00",
                 date(2025, 11, 16), "06:00"
-            ) → 16.0
+            ) -> 16.0
 
             # Nacht shift (middernacht crossing)
             _bereken_rust_tussen_shifts(
                 date(2025, 11, 15), "22:00", "06:00",
                 date(2025, 11, 16), "06:00"
-            ) → 0.0  (nacht eindigt 06:00 op 16e, vroeg begint 06:00 op 16e)
+            ) -> 0.0  (nacht eindigt 06:00 op 16e, vroeg begint 06:00 op 16e)
         """
         # Parse tijden
         start_tijd1 = self._parse_tijd(start_uur1)
@@ -691,7 +704,7 @@ class ConstraintChecker:
 
     def _parse_periode_definitie(self, waarde: str) -> Tuple[str, str, str, str]:
         """
-        Parse 'ma-00:00|zo-23:59' → (start_dag, start_uur, eind_dag, eind_uur)
+        Parse 'ma-00:00|zo-23:59' -> (start_dag, start_uur, eind_dag, eind_uur)
 
         Args:
             waarde: Periode string (bijv. 'ma-00:00|zo-23:59')
@@ -701,7 +714,7 @@ class ConstraintChecker:
 
         Example:
             _parse_periode_definitie('ma-00:00|zo-23:59')
-            → ('ma', '00:00', 'zo', '23:59')
+            -> ('ma', '00:00', 'zo', '23:59')
         """
         start, eind = waarde.split('|')
         start_dag, start_uur = start.split('-', 1)
@@ -1180,7 +1193,7 @@ class ConstraintChecker:
                             ]
                         ))
             else:
-                # Geen shift of niet-werkdag → reset reeks
+                # Geen shift of niet-werkdag -> reset reeks
                 werkdagen_reeks = 0
                 reeks_start_datum = None
                 reeks_shifts = []
@@ -1554,22 +1567,124 @@ class ConstraintChecker:
         return term in ('zondagrust', 'zaterdagrust')
 
     # ========================================================================
-    # INTEGRATION & CONVENIENCE
+    # DATA CONSISTENCY CHECKS - Bedrijfslogica validaties
+    # ========================================================================
+    # Deze sectie bevat data consistency checks (geen arbeidsrecht, wel business logic):
+    # - check_werkpost_koppeling - Gebruiker kent toegewezen werkpost
+    # ========================================================================
+
+    def check_werkpost_koppeling(
+        self,
+        planning: List[PlanningRegel],
+        gebruiker_id: Optional[int],
+        gebruiker_werkposten_map: Dict[int, List[int]],
+        shift_code_werkpost_map: Dict[str, int]
+    ) -> ConstraintCheckResult:
+        """
+        Check of gebruikers alleen shifts krijgen voor werkposten die ze kennen
+
+        Dit is een data consistency check (niet HR regel).  Voorkomt dat planners
+        handmatig shifts toewijzen voor werkposten die gebruiker niet kent.
+
+        Args:
+            planning: Planning regels
+            gebruiker_id: Optioneel filter op 1 gebruiker
+            gebruiker_werkposten_map: {gebruiker_id: [werkpost_ids]}
+            shift_code_werkpost_map: {shift_code: werkpost_id}
+
+        Returns:
+            ConstraintCheckResult met violations voor onbekende werkposten
+
+        Example:
+            # Jan kent PAT (id=1), niet Interventie (id=2)
+            gebruiker_werkposten_map = {123: [1]}
+            shift_code_werkpost_map = {'7101': 1, '7201': 2}
+
+            # Planning regel: Jan -> shift 7201 (Interventie)
+            # -> Violation: werkpost onbekend
+        """
+        violations = []
+
+        # Filter op gebruiker indien opgegeven
+        planning_gefilterd = [p for p in planning if p.gebruiker_id == gebruiker_id] if gebruiker_id else planning
+
+        for regel in planning_gefilterd:
+            # Skip regels zonder shift_code
+            if not regel.shift_code:
+                continue
+
+            # Skip speciale codes (VV, KD, RX, CX, etc.)
+            # Deze hebben geen werkpost_id in mapping
+            if regel.shift_code not in shift_code_werkpost_map:
+                continue
+
+            # Haal werkpost_id op voor deze shift code
+            werkpost_id = shift_code_werkpost_map.get(regel.shift_code)
+            if not werkpost_id:
+                continue
+
+            # Haal werkposten op die deze gebruiker kent
+            gebruiker_werkposten = gebruiker_werkposten_map.get(regel.gebruiker_id, [])
+
+            # Check of gebruiker deze werkpost kent
+            if werkpost_id not in gebruiker_werkposten:
+                # Lookup werkpost naam voor duidelijke foutmelding
+                werkpost_naam = self._get_werkpost_naam(regel.shift_code)
+
+                violations.append(Violation(
+                    type=ViolationType.WERKPOST_ONBEKEND,
+                    severity=ViolationSeverity.WARNING,  # Warning, niet ERROR (planner kan bewust zijn)
+                    gebruiker_id=regel.gebruiker_id,
+                    datum=regel.datum,
+                    datum_range=None,
+                    beschrijving=f"Werkpost '{werkpost_naam}' niet gekoppeld aan gebruiker"
+                ))
+
+        return ConstraintCheckResult(
+            passed=len(violations) == 0,
+            violations=violations
+        )
+
+    def _get_werkpost_naam(self, shift_code: str) -> str:
+        """
+        Haal werkpost naam op uit shift_tijden (voor error messages)
+
+        Args:
+            shift_code: Shift code
+
+        Returns:
+            Werkpost naam of shift_code zelf als niet gevonden
+        """
+        if shift_code not in self.shift_tijden:
+            return shift_code
+
+        return self.shift_tijden[shift_code].get('werkpost_naam', shift_code)
+
+    # ========================================================================
+    # INTEGRATION & CONVENIENCE - Batch operaties en helpers
+    # ========================================================================
+    # Deze sectie bevat convenience methods voor bulk validaties:
+    # - check_all - Run alle checks in 1 keer
+    # - get_all_violations - Flatten violations naar lijst
     # ========================================================================
 
     def check_all(
         self,
         planning: List[PlanningRegel],
         gebruiker_id: Optional[int] = None,
-        rode_lijnen: Optional[List[Dict]] = None
+        rode_lijnen: Optional[List[Dict]] = None,
+        gebruiker_werkposten_map: Optional[Dict[int, List[int]]] = None,
+        shift_code_werkpost_map: Optional[Dict[str, int]] = None
     ) -> Dict[str, ConstraintCheckResult]:
         """
-        Run alle constraint checks
+        Run alle constraint checks (HR regels + data consistency)
 
         Args:
             planning: Planning regels
             gebruiker_id: Optioneel filter op gebruiker
             rode_lijnen: Rode lijn periodes (voor cyclus check)
+            gebruiker_werkposten_map: {gebruiker_id: [werkpost_ids]} voor werkpost check (v0.6.28)
+            shift_code_werkpost_map: {shift_code: werkpost_id} voor werkpost check (v0.6.28)
 
         Returns:
             Dict met results per regel:
@@ -1577,11 +1692,12 @@ class ConstraintChecker:
                 'min_rust_12u': ConstraintCheckResult(...),
                 'max_uren_week': ConstraintCheckResult(...),
                 ...
+                'werkpost_koppeling': ConstraintCheckResult(...),  # v0.6.28
             }
         """
         results = {}
 
-        # Run alle checks
+        # Run alle HR checks
         results['min_rust_12u'] = self.check_12u_rust(planning, gebruiker_id)
         results['max_uren_week'] = self.check_max_uren_week(planning, gebruiker_id)
         results['max_werkdagen_cyclus'] = self.check_max_werkdagen_cyclus(planning, gebruiker_id, rode_lijnen)
@@ -1590,13 +1706,24 @@ class ConstraintChecker:
         results['max_weekends'] = self.check_max_weekends_achter_elkaar(planning, gebruiker_id)
         results['nacht_vroeg_verboden'] = self.check_nacht_gevolgd_door_vroeg(planning, gebruiker_id)
 
+        # Run data consistency checks (v0.6.28)
+        if gebruiker_werkposten_map and shift_code_werkpost_map:
+            results['werkpost_koppeling'] = self.check_werkpost_koppeling(
+                planning,
+                gebruiker_id,
+                gebruiker_werkposten_map,
+                shift_code_werkpost_map
+            )
+
         return results
 
     def get_all_violations(
         self,
         planning: List[PlanningRegel],
         gebruiker_id: Optional[int] = None,
-        rode_lijnen: Optional[List[Dict]] = None
+        rode_lijnen: Optional[List[Dict]] = None,
+        gebruiker_werkposten_map: Optional[Dict[int, List[int]]] = None,
+        shift_code_werkpost_map: Optional[Dict[str, int]] = None
     ) -> List[Violation]:
         """
         Convenience method: flatten alle violations
@@ -1605,11 +1732,19 @@ class ConstraintChecker:
             planning: Planning regels
             gebruiker_id: Optioneel filter op gebruiker
             rode_lijnen: Rode lijn periodes
+            gebruiker_werkposten_map: {gebruiker_id: [werkpost_ids]} voor werkpost check (v0.6.28)
+            shift_code_werkpost_map: {shift_code: werkpost_id} voor werkpost check (v0.6.28)
 
         Returns:
             Flat list van alle violations, gesorteerd op datum
         """
-        results = self.check_all(planning, gebruiker_id, rode_lijnen)
+        results = self.check_all(
+            planning,
+            gebruiker_id,
+            rode_lijnen,
+            gebruiker_werkposten_map,
+            shift_code_werkpost_map
+        )
 
         all_violations = []
         for result in results.values():

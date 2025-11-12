@@ -67,7 +67,7 @@ def get_planner_notities_voor_maand(jaar: int, maand: int) -> dict:
 
 def export_maand_naar_excel(jaar: int, maand: int) -> str:
     """
-    Exporteer planning van een maand naar Excel bestand
+    Exporteer planning van een maand naar Excel bestand (HR formaat)
 
     Args:
         jaar: Jaar (bijv. 2025)
@@ -90,86 +90,221 @@ def export_maand_naar_excel(jaar: int, maand: int) -> str:
     # Maak Excel bestand
     wb = Workbook()
     ws = wb.active
-    ws.title = f"{maand_naam.capitalize()} {jaar}"
+    ws.title = 'Blad1'
+
+    # HR Kleur definities (exact uit voorbeeld)
+    COLORS = {
+        'maand_header': 'FFDDEBF7',      # Lichtblauw voor maandnaam cel
+        'datum_header': 'FFBDD7EE',      # Iets donkerder blauw voor datum info
+        'naam_kolom': 'FFD3D3D3',        # Lichtgrijs voor Naam kolom
+        'feestdag': 'FFF0E68C',          # Geel voor feestdagen
+        'weekend': 'FFF8CBAD',           # Oranje voor za/zo
+        'werkdag': 'FFBFBFBF',           # Grijs voor alle weekdagen (ma/di/wo/do/vr)
+    }
+
+    # Haal feestdagen op voor deze maand
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT strftime('%d', datum) as dag
+        FROM feestdagen
+        WHERE strftime('%Y', datum) = ?
+        AND strftime('%m', datum) = ?
+    """, (str(jaar), str(maand).zfill(2)))
+    feestdag_dagen = {int(row['dag']) for row in cursor.fetchall()}
+    conn.close()
 
     # Styling definities
-    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    header_font = Font(bold=True, color="FFFFFF", size=11)
-    border = Border(
+    border_thin = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
         top=Side(style='thin'),
         bottom=Side(style='thin')
     )
+    border_medium = Border(
+        left=Side(style='medium'),
+        right=Side(style='medium'),
+        top=Side(style='medium')
+    )
     center_alignment = Alignment(horizontal='center', vertical='center')
 
     # Bepaal alle dagen in de maand
     dagen_in_maand = calendar.monthrange(jaar, maand)[1]
+    first_day = datetime(jaar, maand, 1)
+    last_day = datetime(jaar, maand, dagen_in_maand)
+
     datums = []
     for dag in range(1, dagen_in_maand + 1):
         datum = datetime(jaar, maand, dag)
         datums.append(datum)
 
-    # Header rij 1: Titel
-    ws.merge_cells('A1:B1')
-    titel_cell = ws['A1']
-    titel_cell.value = f"Planning {maand_naam.capitalize()} {jaar}"
-    titel_cell.font = Font(bold=True, size=14, color="366092")
-    titel_cell.alignment = center_alignment
+    # ============== RIJ 1: LEEG ==============
 
-    # Header rij 2: Kolom headers
-    ws['A2'] = "Naam"
-    ws['A2'].font = header_font
-    ws['A2'].fill = header_fill
-    ws['A2'].border = border
-    ws['A2'].alignment = center_alignment
+    # ============== RIJ 2: HEADER ==============
+    # Kolom A - Maandnaam (wordt later verticaal gemerged)
+    cell_a2 = ws['A2']
+    cell_a2.value = maand_naam.upper()
+    cell_a2.font = Font(name='Arial', size=14, bold=True, color='FF000000')
+    cell_a2.fill = PatternFill(start_color=COLORS['maand_header'],
+                                end_color=COLORS['maand_header'],
+                                fill_type='solid')
+    cell_a2.alignment = center_alignment
+    cell_a2.border = Border(
+        left=Side(style='medium'),
+        right=Side(style='medium'),
+        top=Side(style='medium')
+    )
 
-    # Datum kolommen
-    for col_idx, datum in enumerate(datums, start=2):
-        cell = ws.cell(row=2, column=col_idx)
-        # Formaat: "Ma 1" of "Di 2" etc.
-        dag_naam = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo'][datum.weekday()]
-        cell.value = f"{dag_naam}\n{datum.day}"
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = border
+    # Kolom B - Maand/Jaar (formaat: mmm/jj, bijv. "jan/26")
+    maand_kort = {
+        1: 'jan', 2: 'feb', 3: 'mrt', 4: 'apr', 5: 'mei', 6: 'jun',
+        7: 'jul', 8: 'aug', 9: 'sep', 10: 'okt', 11: 'nov', 12: 'dec'
+    }
+    jaar_kort = str(jaar)[-2:]  # Laatste 2 cijfers van jaar
+    cell_b2 = ws['B2']
+    cell_b2.value = f"{maand_kort[maand]}/{jaar_kort}"
+    cell_b2.font = Font(name='Arial', size=11, bold=True)
+    cell_b2.fill = PatternFill(start_color=COLORS['datum_header'],
+                                end_color=COLORS['datum_header'],
+                                fill_type='solid')
+    cell_b2.alignment = center_alignment
+    cell_b2.border = Border(
+        left=Side(style='medium'),
+        top=Side(style='medium')
+    )
+
+    # Kolom C - Beschrijving (gemerged over alle dagen)
+    cell_c2 = ws['C2']
+    cell_c2.value = f"Diensttabel van {first_day.strftime('%d-%m-%Y')} tot {last_day.strftime('%d-%m-%Y')}"
+    cell_c2.font = Font(name='Arial', size=11, bold=True, color='FF000000')
+    cell_c2.fill = PatternFill(start_color=COLORS['datum_header'],
+                                end_color=COLORS['datum_header'],
+                                fill_type='solid')
+    cell_c2.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    cell_c2.border = Border(
+        left=Side(style='medium'),
+        top=Side(style='medium'),
+        bottom=Side(style='medium')
+    )
+
+    # Merge C2 tot laatste dag kolom
+    last_col = get_column_letter(2 + dagen_in_maand)
+    ws.merge_cells(f'C2:{last_col}2')
+
+    # ============== RIJ 3: KOLOMKOPPEN ==============
+    # Kolom B - "Naam + Voornaam"
+    cell_b3 = ws['B3']
+    cell_b3.value = 'Naam + Voornaam'
+    cell_b3.font = Font(name='Arial', size=10, bold=True, color='FF000000')
+    cell_b3.fill = PatternFill(start_color=COLORS['naam_kolom'],
+                                end_color=COLORS['naam_kolom'],
+                                fill_type='solid')
+    cell_b3.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+    cell_b3.border = Border(
+        left=Side(style='medium'),
+        right=Side(style='thin'),
+        top=Side(style='medium'),
+        bottom=Side(style='medium')
+    )
+
+    # Kolom C+ - Dagnummers met weekend kleuren
+    for dag in range(1, dagen_in_maand + 1):
+        col_idx = 2 + dag  # Kolom C is dag 1
+        cell = ws.cell(row=3, column=col_idx)
+        cell.value = dag
+        cell.font = Font(name='Arial', size=10, bold=True, color='FF000000')
         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-    # Data rijen
-    row_idx = 3
-    for gebruiker_data in planning_data:
-        # Naam kolom
-        naam_cell = ws.cell(row=row_idx, column=1)
-        naam_cell.value = gebruiker_data['naam']
-        naam_cell.font = Font(size=10)
-        naam_cell.border = border
-        naam_cell.alignment = Alignment(vertical='center')
+        # Bepaal dag van de week voor kleur
+        date = datetime(jaar, maand, dag)
+        weekday = date.weekday()  # 0=maandag, 6=zondag
 
-        # Shift codes per dag
-        for col_idx, datum in enumerate(datums, start=2):
+        # Kleur toewijzen: feestdag > weekend > werkdag
+        if dag in feestdag_dagen:  # Feestdag geel
+            color = COLORS['feestdag']
+        elif weekday >= 5:  # Weekend (zaterdag/zondag) oranje
+            color = COLORS['weekend']
+        else:  # Alle weekdagen (ma/di/wo/do/vr) grijs
+            color = COLORS['werkdag']
+
+        cell.fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
+
+        # Borders voor header rij
+        is_laatste_dag = (dag == dagen_in_maand)
+        cell.border = Border(
+            left=Side(style='medium' if col_idx == 3 else 'thin'),  # Eerste dag kolom medium
+            right=Side(style='medium' if is_laatste_dag else 'thin'),  # Laatste dag kolom medium
+            top=Side(style='medium')
+        )
+
+    # ============== DATA RIJEN ==============
+    row_idx = 4
+    is_eerste_data_rij = True
+    for gebruiker_data in planning_data:
+        # Kolom B - Naam
+        naam_cell = ws.cell(row=row_idx, column=2)
+        naam_cell.value = gebruiker_data['naam']
+        naam_cell.font = Font(name='Arial', size=9, bold=True, color='FF000000')
+        naam_cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+        naam_cell.border = Border(
+            left=Side(style='medium'),
+            top=Side(style='medium' if is_eerste_data_rij else 'thin'),
+            bottom=Side(style='thin')
+        )
+
+        # Kolom C+ - Shift codes per dag
+        for dag in range(1, dagen_in_maand + 1):
+            col_idx = 2 + dag
+            datum = datetime(jaar, maand, dag)
             datum_str = datum.strftime('%Y-%m-%d')
             shift_code = gebruiker_data['planning'].get(datum_str, '')
+            weekday = datum.weekday()
 
             cell = ws.cell(row=row_idx, column=col_idx)
             cell.value = shift_code
-            cell.font = Font(size=10)
-            cell.border = border
-            cell.alignment = center_alignment
+            cell.font = Font(name='Arial', size=10, bold=False, color='FF000000')
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-            # Achtergrondkleur voor weekend/feestdag
-            if datum.weekday() >= 5:  # Zaterdag of Zondag
-                cell.fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+            # Achtergrondkleur: feestdag > weekend
+            if dag in feestdag_dagen:  # Feestdag achtergrond
+                cell.fill = PatternFill(start_color=COLORS['feestdag'],
+                                       end_color=COLORS['feestdag'],
+                                       fill_type='solid')
+            elif weekday >= 5:  # Weekend achtergrond
+                cell.fill = PatternFill(start_color=COLORS['weekend'],
+                                       end_color=COLORS['weekend'],
+                                       fill_type='solid')
+
+            # Borders
+            is_laatste_dag = (dag == dagen_in_maand)
+            cell.border = Border(
+                left=Side(style='medium' if col_idx == 3 else 'thin'),
+                right=Side(style='medium' if is_laatste_dag else 'thin'),
+                top=Side(style='medium' if is_eerste_data_rij else 'thin'),
+                bottom=Side(style='thin')
+            )
 
         row_idx += 1
+        is_eerste_data_rij = False
 
-    # Kolom breedtes aanpassen
-    ws.column_dimensions['A'].width = 25  # Naam kolom
-    for col_idx in range(2, len(datums) + 2):
-        ws.column_dimensions[get_column_letter(col_idx)].width = 8  # Datum kolommen
+    # ============== MERGE KOLOM A VERTICAAL ==============
+    laatste_rij = 3 + len(planning_data)
+    ws.merge_cells(f'A2:A{laatste_rij}')
 
-    # Rij hoogtes
-    ws.row_dimensions[1].height = 25  # Titel
-    ws.row_dimensions[2].height = 30  # Header
+    # ============== KOLOM BREEDTES ==============
+    # Alle kolommen uniform 13.0
+    for col_idx in range(1, 3 + dagen_in_maand):
+        col_letter = get_column_letter(col_idx)
+        ws.column_dimensions[col_letter].width = 13.0
+
+    # ============== RIJ HOOGTES ==============
+    ws.row_dimensions[1].height = 15.75
+    ws.row_dimensions[2].height = 15.75
+    ws.row_dimensions[3].height = 39.0
+
+    # Data rijen
+    for row in range(4, 4 + len(planning_data)):
+        ws.row_dimensions[row].height = 25.0
 
     # Voeg Validatie Rapport sheet toe (v0.6.20)
     validatie_ws = wb.create_sheet(title="Validatie Rapport")

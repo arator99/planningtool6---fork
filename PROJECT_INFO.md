@@ -2,15 +2,88 @@
 Roostersysteem voor Self-Rostering Teams
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.26 (Beta)
-**Release datum:** 4 November 2025
-**Status:** In actieve ontwikkeling - HR Validatie Systeem
+**Huidige versie:** 0.6.28 (Beta)
+**Release datum:** 12 November 2025
+**Status:** Bug Fixes + Code Quality Improvements
 
 ---
 
 ## WAT IS NIEUW
 
-### Versie 0.6.26 (4 November 2025) ⭐ NIEUW
+### Versie 0.6.28 (11-12 November 2025)
+- ✅ **Database Schema Uitbreiding** - Voornaam/Achternaam Split
+  - **Nieuwe kolommen:** voornaam, achternaam (volledige_naam behouden voor compatibility)
+  - **Intelligente parsing:** Belgische naam heuristiek (laatste woord = voornaam, rest = achternaam)
+  - **Samengestelde achternamen:** "Van Den Ackerveken Stef" correct gesplitst
+  - **Migratie script:** upgrade_to_v0_6_28.py voor safe upgrade
+- ✅ **ISSUE-002 Fix: Sortering op Achternaam** - Intuïtievere gebruikerslijsten
+  - **Oude sortering:** Alfabetisch op eerste letter van volledige naam
+  - **Nieuwe sortering:** is_reserve, achternaam, voornaam (vaste mensen eerst, dan reserves)
+  - **Impact:** Planners zien teamleden logischer gesorteerd in alle grids
+- ✅ **Werkpost Validatie UI Integratie** - Visuele feedback in planning grid
+  - **Backend:** Was al compleet (check_werkpost_koppeling in constraint_checker.py)
+  - **Fix:** Violation constructor kreeg ontbrekende velden (gebruiker_id, datum_range)
+  - **Friendly names:** 'werkpost_onbekend' -> 'Onbekende werkpost koppeling'
+  - **Visual feedback:** Gele overlay (WARNING) + tooltip + HR Summary box
+  - **Testing:** test_werkpost_validation.py (all tests passed)
+- ✅ **ISSUE-005 Fix: HR Overlay Persistence** - Constant visual feedback
+  - **Probleem:** Rode/gele HR overlay verdween bij cel klik (QLineEdit had hard-coded white background)
+  - **Root cause:** Editor stylesheet verborg onderliggende overlay
+  - **Fix:** EditableLabel.overlay_kleur attribute tracking + conditional stylesheet (8 code changes)
+  - **Result:** HR/verlof overlays blijven zichtbaar tijdens edit (planner heeft constante feedback)
+- ✅ **Unicode Cleanup** - Windows Encoding Compatibility
+  - **Probleem:** Unicode pijltjes (→) kunnen encoding problemen geven op Windows cmd/PowerShell
+  - **Fix:** 13 voorkomens vervangen met ASCII -> in actieve Python code
+  - **Impact:** Veiliger voor Windows console output
+- ✅ **Code Documentatie** - Section-level Comments
+  - **constraint_checker.py:** 4 major section headers (1600+ lines navigeerbaar)
+  - **planning_validator_service.py:** 2 major section headers (540 lines)
+  - **Voordeel:** Makkelijker navigeren voor developers, quick reference
+- ✅ **Typetabel Pre-Validatie Improvements** - Theoretical Pattern Validation
+  - **Standalone "Valideer" knop:** Pre-activatie check zonder activeren
+  - **Theoretische modus:** 1 dummy gebruiker, geen feestdagen, start op maandag
+  - **2.5 cycli simulatie:** Week alignment fix (Week 1 Dag 1 = maandag)
+  - **Detailed report:** Exact locaties (Week X, Dagnaam) met max 10 violations per type
+
+### Versie 0.6.27 (11 November 2025) ⭐ HR VALIDATIE v1.0 COMPLEET
+- ✅ **FASE 5: Typetabel Pre-Activatie HR Validatie** - Last piece of HR validation roadmap
+  - **Pre-activatie check:** HR validatie draait VOOR typetabel activatie
+  - **Simulatie:** 2.5 cycli van typetabel (bijv. 6 weken → 105 dagen)
+  - **Cross-boundary detectie:** Violations aan begin/eind van cyclus gedetecteerd
+  - **Soft warning:** Gebruiker ziet violations maar mag doorgaan (niet blokkerend)
+  - **Rich dialog:** Breakdown per violation type (errors/warnings)
+  - **Intelligent feedback:** "10 dagen te veel opeenvolgende werkdagen" ipv 10 aparte meldingen
+- ✅ **Excel HR Layout Migration** - HR-conforme export layout
+  - **New row structure:** Empty row 1, header row 2 met "mmm/jj" datum, column headers row 3
+  - **HR color scheme:** Feestdagen geel, weekends oranje, werkdagen grijs
+  - **Priority coloring:** Feestdag > Weekend > Werkdag in data cellen
+  - **Professional format:** Merged cells, borders, consistent widths
+- 🎉 **HR VALIDATIE SYSTEEM 100% COMPLEET (38/38 uur):**
+  - FASE 1-4: Core logic, DB integration, UI integration, pre-publicatie (28u - v0.6.26)
+  - FASE 5: Typetabel pre-validatie (10u - v0.6.27)
+  - **7 HR regels:** 12u rust, 50u/week, 19 dagen/cyclus, 7 dagen tussen RX, 7 werkdagen reeks, max weekends, nacht→vroeg
+  - **Real-time feedback:** Rode/gele overlays in planning grid
+  - **On-demand validatie:** "Valideer Planning" knop voor batch check
+  - **Pre-publicatie warning:** Soft warning voor publiceren
+  - **Pre-activatie warning:** Soft warning voor typetabel activatie
+  - **13 automated tests:** All passed
+
+### Versie 0.6.26.2 (10 November 2025)
+- ✅ **HR Violations Deduplicatie** - Accurate counting in summary box
+  - **Fix:** 10-daagse reeks toont nu 1 item ipv 10 aparte items
+  - **Smart formatting:** "Te veel werkdagen: 10 dagen (1 jan - 10 jan)"
+  - **Object ID deduplicatie:** Gebruikt Python object ID voor accurate counts
+- ✅ **Cache Toggle Feature** - Performance testing configuratie
+  - **Toggle:** `ENABLE_VALIDATION_CACHE` in config.py
+  - **Purpose:** Test batch vs direct queries op netwerk database
+
+### Versie 0.6.26.1 (8 November 2025)
+- ✅ **Alle realtime validatie uitgeschakeld**
+  - **Latency problemen:** Live testen toonden latency problemen aan 
+  - **Nieuwe nummering:** Fork gemaakt naar 0.6.26.1
+  - **Design change:** Alle realtime validatie uitgeschakeld, validatie op aanroepcl
+
+### Versie 0.6.26 (4 November 2025)
 - ✅ **HR Validatie Waarschuwing bij Publicatie** - Informed decision making
   - **Pre-validatie:** Alle gebruikers worden gevalideerd (alle 6 HR checks)
   - **Waarschuwing:** Bij violations verschijnt dialoog met alle gebruikers + counts
@@ -1519,5 +1592,5 @@ Deze tool is voor **alle teams met self-rostering**, niet alleen interventie. He
 *Voor recente development sessies: zie DEV_NOTES.md*
 *Voor historische sessies: zie DEV_NOTES_ARCHIVE.md*
 
-*Laatste update: 27 Oktober 2025*
-*Versie: 0.6.18*
+*Laatste update: 10 November 2025*
+*Versie: 0.6.26.2*

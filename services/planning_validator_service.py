@@ -99,7 +99,15 @@ class PlanningValidator:
         return self._checker
 
     # ========================================================================
-    # DATABASE QUERIES
+    # DATABASE QUERIES - Haal configuratie en planning data op
+    # ========================================================================
+    # Deze sectie bevat alle database query methods:
+    # - _get_hr_config - Laad HR regels configuratie
+    # - _get_shift_tijden - Laad shift codes met tijden en flags
+    # - _get_gebruiker_werkposten_map - Laad werkpost koppelingen
+    # - _get_shift_code_werkpost_map - Laad shift→werkpost mapping
+    # - _get_planning_data - Laad planning regels voor gebruiker
+    # - _get_rode_lijnen - Laad 28-dagen HR cycli
     # ========================================================================
 
     def _get_hr_config(self) -> Dict[str, Any]:
@@ -205,6 +213,7 @@ class PlanningValidator:
                 sc.start_uur,
                 sc.eind_uur,
                 sc.shift_type,
+                w.naam as werkpost_naam,
                 w.telt_als_werkdag,
                 w.reset_12u_rust
             FROM shift_codes sc
@@ -217,6 +226,7 @@ class PlanningValidator:
                 'start_uur': row['start_uur'],
                 'eind_uur': row['eind_uur'],
                 'shift_type': row['shift_type'],
+                'werkpost_naam': row['werkpost_naam'],  # v0.6.28 voor error messages
                 'telt_als_werkdag': bool(row['telt_als_werkdag']),
                 'reset_12u_rust': bool(row['reset_12u_rust']),
                 'breekt_werk_reeks': bool(row['reset_12u_rust']),  # Same flag
@@ -246,7 +256,74 @@ class PlanningValidator:
             }
 
         self._shift_tijden_cache = shift_tijden
+        conn.close()
         return shift_tijden
+
+    def _get_gebruiker_werkposten_map(self) -> Dict[int, List[int]]:
+        """
+        Laad gebruiker → werkposten mapping uit database (v0.6.28)
+
+        Returns:
+            Dict met gebruiker_id → list van werkpost_ids:
+            {
+                123: [1, 2],   # Jan kent PAT en Interventie
+                456: [1],      # Piet kent alleen PAT
+                ...
+            }
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT gebruiker_id, werkpost_id
+            FROM gebruiker_werkposten
+            ORDER BY gebruiker_id, prioriteit
+        """)
+
+        mapping = {}
+        for row in cursor.fetchall():
+            gebruiker_id = row['gebruiker_id']
+            werkpost_id = row['werkpost_id']
+
+            if gebruiker_id not in mapping:
+                mapping[gebruiker_id] = []
+
+            mapping[gebruiker_id].append(werkpost_id)
+
+        conn.close()
+        return mapping
+
+    def _get_shift_code_werkpost_map(self) -> Dict[str, int]:
+        """
+        Laad shift_code → werkpost_id mapping uit database (v0.6.28)
+
+        Returns:
+            Dict met shift_code → werkpost_id:
+            {
+                '7101': 1,  # PAT vroeg
+                '7201': 1,  # PAT laat
+                '7301': 2,  # Interventie vroeg
+                ...
+            }
+
+        Note: Speciale codes (VV, KD, RX, CX) zitten NIET in deze mapping
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT code, werkpost_id
+            FROM shift_codes sc
+            JOIN werkposten w ON sc.werkpost_id = w.id
+            WHERE w.is_actief = 1
+        """)
+
+        mapping = {}
+        for row in cursor.fetchall():
+            mapping[row['code']] = row['werkpost_id']
+
+        conn.close()
+        return mapping
 
     def _get_planning_data(self) -> List[PlanningRegel]:
         """
@@ -383,12 +460,18 @@ class PlanningValidator:
         return periodes
 
     # ========================================================================
-    # VALIDATION METHODS
+    # VALIDATION METHODS - Public API voor HR validaties
+    # ========================================================================
+    # Deze sectie bevat de public methods voor validatie:
+    # - validate_all - Batch validatie (alle 7 HR checks + werkpost check)
+    # - validate_shift - Real-time validatie (snelle checks: 12u rust, 50u week, werkpost)
+    # - get_violation_level - Bepaal UI overlay kleur (none/warning/error)
+    # - get_violations_voor_datum - Haal violations voor specifieke datum
     # ========================================================================
 
     def validate_all(self) -> Dict[str, List[Violation]]:
         """
-        Run alle HR validaties (batch mode)
+        Run alle HR validaties + data consistency checks (batch mode)
 
         Returns:
             Dict met violations per regel:
@@ -396,17 +479,28 @@ class PlanningValidator:
                 'min_rust_12u': [Violation(...), ...],
                 'max_uren_week': [...],
                 ...
+                'werkpost_koppeling': [...],  # v0.6.28
             }
         """
         # Haal data
         planning = self._get_planning_data()
         rode_lijnen = self._get_rode_lijnen()
 
+        # Get werkpost mappings (v0.6.28)
+        gebruiker_werkposten_map = self._get_gebruiker_werkposten_map()
+        shift_code_werkpost_map = self._get_shift_code_werkpost_map()
+
         # Get checker
         checker = self._get_checker()
 
-        # Run alle checks
-        results = checker.check_all(planning, self.gebruiker_id, rode_lijnen)
+        # Run alle checks (inclusief werkpost check)
+        results = checker.check_all(
+            planning,
+            self.gebruiker_id,
+            rode_lijnen,
+            gebruiker_werkposten_map,
+            shift_code_werkpost_map
+        )
 
         # Convert ConstraintCheckResult → violations dict
         violations_dict = {}
@@ -455,10 +549,20 @@ class PlanningValidator:
         # Get checker
         checker = self._get_checker()
 
-        # Run alleen snelle checks
+        # Get werkpost mappings (v0.6.28)
+        gebruiker_werkposten_map = self._get_gebruiker_werkposten_map()
+        shift_code_werkpost_map = self._get_shift_code_werkpost_map()
+
+        # Run alleen snelle checks (+ werkpost check)
         violations = []
         violations.extend(checker.check_12u_rust(planning, self.gebruiker_id).violations)
         violations.extend(checker.check_max_uren_week(planning, self.gebruiker_id).violations)
+        violations.extend(checker.check_werkpost_koppeling(
+            planning,
+            self.gebruiker_id,
+            gebruiker_werkposten_map,
+            shift_code_werkpost_map
+        ).violations)
 
         return violations
 

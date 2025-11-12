@@ -56,7 +56,7 @@ class GridKalenderBase(QWidget):
             query += " WHERE is_actief = 1 AND gebruikersnaam != 'admin'"
         else:
             query += " WHERE gebruikersnaam != 'admin'"
-        query += " ORDER BY volledige_naam"
+        query += " ORDER BY is_reserve, achternaam, voornaam"
 
         cursor.execute(query)
         nieuwe_gebruikers_data = cursor.fetchall()

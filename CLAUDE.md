@@ -95,7 +95,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Version Numbering Pattern:
 - Pattern: `0.6.X` where X increments sequentially
 - Examples: `0.6.9` → `0.6.10` → `0.6.11` → `0.6.12` → `0.6.13`
-- Major features may increment to `0.7.0`, `0.8.0`, etc.
+- Major features do not increment to `0.7.0`, `0.8.0`, etc.
+- After 0.6.26 there was a fork `0.6.26.1` for testing with realtime validation disabled
 - Release 1.0 planned for December 2025
 
 ### Quick Reference:
@@ -106,8 +107,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Planning Tool** - A shift scheduling application for self-rostering teams, built with Python and PyQt6. The application manages team schedules, leave requests, shift codes, and schedule templates (typetabellen) for shift-based work environments.
 
-**Current Version:** 0.6.26 (Beta)
-**Status:** Active development - HR Validatie Systeem (74% compleet: Core ✅ + UI ✅ + Pre-Publicatie ✅)
+**Current Version:** 0.6.28 (Beta)
+**Status:** Active development - Database Schema Uitbreiding (Voornaam/Achternaam Split)
 
 ## Running the Application
 
@@ -237,6 +238,17 @@ A **typetabel** is a repeating schedule pattern (1-52 weeks) used to auto-genera
 - Only 1 typetabel can be ACTIEF at a time
 - Each user has a `startweek_typedienst` (1 to N) to offset their position in the pattern
 - Multi-post support via shift codes with post numbers (V1, V2, L1, L2, etc.)
+
+**Pre-Activatie Validatie Workflow (v0.6.26.2 - FASE 5):**
+1. **Bewerken** - Maak/bewerk typetabel in concept status
+2. **Valideer** - Test HR regels VOOR activatie (theoretisch patroon, 2.5 cycli simulatie)
+   - **Theoretisch patroon:** 1 dummy gebruiker, geen feestdagen, start op maandag (Week 1 Dag 1)
+   - **Controleert:** 12u rust, 50u/week, 19 dagen/cyclus, RX spacing, werk reeksen, weekends, nacht→vroeg
+   - **Toont duidelijk rapport:** errors/warnings breakdown met exacte locaties (Week X, Dagnaam)
+   - **Advies:** bewerk of activeer (max 10 violations per type getoond)
+3. **Activeren** - Zet typetabel live (incl. automatische pre-validatie check)
+   - Bij violations: warning dialog met Ja/Nee keuze
+   - Violations blokkeren NIET maar waarschuwen wel
 
 ### Shift Codes System
 Two-tier system:
@@ -601,17 +613,22 @@ if 'versie_naam' not in columns:
 ## Roadmap
 
 **For v1.0 (December 2025):**
-- 🔄 HR Validatie Systeem (74% COMPLEET - v0.6.26)
+- ✅ HR Validatie Systeem (100% COMPLEET - v0.6.26.2)
   - ✅ 7 HR regels geïmplementeerd (12u rust, 50u/week, 19 dagen/cyclus, 7 dagen tussen RX/CX, 7 werkdagen reeks, max weekends, nacht→vroeg)
   - ✅ Rode/gele overlay + tooltips bij violations (planner_grid_kalender.py)
   - ✅ HR Summary Box onderaan grid (real-time feedback)
   - ✅ "Valideer Planning" knop voor on-demand batch check
   - ✅ Pre-publicatie validatie warning (soft warning, blokkeren niet)
   - ✅ 13 automated test scenarios (ALL PASSED)
-  - ⏸️ Typetabel pre-activatie check (FASE 5 - pending)
-  - **Effort:** 28/38 uur (FASE 1-4 compleet)
-  - **Files:** `services/constraint_checker.py` (1600 lines), `services/planning_validator_service.py` (540 lines)
-- ⏸️ Typetabel activation flow with pre-validation (FASE 5)
+  - ✅ Typetabel pre-activatie check (FASE 5 - v0.6.26.2)
+    - Aparte "Valideer" knop op concept typetabellen
+    - Theoretisch patroon simulatie (1 dummy gebruiker, geen feestdagen, start maandag)
+    - 2.5 cycli simulatie met alle 7 HR checks
+    - Duidelijk resultaten rapport met exacte locaties (Week X, Dagnaam)
+    - Max 10 violations per type getoond + "... en X meer"
+    - Automatische check tijdens activatie flow
+  - **Effort:** 30/38 uur (ALLE FASES compleet)
+  - **Files:** `services/constraint_checker.py` (1600 lines), `services/planning_validator_service.py` (540 lines), `gui/screens/typetabel_beheer_screen.py` (1183 lines)
 - ✅ HR rules management UI (compleet + term-based configuratie voor nacht→vroeg)
 - Complete planning editor (bulk operaties, validatie feedback) ← concept/gepubliceerd ✅ compleet in v0.6.15
 - Export functionality (Excel to HR) ← Basis ✅ compleet in v0.6.15, uitbreidingen pending

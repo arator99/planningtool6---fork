@@ -17,7 +17,7 @@ from pathlib import Path
 import sys
 import re
 
-BUILD_DATE = "oktober 2025"
+BUILD_DATE = "November 2025"
 #DEVELOPERS = "Ontwikkeld door:\n• Aerts Bob (Lead Developer - I-O.112)\n• Claude (AI Assistant - Anthropic)"
 
 

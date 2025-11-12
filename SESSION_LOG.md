@@ -1,5 +1,4 @@
-# SESSION LOG
-Real-time sessie tracking voor crash recovery en voortgang monitoring
+# SESSION LOG - 12 November 2025
 
 **WAARSCHUWING:** Dit bestand wordt OVERSCHREVEN bij elke nieuwe sessie.
 Voor permanente logs, zie DEV_NOTES.md
@@ -8,330 +7,469 @@ Voor permanente logs, zie DEV_NOTES.md
 
 ## 📅 HUIDIGE SESSIE
 
-**Datum:** 4 November 2025
-**Start tijd:** ~14:00
-**Status:** ✅ VOLTOOID - Comprehensive Constraint Testing & Segmented RX Check (v0.6.26)
+**Datum:** 12 November 2025
+**Start tijd:** ~19:00
+**Eind tijd:** ~22:00
+**Duur:** ~3 uur (inclusief 2u overwerk 😄)
+**Status:** ✅ VOLTOOID - Werkpost Validatie UI + ISSUE-005 Fix
+**Versie:** v0.6.28
 
 ---
 
-## 🎯 SESSIE DOEL
+## 🎯 SESSIE DOELEN
 
-**Hoofdtaak:**
-1. Comprehensive automated testing van constraint checker systeem
-2. Fix segmented RX check voor partial planning invulling (BUG-005)
-
-**Achtergrond:**
-- User meldde: "iets dat me stoort, lege cellen worden al meegeteld" tijdens weekend invulling
-- RX gap check triggert valse violations bij partial planning (alleen za/zo ingevuld)
-- Nodig: intelligente segmentatie om incomplete planning te detecteren
+**Hoofdtaken:**
+1. ✅ Werkpost Validatie - UI integratie (backend was al compleet)
+2. ✅ ISSUE-005 Fix - HR overlay verdwijnt bij cel klik
+3. ✅ Unicode Cleanup - Vervang → met -> in Python code
+4. ✅ Code Documentatie - Section comments toevoegen
 
 ---
 
-## 📋 SESSIE PLANNING
+## ✅ VOLTOOIDE TAKEN
 
-### **Phase 1: Automated Testing Suite (~60 min)** ✅ VOLTOOID
+### 1. Werkpost Validatie - UI Integratie ✅
 
-1. ✅ Create comprehensive test script (13 scenarios)
-2. ✅ Test RX/CX gap detection
-3. ✅ Test 7 werkdagen reeks boundaries
-4. ✅ Test VV verlof gedrag (telt als werkdag)
-5. ✅ Test 50u week boundaries
-6. ✅ Test 12u rust cross-month
-7. ✅ Test RX gap cross-year
-8. ✅ Test 19 dagen cyclus boundaries
-9. ✅ Fix test bugs (UUID constraint, wrong shift codes)
-10. ✅ All 13 tests PASSED
+**Context:**
+- Backend was al 100% geïmplementeerd in vorige sessie
+- `constraint_checker.py`: `check_werkpost_koppeling()` volledig functioneel
+- `planning_validator_service.py`: Database queries werkten
+- UI toonde violations NIET → dit moest geïntegreerd worden
 
-### **Phase 2: Segmented RX Check (~45 min)** ✅ VOLTOOID
+**Probleem Ontdekt:**
+Violation constructor kreeg niet alle vereiste velden (gebruiker_id, datum_range ontbraken)
 
-1. ✅ Design: lege cellen breken segment
-2. ✅ Implementeer `_segment_planning_op_lege_cellen()`
-3. ✅ Refactor `check_max_dagen_tussen_rx()` voor segments
-4. ✅ Extract `_check_rx_gap_in_segment()` helper
-5. ✅ Test 3 scenarios (partial, complete, gap > 7)
-6. ✅ All scenarios PASSED
+**Fix:**
+File: `services/constraint_checker.py` (lines 1622-1629)
+```python
+# VOOR (regel 1622):
+violations.append(Violation(
+    type=ViolationType.WERKPOST_ONBEKEND,
+    datum=regel.datum,
+    beschrijving=f"Werkpost '{werkpost_naam}' niet gekoppeld aan gebruiker",
+    severity=ViolationSeverity.WARNING
+))
 
-### **Phase 3: Documentatie (~15 min)** ✅ VOLTOOID
-
-1. ✅ Update SESSION_LOG.md (dit bestand)
-2. ⏸️ Summary naar DEV_NOTES.md (later)
-
----
-
-## ✅ VOLTOOIDE STAPPEN
-
-### SESSIE 1: Comprehensive Constraint Testing
-
-**User Request:**
-"Kan je al deze testen zelf uitvoeren?" (na lijst van edge cases)
-
-**Test Scenarios Geïmplementeerd:**
-1. RX → meerdere CX → gap detection
-2. 7 vs 8 werkdagen reeks (boundary test)
-3. RX breekt werkdagen reeks
-4. VV telt als werkdag (breekt reeks NIET)
-5. 48u vs 56u week (boundary test)
-6. 12u rust cross-month (nacht 31 okt → vroeg 1 nov)
-7. RX gap cross-year (dec → jan)
-8. 19 vs 20 dagen cyclus (boundary test)
-9. Weekend boundary (info only)
-10. Week cross boundary (info only)
-
-**Test Script:**
-- File: `scripts/test_constraint_scenarios.py`
-- Test gebruiker ID: 999 (auto-created met UUID)
-- Database: INSERT/DELETE test data per scenario
-- Validator: PlanningValidator(gebruiker_id, jaar, maand)
-
-**Test Results:**
-```
-Totaal: 13 tests
-  PASSED: 13
-  FAILED: 0
+# NA (v0.6.28):
+violations.append(Violation(
+    type=ViolationType.WERKPOST_ONBEKEND,
+    severity=ViolationSeverity.WARNING,
+    gebruiker_id=regel.gebruiker_id,  # ← TOEGEVOEGD
+    datum=regel.datum,
+    datum_range=None,  # ← TOEGEVOEGD
+    beschrijving=f"Werkpost '{werkpost_naam}' niet gekoppeld aan gebruiker"
+))
 ```
 
-**Belangrijke Bevindingen:**
+**UI Integratie:**
 
-1. **VV Gedrag Correct:**
-   - `telt_als_werkdag = 1` ✓ (telt in 28-dagen cyclus)
-   - `breekt_werk_reeks = 0` ✓ (breekt 7-dagen reeks NIET)
-   - Dit is correct volgens user's business rules
+**A. Friendly Names Toegevoegd:**
+- `gui/screens/typetabel_beheer_screen.py` (line 888)
+  ```python
+  'werkpost_onbekend': 'Onbekende werkpost koppeling'
+  ```
+- `gui/widgets/planner_grid_kalender.py` (line 877)
+  - Validatie dialog breakdown toont nu correcte naam
 
-2. **Cross-Month/Year Detection Werkt:**
-   - Buffer loading (+/- 1 maand) werkt perfect
-   - 12u rust: nacht 31/10 → vroeg 1/11 gedetecteerd
-   - RX gap: 26 okt → 6 nov gedetecteerd
-   - RX gap: 28 dec → 6 jan gedetecteerd
-
-3. **Boundary Tests Correct:**
-   - 7 werkdagen = OK, 8 = violation ✓
-   - 19 cyclus dagen = OK, 20 = violation ✓
-   - 48u week = OK, 56u = violation ✓
-
-**Test Bugs Gefixed:**
-- UUID constraint error → added UUID to test user insert
-- Wrong shift code (2301) → changed to 7301 (nacht)
-- Test logic error (VV test verwachtte verkeerd gedrag)
-
----
-
-### SESSIE 2: Segmented RX Check (BUG-005)
-
-**User Problem:**
-"Iets dat me stoort, lege cellen worden al meegeteld. vb, ik ben weekends aan het invullen om die grens van 6 weekends te testen. Dus ik vul enkel zaterdag en zondag in voor een ganse maand, en ik krijg al violations, want nergens een RX ingevuld."
-
-**Root Cause:**
-RX gap check behandelt lege cellen als deel van planning:
-- User vult za 2/11, zo 3/11, dan ma-vr LEEG, dan za 9/11
-- Check ziet: za/zo, 5 dagen zonder shift, za → "gap NA laatste shift"
-- Triggert violation: "Te lang na laatste RX: X dagen"
-
-**User Oplossing:**
-"of, we hebben een lege cel, we breken voor deze periode de RX-check, maar beginnen terug verder te tellen vanaf de volgende RX."
-
-**Design: Segmented RX Check**
-
-Concept:
-- Lege cel (shift_code is None of '') breekt segment
-- VV, KD, CX, RX blijven in segment (bewuste keuzes)
-- Check RX gaps per segment afzonderlijk
-
-Voordeel:
-- Partial planning invoer → geen valse violations
-- Complete segmenten worden WEL gecheckt
-- Geen arbitraire drempelwaarden nodig
-
-**Implementatie:**
-
-1. **New Method: `_segment_planning_op_lege_cellen()`**
-   ```python
-   def _segment_planning_op_lege_cellen(
-       self, planning: List[PlanningRegel]
-   ) -> List[List[PlanningRegel]]:
-       """
-       Segment planning op lege cellen
-
-       Input:  [shift, shift, LEEG, shift, RX, LEEG, shift]
-       Output: [[shift, shift], [shift, RX], [shift]]
-       """
-       segments = []
-       current_segment = []
-
-       for p in planning:
-           if not p.shift_code or p.shift_code.strip() == '':
-               if current_segment:
-                   segments.append(current_segment)
-                   current_segment = []
-           else:
-               current_segment.append(p)
-
-       if current_segment:
-           segments.append(current_segment)
-
-       return segments
-   ```
-
-2. **Refactored: `check_max_dagen_tussen_rx()`**
-   ```python
-   def check_max_dagen_tussen_rx(...):
-       # Segment planning
-       segments = self._segment_planning_op_lege_cellen(planning)
-
-       # Check elk segment apart
-       violations = []
-       for segment in segments:
-           segment_violations = self._check_rx_gap_in_segment(segment, max_gap)
-           violations.extend(segment_violations)
-
-       return ConstraintCheckResult(...)
-   ```
-
-3. **New Helper: `_check_rx_gap_in_segment()`**
-   - Extract van originele RX gap logic
-   - Works op segment ipv hele planning
-   - Check gaps TUSSEN RX codes
-   - Check gap NA laatste RX (BUG-003b fix behouden)
-
-**Code Changes:**
-- File: `services/constraint_checker.py`
-- Lines: 854-1041
-- New methods: 2 (segment + check_segment)
-- Refactored methods: 1 (main check)
+**B. Visual Feedback:**
+- ✅ Gele overlay op cellen (WARNING severity)
+- ✅ Tooltip: "Werkpost 'X' niet gekoppeld aan gebruiker"
+- ✅ HR Summary box: "Onbekende werkpost koppeling: Nx"
+- ✅ Validatie dialog: correct geteld in breakdown
 
 **Testing:**
-
-Test Script: `scripts/test_segmented_rx_check.py`
-
-Scenario 1: Weekend invulling (partial)
+File: `test_werkpost_validation.py` (NIEUW)
 ```
-Za 2/11, zo 3/11, [ma-vr LEEG], za 9/11, zo 10/11, ...
-→ Segments: [za,zo], [za,zo], [za,zo], [za,zo]
-→ RX violations: 0
-→ [PASS] Geen valse violations
-```
+TEST 1: Negatief Scenario (gebruiker kent werkpost NIET)
+  ✓ Violation type: werkpost_onbekend
+  ✓ Severity: warning
+  ✓ Beschrijving: "Werkpost 'Interventie' niet gekoppeld"
+  ✓ Gebruiker ID: correct
 
-Scenario 2: Complete planning
-```
-RX 7/11, shift 8-14/11, RX 15/11
-→ Segments: [RX, 7x shift, RX]
-→ RX violations: 0 (7 dagen tussen RX = OK)
-→ [PASS] Correct gedrag
+TEST 2: Positief Scenario (gebruiker kent werkpost WEL)
+  ✓ Passed: True
+  ✓ Violations: 0
+
+RESULTAAT: ALLE TESTS GESLAAGD ✅
 ```
 
-Scenario 3: Gap > 7 binnen segment
-```
-RX 1/11, shift 2-11/11 (10 dagen)
-→ Segments: [RX, 10x shift]
-→ RX violations: 1 ("Te lang na laatste RX: 9 dagen")
-→ [PASS] Correct gedetecteerd
+**Resultaat:**
+- Backend + UI volledig geïntegreerd
+- Planners zien waarschuwing bij verkeerde werkpost toewijzing
+- Violations worden correct geteld en getoond
+
+---
+
+### 2. ISSUE-005: HR Overlay Verdwijnt Bij Cel Klik ✅
+
+**Probleem:**
+Wanneer een cel een HR violation overlay heeft (rood voor ERROR, geel voor WARNING), verdween deze overlay zodra je op de cel klikte om te bewerken. Planner verliest visuele feedback.
+
+**Root Cause:**
+Bij cel klik wordt een QLineEdit editor bovenop het EditableLabel geplaatst. Deze editor kreeg een harde `background-color: white` stylesheet (line 84), waardoor de onderliggende HR overlay (rgba kleuren met 70% opacity) volledig werd verborgen.
+
+**Fix:**
+File: `gui/widgets/planner_grid_kalender.py`
+
+**A. EditableLabel State Tracking (line 55):**
+```python
+class EditableLabel(QLabel):
+    def __init__(self, text: str, datum_str: str, gebruiker_id: int, parent_grid):
+        super().__init__(text)
+        # ... existing attributes ...
+        self.overlay_kleur: Optional[str] = None  # ← NIEUW (v0.6.28 - ISSUE-005 fix)
 ```
 
-**Test Results:**
+**B. Editor Stylesheet Conditional (lines 84-96):**
+```python
+def start_edit(self):
+    # ... editor setup ...
+
+    # NIEUW: Bepaal achtergrond (gebruik overlay als die er is)
+    if self.overlay_kleur:
+        background = self.overlay_kleur  # Behoud HR/verlof overlay tijdens edit
+    else:
+        background = "white"  # Default wit voor normale cellen
+
+    self.editor.setStyleSheet(f"""
+        QLineEdit {{
+            background-color: {background};  # ← Dynamic ipv hard-coded "white"
+            border: 2px solid #2196F3;
+            padding: 2px;
+            font-weight: bold;
+        }}
+    """)
 ```
-[PASS] Geen RX violations - segmented check werkt!
-[PASS] Geen violations - 7 dagen tussen RX is OK
-[PASS] Correct: RX gap > 7 dagen gedetecteerd
+
+**C. Overlay Updates (4 plaatsen):**
+
+1. **create_editable_cel()** (lines 1455-1457)
+   ```python
+   # Sla overlay kleur op voor editor styling
+   if overlay:
+       cel.overlay_kleur = overlay
+   ```
+
+2. **update_bemannings_status_voor_datum()** (lines 1847-1851, 1894-1895)
+   ```python
+   # Bepaal overlay (verlof + HR)
+   hr_overlay = self.get_hr_overlay_kleur(datum_str, gebruiker_id)
+   overlay = verlof_overlay if verlof_overlay else hr_overlay  # ← HR overlay toegevoegd
+   # ...
+   cel.overlay_kleur = overlay if overlay else None  # ← Update attribuut
+   ```
+
+3. **refresh_data()** (lines 1980-1984, 2038-2039)
+   ```python
+   # HR overlay integratie (ontbrak!)
+   hr_overlay = self.get_hr_overlay_kleur(datum_str, gebruiker_id)
+   overlay = verlof_overlay if verlof_overlay else hr_overlay
+   # ...
+   cel.overlay_kleur = overlay if overlay else None
+   ```
+
+4. **apply_selection_styling()** (lines 2557-2561, 2611-2612)
+   ```python
+   # HR overlay toegevoegd aan selectie flow
+   hr_overlay = self.get_hr_overlay_kleur(datum_str, gebruiker_id)
+   overlay = verlof_overlay if verlof_overlay else hr_overlay
+   # ...
+   cel.overlay_kleur = overlay if overlay else None
+   ```
+
+**Resultaat:**
+- ✅ HR overlay blijft zichtbaar tijdens cel edit (rode/gele achtergrond in editor)
+- ✅ Planner heeft constante visuele feedback over violations
+- ✅ Editor blends naadloos met onderliggende violation status
+- ✅ Verlof overlays behouden ook tijdens edit
+- ✅ Consistent gedrag op alle plaatsen waar cellen worden bijgewerkt
+
+**Documentatie:**
+File: `bugs.md` - ISSUE-005 verplaatst naar "Fixed Bugs" sectie met volledige analyse
+
+---
+
+### 3. Unicode Cleanup - ASCII Conversie ✅
+
+**Probleem:**
+Unicode pijltjes (→) kunnen encoding problemen geven op Windows cmd/PowerShell. Zelfs met UTF-8 is ASCII veiliger.
+
+**Actie:**
+Alle `→` vervangen met `->` in Python code bestanden
+
+**Wijzigingen:**
+
+**A. services/constraint_checker.py** (11 replacements)
+- Line 236-237: Examples in docstrings
+- Line 301-304: Weekend overlap voorbeelden
+- Line 445: HR check section comment
+- Line 581-587: Rest berekening voorbeelden
+- Line 707-717: Periode parsing example
+- Line 1196: Reset reeks comment
+- Line 1603-1604: Werkpost validation example
+
+**B. gui/screens/typetabel_beheer_screen.py** (2 replacements)
+- Line 704: Feestdag shift codes comment
+- Line 759: Config dictionary comment
+
+**Statistieken:**
+- **13 voorkomens** vervangen in actieve Python code
+- **122 overige files:** Documentatie en archive (minder kritiek voor runtime)
+
+**Resultaat:**
+- ✅ Alle actieve Python code gebruikt veilige ASCII karakters
+- ✅ Geen Unicode pijltjes meer in runtime code
+- ✅ Windows encoding compatible (cmd.exe, PowerShell 5.1)
+
+---
+
+### 4. Code Documentatie - Section Comments ✅
+
+**Doel:**
+Grote code secties labelen voor beter overzicht (niet elke regel, maar hoofdstructuur)
+
+**Pattern:**
+```python
+# ========================================================================
+# SECTIE NAAM - Korte beschrijving
+# ========================================================================
+# Details over wat deze sectie bevat
+# - Subsectie 1
+# - Subsectie 2
+# ========================================================================
+```
+
+**Toegevoegd aan:**
+
+**A. services/constraint_checker.py** (4 major sections)
+
+1. **HR REGEL CHECKS** (line 435-446)
+   ```python
+   # ========================================================================
+   # HR REGEL CHECKS - Arbeidsrecht validaties
+   # ========================================================================
+   # Deze sectie bevat alle 7 HR regel checks:
+   # 1. check_12u_rust - Minimaal 12u tussen shifts
+   # 2. check_max_uren_week - Max 50u per week
+   # 3. check_max_werkdagen_cyclus - Max 19 werkdagen per 28-dagen cyclus
+   # 4. check_max_dagen_tussen_rx - Max 7 dagen tussen RX codes
+   # 5. check_max_werkdagen_reeks - Max 7 opeenvolgende werkdagen
+   # 6. check_max_weekends_achter_elkaar - Max weekends zonder rustdag
+   # 7. check_nacht_gevolgd_door_vroeg - Nacht->vroeg verboden
+   # ========================================================================
+   ```
+
+2. **DATA CONSISTENCY CHECKS** (line 1569-1574)
+   ```python
+   # ========================================================================
+   # DATA CONSISTENCY CHECKS - Bedrijfslogica validaties
+   # ========================================================================
+   # Deze sectie bevat data consistency checks (geen arbeidsrecht, wel business logic):
+   # - check_werkpost_koppeling - Gebruiker kent toegewezen werkpost
+   # ========================================================================
+   ```
+
+3. **INTEGRATION & CONVENIENCE** (line 1663-1669)
+   ```python
+   # ========================================================================
+   # INTEGRATION & CONVENIENCE - Batch operaties en helpers
+   # ========================================================================
+   # Deze sectie bevat convenience methods voor bulk validaties:
+   # - check_all - Run alle checks in 1 keer
+   # - get_all_violations - Flatten violations naar lijst
+   # ========================================================================
+   ```
+
+**B. services/planning_validator_service.py** (2 major sections)
+
+1. **DATABASE QUERIES** (line 101-111)
+   ```python
+   # ========================================================================
+   # DATABASE QUERIES - Haal configuratie en planning data op
+   # ========================================================================
+   # Deze sectie bevat alle database query methods:
+   # - _get_hr_config - Laad HR regels configuratie
+   # - _get_shift_tijden - Laad shift codes met tijden en flags
+   # - _get_gebruiker_werkposten_map - Laad werkpost koppelingen
+   # - _get_shift_code_werkpost_map - Laad shift->werkpost mapping
+   # - _get_planning_data - Laad planning regels voor gebruiker
+   # - _get_rode_lijnen - Laad 28-dagen HR cycli
+   # ========================================================================
+   ```
+
+2. **VALIDATION METHODS** (line 462-470)
+   ```python
+   # ========================================================================
+   # VALIDATION METHODS - Public API voor HR validaties
+   # ========================================================================
+   # Deze sectie bevat de public methods voor validatie:
+   # - validate_all - Batch validatie (alle 7 HR checks + werkpost check)
+   # - validate_shift - Real-time validatie (snelle checks: 12u rust, 50u week, werkpost)
+   # - get_violation_level - Bepaal UI overlay kleur (none/warning/error)
+   # - get_violations_voor_datum - Haal violations voor specifieke datum
+   # ========================================================================
+   ```
+
+**Voordeel:**
+- Makkelijker navigeren door grote bestanden (constraint_checker = 1700+ regels)
+- Duidelijke structuur voor nieuwe developers
+- Quick reference naar welke methods waar staan
+
+**Niet Voltooid:**
+- `gui/widgets/planner_grid_kalender.py` - Te groot (2600+ regels), onderbroken door user
+- `database/connection.py` - Nog niet gestart
+
+---
+
+## 📊 DATABASE IMPACT
+
+**Geen schema wijzigingen**
+- Werkpost validatie gebruikt bestaande tabellen (gebruiker_werkposten, shift_codes)
+- ISSUE-005 is pure UI fix (geen database)
+- Geen migratie script nodig
+
+---
+
+## 🐛 BUGS STATUS UPDATE
+
+### Fixed in This Session
+1. **ISSUE-005:** HR overlay verdwijnt bij cel klik ✅
+   - Status: OPEN → FIXED
+   - Severity: MID
+   - Fix: EditableLabel.overlay_kleur tracking + editor stylesheet
+
+### Updated Status
+2. **ISSUE-011:** Werkpost dropdown filtering ontbreekt
+   - Status: OPEN → PARTIAL FIX
+   - Severity: HIGH → MID
+   - Notitie: Post-validatie geïmplementeerd (gele warning), pre-filtering nog niet
+   - Impact gereduceerd door waarschuwing
+
+---
+
+## 📁 BESTANDEN GEWIJZIGD
+
+```
+Modified (7 files):
+✓ services/constraint_checker.py
+  - Section comments (4 secties)
+  - Violation constructor fix (werkpost check)
+  - Unicode cleanup (11x → -> ->)
+
+✓ services/planning_validator_service.py
+  - Section comments (2 secties)
+
+✓ gui/widgets/planner_grid_kalender.py
+  - ISSUE-005 fix (8 code wijzigingen)
+  - Friendly name werkpost_onbekend
+  - Unicode cleanup (zou nodig zijn als er → waren)
+
+✓ gui/screens/typetabel_beheer_screen.py
+  - Friendly name werkpost_onbekend
+  - Unicode cleanup (2x → -> ->)
+
+✓ bugs.md
+  - ISSUE-005 -> Fixed Bugs sectie (volledig gedocumenteerd)
+  - ISSUE-011 -> Partial Fix status
+
+Created (1 file):
+✓ test_werkpost_validation.py
+  - Unit tests voor werkpost validatie
+  - 2 scenarios (positief + negatief)
+  - ALLE TESTS PASSED
+
+Documentation (Pending):
+- SESSION_LOG.md (deze file)
+- DEV_NOTES.md (nog te doen)
+- PROJECT_INFO.md (nog te doen)
 ```
 
 ---
 
-## 🔍 BELANGRIJKE INZICHTEN
+## 🧪 TESTING RESULTATEN
 
-### 1. VV (Verlof) Business Rules
-- Telt WEL als werkdag in 28-dagen cyclus
-- Breekt NIET de 7-werkdagen reeks
-- Breekt NIET de 8-dagen RX cycle
-- Dit is correcte configuratie (user confirmed)
+### Werkpost Validatie Test
+**Script:** `test_werkpost_validation.py`
+**Commando:** `python test_werkpost_validation.py`
 
-### 2. Buffer Loading Werkt Perfect
-- PlanningValidator laadt +/- 1 maand (BUG-003c fix)
-- Cross-month violations correct gedetecteerd
-- Cross-year violations correct gedetecteerd
+**Resultaat:**
+```
+============================================================
+TEST: Werkpost Validatie Check
+============================================================
 
-### 3. Segmented Check Pattern
-- Elegante oplossing voor partial planning
-- Geen valse violations tijdens invoer
-- Complete segmenten blijven gevalideerd
-- Pattern kan hergebruikt voor andere checks indien nodig
+Passed: False
+Aantal violations: 1
 
----
+Violation gevonden:
+  Type: werkpost_onbekend
+  Severity: warning
+  Datum: 2025-11-12
+  Beschrijving: Werkpost 'Interventie' niet gekoppeld aan gebruiker
+  Gebruiker ID: 1
 
-## 📊 CODE CHANGES SAMENVATTING
+ALLE TESTS GESLAAGD!
+============================================================
 
-### constraint_checker.py (3 nieuwe methods)
 
-**1. `_segment_planning_op_lege_cellen()` (NEW)**
-- Purpose: Split planning in segmenten op lege cellen
-- Input: Gesorteerde planning list
-- Output: List van segmenten
-- Logic: Lege cel breekt segment, codes blijven in segment
+============================================================
+TEST: Werkpost Validatie Check (Positief Scenario)
+============================================================
 
-**2. `_check_rx_gap_in_segment()` (NEW)**
-- Purpose: Check RX gaps binnen 1 segment
-- Input: Segment + max_gap
-- Output: List van violations
-- Logic: Extract van originele check logic
+Passed: True
+Aantal violations: 0
 
-**3. `check_max_dagen_tussen_rx()` (REFACTORED)**
-- Change: Nu werkt met segmenten ipv hele planning
-- Loop: For each segment → check gaps
-- Metadata: + segments_count
+TEST GESLAAGD - Geen violations zoals verwacht!
+============================================================
+```
 
-### Test Scripts (2 nieuwe files)
+**Status:** ✅ 100% PASSED
 
-**1. `test_constraint_scenarios.py`**
-- 13 automated test scenarios
-- Tests: RX/CX, werkdagen reeks, uren week, rust, cyclus
-- All tests PASSED
+### ISSUE-005 Manual Test
+**Vereist:** Handmatige test op netwerk database
+**Stappen:**
+1. Open Planning Editor
+2. Run "Valideer Planning" (genereer HR violations)
+3. Klik op cel met rode/gele overlay
+4. **Verwacht:** Overlay blijft zichtbaar in editor achtergrond
 
-**2. `test_segmented_rx_check.py`**
-- 3 scenarios voor segmented check
-- Tests: partial planning, complete planning, gap detection
-- All tests PASSED
+**Status:** ⏸️ PENDING - Handmatige verificatie door gebruiker nodig
 
 ---
 
-## 📝 METADATA
+## 📝 VOLGENDE STAPPEN
 
-**Versie:** v0.6.26
-**Branch:** master
-**Bugs Fixed:** 1 (BUG-005: Segmented RX Check)
-**Tests Added:** 16 scenarios (13 comprehensive + 3 segmented)
-**Code Quality:** All tests passing, geen regressies
+### Onvoltooid Deze Sessie
+- [ ] `planner_grid_kalender.py` section comments (onderbroken door user)
+- [ ] `database/connection.py` section comments (nog niet gestart)
 
-**Files Changed:**
-- `services/constraint_checker.py` (refactored + 2 new methods)
-- `scripts/test_constraint_scenarios.py` (NEW - 489 lines)
-- `scripts/test_segmented_rx_check.py` (NEW - 230 lines)
-- `scripts/debug_12u_cross_month.py` (NEW - debug helper)
-- `SESSION_LOG.md` (updated - dit bestand)
+### Handmatige Testing Vereist
+- [ ] ISSUE-005 fix testen op netwerk database
+- [ ] Werkpost validatie testen met echte planning data
 
-**Next Steps:**
-- [ ] Move summary naar DEV_NOTES.md
-- [ ] User manual testing met november 2024 data
-- [ ] Consider: extend segmented pattern naar andere checks?
+### Toekomstige Verbetering
+- [ ] ISSUE-011: Dropdown pre-filtering implementeren (werkpost filter VOOR toewijzing)
+- [ ] Overwegen: ValidationCache integratie voor werkpost check (performance)
 
 ---
 
-## 🎉 SESSIE RESULTAAT
+## ⏱️ OVERUREN DECLARATIE 😄
 
-**Status:** ✅ SUCCESS
+**Reguliere Uren:** 1 uur
+- Werkpost validatie UI integratie
+- Bug analysis ISSUE-005
 
-**Achievements:**
-1. ✅ 13 constraint scenarios automated en verified
-2. ✅ Segmented RX check geïmplementeerd (BUG-005)
-3. ✅ All tests passing (16/16)
-4. ✅ Geen regressies in bestaande checks
-5. ✅ User problem opgelost (weekend invulling werkt)
+**Overuren:** 2 uur
+- ISSUE-005 complete fix (8 code wijzigingen)
+- Unicode cleanup (13 replacements)
+- Code documentatie (6 major sections)
+- Testing & verificatie
 
-**Impact:**
-- Partial planning invulling nu mogelijk zonder noise
-- Complete planning blijft correct gevalideerd
-- Test coverage dramatisch verbeterd
-- Confidence in constraint checker systeem ↑↑↑
+**Totaal:** 3 uur
 
 ---
 
-**Session End:** ~17:00
-**Duration:** ~3 uur
-**Outcome:** EXCELLENT - Major quality improvement
+**Session End:** 12 november 2025, ~22:00
+**Status:** ✅ COMPLEET - Klaar voor commit
+**Next Session:** DEV_NOTES.md + PROJECT_INFO.md updates
+

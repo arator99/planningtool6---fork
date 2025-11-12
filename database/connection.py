@@ -131,7 +131,7 @@ def create_tables(cursor):
         )
     """)
 
-    # Gebruikers tabel (UPDATED met UUID, shift_voorkeuren v0.6.11, theme_voorkeur v0.6.12)
+    # Gebruikers tabel (UPDATED met UUID, shift_voorkeuren v0.6.11, theme_voorkeur v0.6.12, voornaam/achternaam v0.6.28)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS gebruikers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -139,6 +139,8 @@ def create_tables(cursor):
             gebruikersnaam TEXT UNIQUE NOT NULL,
             wachtwoord_hash BLOB NOT NULL,
             volledige_naam TEXT NOT NULL,
+            voornaam TEXT,
+            achternaam TEXT,
             rol TEXT NOT NULL CHECK(rol IN ('planner', 'teamlid')),
             is_reserve BOOLEAN DEFAULT 0,
             startweek_typedienst INTEGER CHECK(startweek_typedienst BETWEEN 1 AND 6),
@@ -421,14 +423,16 @@ def seed_admin_user(cursor):
     admin_uuid = str(uuid.uuid4())
 
     cursor.execute("""
-        INSERT INTO gebruikers 
-        (gebruiker_uuid, gebruikersnaam, wachtwoord_hash, volledige_naam, rol, 
-         is_reserve, startweek_typedienst, is_actief, aangemaakt_op)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO gebruikers
+        (gebruiker_uuid, gebruikersnaam, wachtwoord_hash, volledige_naam, voornaam, achternaam,
+         rol, is_reserve, startweek_typedienst, is_actief, aangemaakt_op)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     """, (
         admin_uuid,
         'admin',
         wachtwoord_hash,
+        'Administrator',
+        '',
         'Administrator',
         'planner',
         0,
