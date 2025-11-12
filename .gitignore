@@ -1,1 +1,33 @@
+# Exports
 exports/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build artifacts
+build/
+dist/*.exe
+dist/*.zip
+*.spec
+
+# Database backups
+data/*.backup.*.db
+
+# Temp files
+nul
+*.tmp
+~$*
+
+# Excel temp files
+voorbeeld*.xlsx
+
+# IDE
+.idea/workspace.xml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
