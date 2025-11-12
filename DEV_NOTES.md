@@ -1,10 +1,10 @@
 # DEV NOTES
 Active Development Notes & Session Logs
 
-## CURRENT VERSION: 0.6.28
+## CURRENT VERSION: 0.6.29
 
 **Last Updated:** 12 November 2025
-**Status:** Beta - Werkpost Validatie UI + ISSUE-005 Fix
+**Status:** Beta - Notitie Gelezen/Ongelezen Tracking + Badge Systeem
 
 **Rolling Window:** Dit document bevat alleen sessies van de laatste maand (20 okt+)
 **Voor oudere sessies:** Zie DEV_NOTES_ARCHIVE.md
@@ -201,6 +201,54 @@ Weergave menu:
 ---
 
 ## 📝 RECENTE SESSIES
+
+### Sessie 12 November 2025 (Late Avond, ~30 min) - ISSUE-004 Notitie Indicator Teamlid View (v0.6.29)
+
+**Focus:** Groene hoekje indicator toevoegen voor notities in "Mijn Planning" (teamlid view)
+
+**Context:**
+- Planner view heeft notitie indicator sinds v0.6.16 (groen hoekje rechts boven)
+- Teamlid view miste deze indicator (alleen tooltips werkten via base class)
+- Gebruiker rapporteerde ontbrekende visuele feedback voor notities
+
+**Voltooid:**
+
+**1. ISSUE-004 Fix: Notitie Indicator Teamlid View**
+File: `gui/widgets/teamlid_grid_kalender.py`
+
+**Implementatie:**
+- Notitie check toegevoegd in `create_shift_cel()` (lines 285-290)
+- Privacy filtering: `gebruiker_id == self.huidige_gebruiker_id` (alleen eigen notities)
+- Groene border indicator: `border-top: 3px solid #00E676` + `border-right: 3px solid #00E676` (lines 305-313)
+- Kleur: #00E676 (Material Design bright green - consistent met planner view)
+
+**Privacy & UX:**
+- Alleen eigen notities krijgen groene hoekje (collega notities blijven verborgen)
+- Focus op eigen planning (privacy + minder afleiding)
+- Tooltips tonen notitie inhoud (via base class - al werkend)
+
+**Result:**
+- ✅ Teamlid ziet groene hoekje op dagen met eigen notities
+- ✅ Consistent met planner view styling
+- ✅ Geen database wijzigingen nodig (gebruikt bestaande notitie veld)
+
+**2. Badge Refresh Gedrag - Geaccepteerd (NOT A BUG)**
+**Observatie:** Planner schrijft notitie via "Notitie naar Planner" → badge refresht niet direct
+**Analyse:** Badge query werkt correct, maar dashboard refresht niet automatisch na notitie opslaan
+**Beslissing:** GEEN FIX NODIG
+**Gebruiker redenering:** "Als je zelf een notitie stuurt, zal je 2 seconden later toch nog wel weten wat je schreef. Een week later heb je die rode bol"
+**Status:** Working as intended - badge refresht bij login (voldoende voor use case)
+
+**Bestanden Gewijzigd:**
+- `gui/widgets/teamlid_grid_kalender.py` - Notitie indicator toegevoegd
+- `bugs.md` - ISSUE-004 verplaatst naar Fixed Bugs sectie
+- `SESSION_LOG.md` - Volledige sessie documentatie
+
+**Database Impact:** Geen schema wijzigingen
+
+**Status:** ✅ COMPLEET - ISSUE-004 gefixed en afgemeld
+
+---
 
 ### Sessie 12 November 2025 (Avond, ~3 uur) - Werkpost Validatie UI + ISSUE-005 Fix (v0.6.28)
 

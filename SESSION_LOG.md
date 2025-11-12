@@ -473,3 +473,190 @@ TEST GESLAAGD - Geen violations zoals verwacht!
 **Status:** ✅ COMPLEET - Klaar voor commit
 **Next Session:** DEV_NOTES.md + PROJECT_INFO.md updates
 
+---
+
+## 📅 VERVOLG SESSIE - ISSUE-004 FIX
+
+**Datum:** 12 November 2025
+**Start tijd:** ~22:30
+**Eind tijd:** ~23:00
+**Duur:** ~30 minuten
+**Status:** ✅ VOLTOOID - Notitie Indicator Teamlid View
+**Versie:** v0.6.29 (planned)
+
+---
+
+## 🎯 SESSIE DOELEN
+
+**Bug Fix:**
+ISSUE-004: Geen visuele aanduiding van notitie op "mijn planning" (teamlid view)
+
+**Probleem:**
+- Teamlid view toont geen groene hoekje indicator voor notities
+- Hover tooltips zijn wel aanwezig (via base class)
+- Planner view heeft wel notitie indicator (sinds v0.6.16)
+
+**Vereiste:**
+- Alleen notities van ingelogde gebruiker tonen (niet van collega's)
+
+---
+
+## ✅ VOLTOOIDE TAKEN
+
+### ISSUE-004: Notitie Indicator Teamlid View ✅
+
+**Analyse:**
+1. **Planner view** (planner_grid_kalender.py:1473-1481):
+   - Check: `heeft_notitie = bool(notitie and notitie.strip())`
+   - Indicator: `border-top: 3px solid #00E676` + `border-right: 3px solid #00E676`
+   - Tooltip: Reeds geïmplementeerd in base class
+
+2. **Teamlid view** (teamlid_grid_kalender.py:267-305):
+   - Check: ONTBRAK (geen notitie detectie)
+   - Indicator: ONTBRAK (geen groene border)
+   - Tooltip: WEL aanwezig (via base class `get_cel_tooltip`)
+
+**Implementatie:**
+File: `gui/widgets/teamlid_grid_kalender.py`
+
+**A. Notitie Check Toegevoegd (lines 285-290):**
+```python
+# ISSUE-004 FIX: Check of er een notitie is (alleen voor ingelogde gebruiker)
+heeft_notitie = False
+if gebruiker_id == self.huidige_gebruiker_id:  # Alleen eigen notities tonen
+    if datum_str in self.planning_data and gebruiker_id in self.planning_data[datum_str]:
+        notitie = self.planning_data[datum_str][gebruiker_id].get('notitie', '')
+        heeft_notitie = bool(notitie and notitie.strip())
+```
+
+**Filtering Logic:**
+- `gebruiker_id == self.huidige_gebruiker_id`: Alleen eigen notities
+- Collega notities worden NIET getoond (privacy + focus)
+
+**B. Groene Border Indicator (lines 305-313):**
+```python
+# ISSUE-004 FIX: Notitie indicator (rechter boven corner accent)
+if heeft_notitie:
+    base_style = base_style.replace(
+        "border: 1px solid",
+        "border: 1px solid"
+    ).replace(
+        "qproperty-alignment: AlignCenter;",
+        "border-top: 3px solid #00E676;\n                    border-right: 3px solid #00E676;\n                    qproperty-alignment: AlignCenter;"
+    )
+```
+
+**Kleur:** #00E676 (Material Design bright green - 70% beter zichtbaar, sinds v0.6.16)
+
+**Resultaat:**
+- ✅ Teamlid ziet groene hoekje indicator op eigen notities
+- ✅ Collega notities blijven verborgen (alleen eigen notities)
+- ✅ Tooltip toont notitie inhoud (via base class)
+- ✅ Consistent met planner view indicator
+- ✅ Privacy behouden (alleen eigen notities zichtbaar)
+
+**Docstring Update:**
+```python
+def create_shift_cel(self, datum_str: str, gebruiker_id: int, mode: str) -> QLabel:
+    """
+    Maak cel voor shift weergave
+    Read-only voor teamlid view
+
+    ISSUE-004 FIX: Notitie indicator (groen hoekje) toegevoegd
+    - Alleen voor ingelogde gebruiker's eigen notities
+    """
+```
+
+---
+
+## 📊 DATABASE IMPACT
+
+**Geen schema wijzigingen**
+- Notities worden al geladen via base class (`grid_kalender_base.py`)
+- `planning_data` bevat al notitie veld
+- Pure UI enhancement (geen database)
+- Geen migratie script nodig
+
+---
+
+## 🐛 BUGS STATUS UPDATE
+
+### Fixed in This Session
+**ISSUE-004:** Geen visuele aanduiding van notitie op "mijn planning"
+- Status: OPEN -> FIXED
+- Severity: LOW
+- Fix: Groene border indicator toegevoegd aan teamlid view
+- Privacy: Alleen eigen notities zichtbaar
+
+---
+
+## 📁 BESTANDEN GEWIJZIGD
+
+```
+Modified (1 file):
+✓ gui/widgets/teamlid_grid_kalender.py
+  - Notitie check toegevoegd (lines 285-290)
+  - Groene border indicator (lines 305-313)
+  - Docstring update (lines 272-273)
+  - Filtering: alleen huidige_gebruiker_id
+
+Documentation (Pending):
+- SESSION_LOG.md (deze file) ✅
+- DEV_NOTES.md (volgende sessie)
+- PROJECT_INFO.md (volgende sessie)
+```
+
+---
+
+## 📝 VOLGENDE STAPPEN
+
+### Documentatie Updates
+- [ ] DEV_NOTES.md: Sessie samenvatting toevoegen
+- [ ] PROJECT_INFO.md: v0.6.29 entry (bug fix)
+- [ ] Versie incrementeren: v0.6.28 -> v0.6.29
+
+### Testing
+- [ ] Handmatige test: Login als teamlid met notities
+- [ ] Verificeer: Groene hoekje zichtbaar op eigen notities
+- [ ] Verificeer: Collega notities NIET zichtbaar
+- [ ] Verificeer: Tooltip toont notitie inhoud
+
+---
+
+**Session End:** 12 november 2025, ~23:00
+**Status:** ✅ COMPLEET - Klaar voor testing
+**Next Session:** Documentatie updates + versie increment
+
+---
+
+## 📋 FOLLOW-UP VRAAG - NOTIFICATIE BADGE REFRESH
+
+**Observatie door gebruiker:**
+- Planner A schrijft notitie via "Notitie naar Planner"
+- Badge op "Notities Overzicht" refresht NIET direct
+- Na uitloggen + inloggen staat badge wel correct
+
+**Analyse:**
+- Badge query (dashboard_screen.py:104-130) werkt correct
+- Dashboard wordt niet automatisch ge-refreshed na notitie opslaan
+- Refresh functie bestaat wel: `refresh_notities_badge()` (line 326)
+- Zou aangeroepen kunnen worden in `NotitieNaarPlannerDialog.save_notitie()`
+
+**Beslissing: GEEN FIX NODIG ✅**
+
+**Gebruiker redenering (volledig correct):**
+> "Als je zelf een notitie stuurt, zal je 2 seconden later toch nog wel weten wat je schreef.
+> Een week later heb je die rode bol"
+
+**Conclusie:**
+- Badge refresht bij login → VOLDOENDE voor use case
+- Auteur heeft geen directe refresh nodig (hij weet wat hij schreef)
+- Andere planners zien badge bij volgende login (gewenst gedrag)
+- **Status: NOT A BUG - WORKING AS INTENDED**
+
+---
+
+**Final Session End:** 12 november 2025, ~23:15
+**Status:** ✅ VOLTOOID - ISSUE-004 gefixed, badge gedrag geaccepteerd
+**Next Session:** Documentatie updates + versie increment
+

@@ -2,13 +2,38 @@
 Roostersysteem voor Self-Rostering Teams
 
 ## VERSIE INFORMATIE
-**Huidige versie:** 0.6.28 (Beta)
+**Huidige versie:** 0.6.29 (Beta)
 **Release datum:** 12 November 2025
-**Status:** Bug Fixes + Code Quality Improvements
+**Status:** Notitie Gelezen/Ongelezen Tracking + Badge Systeem
 
 ---
 
 ## WAT IS NIEUW
+
+### Versie 0.6.29 (12 November 2025)
+- ✅ **Database Schema Uitbreiding** - Notitie Gelezen/Ongelezen Tracking
+  - **Nieuwe kolom:** notitie_gelezen (BOOLEAN DEFAULT 0) in planning tabel
+  - **Migratie script:** upgrade_to_v0_6_29.py voor safe upgrade
+  - **Standaard waarde:** 0 (alles ongelezen bij eerste migratie)
+- ✅ **Rode Badge Systeem** - Visuele notificatie voor ongelezen notities
+  - **Dashboard Planning tab:** Rode bol met cijfer bij "Notities Overzicht" knop
+  - **Pattern:** Analoog aan verlof goedkeuring badge (50x50px cirkel, rechts in knop)
+  - **Query:** Tel notities met `[Naam]:` prefix (niet `[Planner]:`) en `notitie_gelezen = 0`
+  - **Real-time update:** Badge refresht na markeren als gelezen
+- ✅ **Notities Overzicht Scherm** - Centrale notitie management voor planners
+  - **Tabel met 5 kolommen:** ID (verborgen), Datum, Teamlid, Notitie, Status (Ongelezen/Gelezen)
+  - **Filter opties:** Alle notities / Alleen ongelezen (dropdown)
+  - **Multi-selectie:** Selecteer meerdere notities tegelijk
+  - **Markeer als gelezen:** Knop onderaan voor bulk operatie
+  - **Visual feedback:** Ongelezen notities in bold, kleuren per status (rood/groen)
+  - **Sortering:** Nieuwste eerst (datum DESC)
+- ✅ **Navigation Integratie**
+  - **Signal:** notities_overzicht_clicked in dashboard_screen.py
+  - **Handler:** on_notities_overzicht_clicked() in main.py
+  - **Dashboard reference:** Doorgegeven voor badge refresh functionaliteit
+- ✅ **Planning Editor Ongewijzigd**
+  - **Groen hoekje blijft altijd zichtbaar:** Geen onderscheid gelezen/ongelezen in grid
+  - **User feedback:** Planner wilde alle notities zichtbaar, ongeacht status
 
 ### Versie 0.6.28 (11-12 November 2025)
 - ✅ **Database Schema Uitbreiding** - Voornaam/Achternaam Split
@@ -891,6 +916,92 @@ Geen migratie nodig - automatisch correct aangemaakt.
 ---
 
 ## VOLLEDIGE VERSIE GESCHIEDENIS
+
+### v0.6.29 (12 November 2025) - Notitie Indicator Teamlid View
+**ISSUE-004 fix: Groene hoekje indicator voor notities in "Mijn Planning"**
+
+**Bug Fixes:**
+- **ISSUE-004: Notitie Indicator Teamlid View**
+  - Probleem: Teamleden zagen geen visuele indicator voor notities (alleen tooltips)
+  - Planner view had wel indicator sinds v0.6.16 (groen hoekje rechts boven)
+  - Oplossing: Groene border indicator toegevoegd aan teamlid view
+  - Privacy: Alleen eigen notities krijgen indicator (collega notities verborgen)
+  - Implementatie: `teamlid_grid_kalender.py:create_shift_cel()`
+  - Check: `gebruiker_id == huidige_gebruiker_id` voor privacy filtering
+  - Styling: `border-top: 3px solid #00E676` + `border-right: 3px solid #00E676`
+  - Kleur: #00E676 (Material Design bright green - consistent met planner view)
+
+**UX Observatie - Badge Refresh (NOT A BUG):**
+- Planner schrijft notitie via "Notitie naar Planner" → badge refresht niet direct
+- Badge query werkt correct, dashboard refresht alleen niet automatisch
+- Beslissing: GEEN FIX NODIG
+- Redenering: Auteur weet wat hij schreef, badge is voor "een week later" of collega-planners
+- Status: Working as intended - badge refresht bij login
+
+**Technisch:**
+- `gui/widgets/teamlid_grid_kalender.py`: Notitie indicator logic
+- Geen database wijzigingen (gebruikt bestaande notitie veld)
+
+**Impact:**
+- ✓ Teamleden zien groene hoekje op dagen met eigen notities
+- ✓ Consistent met planner view indicator
+- ✓ Privacy behouden (alleen eigen notities zichtbaar)
+
+---
+
+### v0.6.28 (12 November 2025) - Werkpost Validatie UI + ISSUE-005 Fix
+**Werkpost validation user feedback + HR overlay persistence fix**
+
+**Nieuwe Features:**
+- **Werkpost Validatie - UI Integratie**
+  - Backend was al compleet (constraint_checker.py), UI integration ontbrak
+  - Probleem: Violation constructor kreeg niet alle vereiste velden
+  - Fix: gebruiker_id en datum_range parameters toegevoegd (constraint_checker.py:1622-1629)
+  - Friendly name: 'werkpost_onbekend' → 'Onbekende werkpost koppeling'
+  - Visual feedback: Gele overlay (WARNING severity), tooltip, HR Summary box
+  - Testing: test_werkpost_validation.py met 2 scenarios (positief + negatief)
+  - Result: Planners zien waarschuwing bij verkeerde werkpost toewijzing
+
+**Bug Fixes:**
+- **ISSUE-005: HR Overlay Verdwijnt Bij Cel Klik**
+  - Probleem: HR violation overlay (rood/geel) verdween bij cel klik voor edit
+  - Root cause: QLineEdit editor had hard-coded `background-color: white`
+  - Oplossing (8 code changes):
+    - Added `overlay_kleur: Optional[str]` attribute to EditableLabel (line 55)
+    - Modified editor stylesheet to use overlay color if present (lines 84-96)
+    - Updated overlay in 4 methods: create_editable_cel(), update_bemannings_status_voor_datum(), refresh_data(), apply_selection_styling()
+  - Discovered: HR overlay ontbrak in update flows (alleen verlof overlay was applied)
+  - Result: HR overlay blijft zichtbaar tijdens cel edit, verlof overlays ook behouden
+
+- **ISSUE-002: Kolom Sortering op Achternaam**
+  - Probleem: Kolommen gesorteerd op volledige_naam (voornaam eerst)
+  - Database uitbreiding: voornaam + achternaam kolommen toegevoegd
+  - Parse logica: laatste woord = voornaam, rest = achternaam
+  - SQL sortering: `ORDER BY is_reserve, achternaam, voornaam`
+  - Migratie: upgrade_to_v0_6_28.py
+  - Impact: Vaste mensen eerst (op achternaam), dan reserves (op achternaam)
+
+**Code Quality:**
+- **Unicode Cleanup:** 13x → vervangen met -> in Python code (ASCII safe voor Windows)
+- **Code Documentatie:** Section comments in constraint_checker.py en planning_validator_service.py
+
+**Technisch:**
+- `services/constraint_checker.py`: Werkpost validation fix
+- `gui/widgets/planner_grid_kalender.py`: HR overlay persistence (8 changes)
+- `database/connection.py`: voornaam + achternaam kolommen
+- `migrations/upgrade_to_v0_6_28.py`: Database schema update
+
+**Database:**
+- Schema wijziging: voornaam TEXT, achternaam TEXT kolommen in gebruikers tabel
+- Migratie vereist: upgrade_to_v0_6_28.py
+
+**Impact:**
+- ✓ Werkpost validatie volledig geïntegreerd (backend + UI)
+- ✓ HR overlay blijft zichtbaar tijdens edit (constante feedback)
+- ✓ Teamleden correct gesorteerd (achternaam alfabetisch)
+- ✓ Vaste mensen en reserves gescheiden in lijst
+
+---
 
 ### v0.6.26 (4 November 2025) - HR Validatie Systeem Compleet
 **Pre-publicatie validatie + UX fixes + segmented validation + automated testing**

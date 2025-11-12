@@ -3,7 +3,7 @@
 Teamlid Grid Kalender
 Read-only kalender voor teamleden om eigen/collega shifts te bekijken
 """
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                              QComboBox, QScrollArea, QWidget, QGridLayout,
                              QCheckBox, QDialog, QDialogButtonBox)
@@ -268,6 +268,9 @@ class TeamlidGridKalender(GridKalenderBase):
         """
         Maak cel voor shift weergave
         Read-only voor teamlid view
+
+        ISSUE-004 FIX: Notitie indicator (groen hoekje) toegevoegd
+        - Alleen voor ingelogde gebruiker's eigen notities
         """
         # Haal shift code op
         shift_code = self.get_display_code(datum_str, gebruiker_id)
@@ -278,6 +281,13 @@ class TeamlidGridKalender(GridKalenderBase):
 
         # Check of dit het begin van een rode lijn periode is
         is_rode_lijn_start = datum_str in self.rode_lijnen_starts
+
+        # ISSUE-004 FIX: Check of er een notitie is (alleen voor ingelogde gebruiker)
+        heeft_notitie = False
+        if gebruiker_id == self.huidige_gebruiker_id:  # Alleen eigen notities tonen
+            if datum_str in self.planning_data and gebruiker_id in self.planning_data[datum_str]:
+                notitie = self.planning_data[datum_str][gebruiker_id].get('notitie', '')
+                heeft_notitie = bool(notitie and notitie.strip())
 
         # Maak label
         cel = QLabel(shift_code)
@@ -291,6 +301,17 @@ class TeamlidGridKalender(GridKalenderBase):
                 "qproperty-alignment: AlignCenter;",
                 "border-left: 4px solid #dc3545;\n                    qproperty-alignment: AlignCenter;"
             )
+
+        # ISSUE-004 FIX: Notitie indicator (rechter boven corner accent)
+        if heeft_notitie:
+            base_style = base_style.replace(
+                "border: 1px solid",
+                "border: 1px solid"
+            ).replace(
+                "qproperty-alignment: AlignCenter;",
+                "border-top: 3px solid #00E676;\n                    border-right: 3px solid #00E676;\n                    qproperty-alignment: AlignCenter;"
+            )
+
         cel.setStyleSheet(base_style)
 
         # Tooltip
@@ -314,7 +335,13 @@ class TeamlidGridKalender(GridKalenderBase):
 
 
 class FilterDialog(QDialog):
-    """Dialog om teamleden te selecteren voor weergave"""
+    """
+    Dialog om teamleden te selecteren voor weergave
+
+    v0.6.28+ (ISSUE-011): Uitgebreid met werkpost filtering
+    - Selecteer werkposten om te plannen
+    - Filter gebruikers op werkpost kennis
+    """
 
     def __init__(self, gebruikers_data: List[Dict[str, Any]],
                  huidige_filter: Dict[int, bool],
@@ -324,17 +351,105 @@ class FilterDialog(QDialog):
         self.huidige_filter = huidige_filter.copy()
         self.checkboxes: Dict[int, QCheckBox] = {}
 
-        self.setWindowTitle("Filter Teamleden")
+        # NIEUW (ISSUE-011): Werkpost filtering
+        self.werkpost_checkboxes: Dict[int, QCheckBox] = {}
+        self.check_filter_op_werkpost: QCheckBox
+        self.check_toon_reserves: QCheckBox  # NIEUW: reserves filter
+        self.all_gebruiker_ids: Set[int] = {u['id'] for u in gebruikers_data}  # Alle beschikbare IDs
+        # Reserve IDs (sqlite3.Row heeft geen .get(), gebruik try/except of check keys)
+        self.reserve_gebruiker_ids: Set[int] = {
+            u['id'] for u in gebruikers_data
+            if 'is_reserve' in u.keys() and u['is_reserve']
+        }
+        # Onthoud originele checked state van reserves (voor restore bij toggle)
+        self.reserves_checked_state: Dict[int, bool] = {}
+        # Onthoud originele checked state van ALLE gebruikers (voor werkpost filter restore)
+        self.all_users_checked_state: Dict[int, bool] = {}
+
+        self.setWindowTitle("Filter Teamleden & Werkposten")
         self.setModal(True)
+        self.resize(650, 700)  # Groter voor werkpost sectie
         self.init_ui()
 
     def init_ui(self) -> None:
         layout = QVBoxLayout()
 
+        # NIEUW (ISSUE-011): Werkpost sectie bovenaan
+        from PyQt6.QtWidgets import QGroupBox
+        werkpost_group = QGroupBox("🏢 WERKPOST FILTER")
+        werkpost_layout = QVBoxLayout()
+
         # Info
-        info = QLabel("Selecteer welke teamleden je wilt zien in de planning:")
+        info_werkpost = QLabel("Selecteer werkposten om te zien:")
+        info_werkpost.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+        werkpost_layout.addWidget(info_werkpost)
+
+        # Scroll area voor werkposten
+        werkpost_scroll = QScrollArea()
+        werkpost_scroll.setWidgetResizable(True)
+        werkpost_scroll.setMaximumHeight(120)
+        werkpost_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+
+        werkpost_container = QWidget()
+        werkpost_container_layout = QVBoxLayout(werkpost_container)
+        werkpost_container_layout.setContentsMargins(5, 5, 5, 5)
+        werkpost_container_layout.setSpacing(3)
+
+        # Laad werkposten uit database
+        from database.connection import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, naam
+            FROM werkposten
+            WHERE is_actief = 1
+            ORDER BY naam
+        """)
+        werkposten = cursor.fetchall()
+        conn.close()
+
+        # Maak checkbox per werkpost
+        for werkpost in werkposten:
+            werkpost_id = werkpost['id']
+            werkpost_naam = werkpost['naam']
+
+            checkbox = QCheckBox(werkpost_naam)
+            checkbox.setChecked(True)  # Default: alle werkposten geselecteerd
+            checkbox.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+            checkbox.toggled.connect(self._on_werkpost_changed)  # type: ignore
+
+            self.werkpost_checkboxes[werkpost_id] = checkbox
+            werkpost_container_layout.addWidget(checkbox)
+
+        werkpost_scroll.setWidget(werkpost_container)
+        werkpost_layout.addWidget(werkpost_scroll)
+
+        # Filter op werkpost kennis checkbox
+        self.check_filter_op_werkpost = QCheckBox("Alleen teamleden die geselecteerde werkposten kennen")
+        self.check_filter_op_werkpost.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+        self.check_filter_op_werkpost.setChecked(False)  # Default uit
+        self.check_filter_op_werkpost.toggled.connect(self._on_werkpost_filter_changed)  # type: ignore
+        werkpost_layout.addWidget(self.check_filter_op_werkpost)
+
+        werkpost_group.setLayout(werkpost_layout)
+        layout.addWidget(werkpost_group)
+
+        # Teamleden sectie
+        from PyQt6.QtWidgets import QGroupBox
+        teamleden_group = QGroupBox("👥 TEAMLEDEN FILTER")
+        teamleden_layout = QVBoxLayout()
+
+        # Info
+        info = QLabel("Selecteer welke teamleden je wilt zien:")
         info.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
-        layout.addWidget(info)
+        teamleden_layout.addWidget(info)
+
+        # NIEUW: Toon reserves checkbox
+        self.check_toon_reserves = QCheckBox("Toon reserves")
+        self.check_toon_reserves.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+        self.check_toon_reserves.setChecked(True)  # Default: reserves tonen
+        self.check_toon_reserves.toggled.connect(self._on_reserves_filter_changed)  # type: ignore
+        teamleden_layout.addWidget(self.check_toon_reserves)
 
         # Quick filters
         quick_layout = QHBoxLayout()
@@ -349,12 +464,12 @@ class FilterDialog(QDialog):
         geen_btn.setStyleSheet(Styles.button_secondary())
         quick_layout.addWidget(geen_btn)
 
-        layout.addLayout(quick_layout)
+        teamleden_layout.addLayout(quick_layout)
 
         # Scroll area met checkboxes
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setMinimumHeight(300)
+        scroll.setMinimumHeight(250)
 
         scroll_widget = QWidget()
         scroll_layout = QVBoxLayout(scroll_widget)
@@ -362,14 +477,22 @@ class FilterDialog(QDialog):
         # Checkbox per gebruiker
         for gebruiker in self.gebruikers_data:
             checkbox = QCheckBox(f"{gebruiker['volledige_naam']} ({gebruiker['gebruikersnaam']})")
-            checkbox.setChecked(self.huidige_filter.get(gebruiker['id'], True))
+            initial_checked = self.huidige_filter.get(gebruiker['id'], True)
+            checkbox.setChecked(initial_checked)
             checkbox.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
             self.checkboxes[gebruiker['id']] = checkbox
+
+            # Onthoud initiële state voor alle gebruikers
+            self.all_users_checked_state[gebruiker['id']] = initial_checked
+
             scroll_layout.addWidget(checkbox)
 
         scroll_layout.addStretch()
         scroll.setWidget(scroll_widget)
-        layout.addWidget(scroll)
+        teamleden_layout.addWidget(scroll)
+
+        teamleden_group.setLayout(teamleden_layout)
+        layout.addWidget(teamleden_group)
 
         # Buttons
         buttons = QDialogButtonBox()
@@ -390,6 +513,152 @@ class FilterDialog(QDialog):
         """Deselecteer alle checkboxes"""
         for checkbox in self.checkboxes.values():
             checkbox.setChecked(False)
+
+    def _on_werkpost_changed(self) -> None:
+        """
+        Handle werkpost checkbox wijziging (ISSUE-011)
+
+        Update gebruiker checkboxes op basis van werkpost filter
+        """
+        # Alleen update doen als werkpost filter actief is
+        if self.check_filter_op_werkpost.isChecked():
+            self._update_gebruiker_checkboxes()
+
+    def _on_werkpost_filter_changed(self) -> None:
+        """
+        Handle werkpost filter checkbox wijziging (ISSUE-011)
+
+        Enable/disable gebruiker filtering op basis van werkpost kennis
+        """
+        self._update_gebruiker_checkboxes()
+
+    def _on_reserves_filter_changed(self) -> None:
+        """
+        Handle reserves filter checkbox wijziging
+
+        Toon/verberg reserve gebruikers
+        Bug fix: Herstel originele checked state bij tonen
+        """
+        toon_reserves = self.check_toon_reserves.isChecked()
+
+        for gebruiker_id, checkbox in self.checkboxes.items():
+            if gebruiker_id in self.reserve_gebruiker_ids:
+                # Dit is een reserve
+                if toon_reserves:
+                    # Toon reserve: enable en HERSTEL checked state
+                    # Check of werkpost filter actief is en deze gebruiker zou disablen
+                    if self.check_filter_op_werkpost.isChecked():
+                        # Laat werkpost filter de enabled state bepalen
+                        self._update_gebruiker_checkboxes()
+                    else:
+                        checkbox.setEnabled(True)
+
+                    # KRITIEK: Herstel originele checked state
+                    # Probeer eerst all_users_checked_state, dan reserves_checked_state
+                    if gebruiker_id in self.all_users_checked_state:
+                        checkbox.setChecked(self.all_users_checked_state[gebruiker_id])
+                    elif gebruiker_id in self.reserves_checked_state:
+                        checkbox.setChecked(self.reserves_checked_state[gebruiker_id])
+                    else:
+                        # Default: reserves zijn checked (standaard aan bij opstarten)
+                        checkbox.setChecked(True)
+                else:
+                    # Verberg reserve: sla huidige state op, dan disable en uncheck
+                    # Sla state op VOORDAT we unchecken (in beide dictionaries)
+                    self.all_users_checked_state[gebruiker_id] = checkbox.isChecked()
+                    self.reserves_checked_state[gebruiker_id] = checkbox.isChecked()
+
+                    checkbox.setEnabled(False)
+                    checkbox.setChecked(False)
+
+    def _update_gebruiker_checkboxes(self) -> None:
+        """
+        Update welke gebruiker checkboxes enabled/disabled zijn (ISSUE-011)
+
+        Als werkpost filter actief is, disable gebruikers die geen van de
+        geselecteerde werkposten kennen.
+
+        Ook rekening houden met reserves filter (verberg reserves optie).
+        """
+        # Check beide filters
+        werkpost_filter_actief = self.check_filter_op_werkpost.isChecked()
+        toon_reserves = self.check_toon_reserves.isChecked()
+
+        if not werkpost_filter_actief:
+            # Werkpost filter uit: enable gebruikers (maar respecteer reserves filter)
+            for gebruiker_id, checkbox in self.checkboxes.items():
+                is_reserve = gebruiker_id in self.reserve_gebruiker_ids
+
+                if is_reserve and not toon_reserves:
+                    # Reserve en reserves zijn verborgen: disable
+                    # Sla state op voordat we disablen
+                    self.all_users_checked_state[gebruiker_id] = checkbox.isChecked()
+                    checkbox.setEnabled(False)
+                    checkbox.setChecked(False)
+                else:
+                    # Enable en HERSTEL checked state
+                    checkbox.setEnabled(True)
+                    # Herstel opgeslagen state (of gebruik current state als die niet bestaat)
+                    if gebruiker_id in self.all_users_checked_state:
+                        checkbox.setChecked(self.all_users_checked_state[gebruiker_id])
+            return
+
+        # Werkpost filter aan: bepaal welke gebruikers geselecteerde werkposten kennen
+        geselecteerde_werkpost_ids = [
+            wp_id for wp_id, wp_checkbox in self.werkpost_checkboxes.items()
+            if wp_checkbox.isChecked()
+        ]
+
+        if not geselecteerde_werkpost_ids:
+            # Geen werkposten geselecteerd: disable alle gebruikers
+            for checkbox in self.checkboxes.values():
+                checkbox.setEnabled(False)
+                checkbox.setChecked(False)
+            return
+
+        # Query: welke gebruikers kennen minstens 1 van de geselecteerde werkposten?
+        from database.connection import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        placeholders = ','.join(['?'] * len(geselecteerde_werkpost_ids))
+        query = f"""
+            SELECT DISTINCT gebruiker_id
+            FROM gebruiker_werkposten
+            WHERE werkpost_id IN ({placeholders})
+        """
+        cursor.execute(query, geselecteerde_werkpost_ids)
+        results = cursor.fetchall()
+        conn.close()
+
+        # Set van gebruiker IDs die minstens 1 werkpost kennen
+        toegestane_gebruiker_ids = {row['gebruiker_id'] for row in results}
+
+        # Update checkboxes: enable/disable op basis van BEIDE filters
+        for gebruiker_id, checkbox in self.checkboxes.items():
+            is_reserve = gebruiker_id in self.reserve_gebruiker_ids
+            kent_werkpost = gebruiker_id in toegestane_gebruiker_ids
+
+            # Gebruiker is enabled ALS:
+            # 1. Kent de werkpost (werkpost filter)
+            # EN
+            # 2. Is geen reserve OF reserves worden getoond (reserves filter)
+            if kent_werkpost and (not is_reserve or toon_reserves):
+                checkbox.setEnabled(True)
+                # Bug fix: Herstel checked state (voor alle gebruikers, niet alleen reserves)
+                if gebruiker_id in self.all_users_checked_state:
+                    checkbox.setChecked(self.all_users_checked_state[gebruiker_id])
+                # Extra: ook reserves state
+                if is_reserve and gebruiker_id in self.reserves_checked_state:
+                    checkbox.setChecked(self.reserves_checked_state[gebruiker_id])
+            else:
+                # Sla checked state op VOORDAT we disablen
+                self.all_users_checked_state[gebruiker_id] = checkbox.isChecked()
+                if is_reserve:
+                    self.reserves_checked_state[gebruiker_id] = checkbox.isChecked()
+
+                checkbox.setEnabled(False)
+                checkbox.setChecked(False)  # Uncheck disabled users
 
     def get_filter(self) -> Dict[int, bool]:
         """Return filter dict"""

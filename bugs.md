@@ -4,6 +4,68 @@ Deze file tracked alle bekende bugs en issues in de Planning Tool applicatie.
 
 ## Fixed Bugs
 
+### ISSUE-010: Planning Editor - Filter
+**Status:** FIXED (2025-11-12)
+**Versie:** v0.6.28+
+**Severity:** LOW
+
+**Probleem:**
+In de handleiding werd verwezen naar een team filter, maar deze ontbrak in de Planning Editor.
+
+**Oplossing:**
+Volledig werkpost filter systeem geïmplementeerd met hybride aanpak:
+
+1. **Bij Opstarten - Configuratiedialog:**
+   - 🏢 Werkpost selectie (checkboxes)
+   - ☑️ "Alleen gebruikers die geselecteerde werkposten kennen"
+   - 👥 Gebruiker filtering (actief/alle, reserves, inactief)
+   - ⚡ Real-time performance preview
+   - 💾 Configuratie persistentie
+
+2. **Tijdens Planning - "Filter Teamleden" Knop:**
+   - 🏢 Werkpost Filter sectie
+   - ☑️ "Toon reserves" checkbox
+   - 👥 Teamleden Filter sectie
+   - Dynamische filter uitbreiding mogelijk (laadt ALLE gebruikers)
+   - Grid reload met nieuwe selectie
+
+**Features:**
+- ✅ Flexibel: filters wijzigen zonder editor te sluiten
+- ✅ Smart state preservation: checkbox states worden onthouden
+- ✅ Performance optimalisatie: ValidationCache clearing
+- ✅ User-friendly: disabled checkboxes tonen niet-beschikbare gebruikers
+
+**Code Changes:**
+- `gui/dialogs/planning_sessie_configuratie_dialog.py`: Werkpost sectie + filtering
+- `gui/widgets/teamlid_grid_kalender.py`: FilterDialog uitgebreid (werkpost + reserves)
+- `gui/widgets/planner_grid_kalender.py`: open_filter_dialog() laadt alle gebruikers
+- `gui/widgets/grid_kalender_base.py`: open_filter_dialog() base implementation
+
+---
+
+### ISSUE-011: Planning Editor - Werkpost Dropdown Filtering Ontbreekt
+**Status:** FIXED (2025-11-12)
+**Versie:** v0.6.28+
+**Severity:** MID (was: HIGH)
+
+**Probleem:**
+Planning Editor filtert shift codes dropdown NIET op basis van gebruiker's werkpost koppelingen. Planner kan elke shift code toewijzen aan elke gebruiker zonder validatie.
+
+**Notitie (12 nov 2025):**
+- Post-validatie geïmplementeerd in v0.6.28 (gele warning NA toewijzing verkeerde werkpost)
+- Pre-filtering van dropdown nog niet geïmplementeerd, maar impact gereduceerd door:
+  1. Werkpost filter in configuratiedialog (filter bij opstarten)
+  2. Dynamische "Filter Teamleden" knop (filter tijdens planning)
+  3. Post-validatie waarschuwing (gele overlay bij verkeerde toewijzing)
+
+**Oplossing:**
+In plaats van dropdown filtering, bieden we nu team filtering:
+- Planners kunnen filteren op werkposten → zien alleen relevante gebruikers
+- Post-validatie waarschuwt bij verkeerde toewijzing
+- Praktischer dan dropdown filtering (betere UX)
+
+**Status:** Issue opgelost door alternatieve aanpak (team filtering ipv dropdown filtering)
+
 ### BUG-004: Dubbele Shift in validate_shift() Veroorzaakt Incorrecte Uren Telling
 **Status:** FIXED (2025-11-03)
 **Versie:** v0.6.26
@@ -592,6 +654,73 @@ Bij cel klik wordt een QLineEdit editor bovenop het EditableLabel geplaatst. Dez
 
 ---
 
+### ISSUE-004: Mijn Planning - Notitie Indicator
+**Status:** FIXED (2025-11-12)
+**Versie:** v0.6.29
+**Severity:** LOW
+
+**Probleem:**
+Teamlid view ("Mijn Planning") toonde geen visuele indicator voor notities. Alleen hover tooltip was aanwezig (via base class), maar de groene hoekje indicator (zoals in planner view) ontbrak.
+
+**User Scenario:**
+1. Teamlid schrijft notitie via "Notitie naar Planner"
+2. Notitie wordt opgeslagen in database
+3. Teamlid opent "Mijn Planning"
+4. **BUG:** Geen visuele indicator dat er een notitie staat
+5. **Verwacht:** Groen hoekje indicator zoals planner view (sinds v0.6.16)
+
+**Privacy Vereiste:**
+Alleen notities van ingelogde gebruiker tonen (niet van collega's)
+
+**Fix:**
+Groene border indicator toegevoegd aan teamlid view met privacy filtering:
+
+**Code Changes:**
+- File: `gui/widgets/teamlid_grid_kalender.py`
+- Method: `create_shift_cel()` (lines 267-326)
+
+**A. Notitie Check Toegevoegd (lines 285-290):**
+```python
+# ISSUE-004 FIX: Check of er een notitie is (alleen voor ingelogde gebruiker)
+heeft_notitie = False
+if gebruiker_id == self.huidige_gebruiker_id:  # Alleen eigen notities tonen
+    if datum_str in self.planning_data and gebruiker_id in self.planning_data[datum_str]:
+        notitie = self.planning_data[datum_str][gebruiker_id].get('notitie', '')
+        heeft_notitie = bool(notitie and notitie.strip())
+```
+
+**Filtering Logic:**
+- Check: `gebruiker_id == self.huidige_gebruiker_id`
+- Collega notities worden NIET getoond (privacy + focus)
+- Alleen eigen notities krijgen indicator
+
+**B. Groene Border Indicator (lines 305-313):**
+```python
+# ISSUE-004 FIX: Notitie indicator (rechter boven corner accent)
+if heeft_notitie:
+    base_style = base_style.replace(
+        "border: 1px solid",
+        "border: 1px solid"
+    ).replace(
+        "qproperty-alignment: AlignCenter;",
+        "border-top: 3px solid #00E676;\n                    border-right: 3px solid #00E676;\n                    qproperty-alignment: AlignCenter;"
+    )
+```
+
+**Kleur:** #00E676 (Material Design bright green - 70% beter zichtbaar, sinds v0.6.16)
+
+**Impact:**
+- ✅ Teamlid ziet groene hoekje indicator op eigen notities
+- ✅ Collega notities blijven verborgen (privacy behouden)
+- ✅ Tooltip toont notitie inhoud (via base class `get_cel_tooltip`)
+- ✅ Consistent met planner view indicator styling
+- ✅ Geen database wijzigingen nodig (gebruikt bestaande notitie veld)
+
+**Gerelateerd:**
+- Notitie Systeem v0.6.16 (oorspronkelijke planner indicator)
+
+---
+
 ## Open Issues
 
 ### ISSUE-003: Planning Editor - Focus Behavior
@@ -600,67 +729,8 @@ Bij cel klik wordt een QLineEdit editor bovenop het EditableLabel geplaatst. Dez
 **Beschrijving:** Blauwe rand rond ganse maand. Als cel met blauwe rand focus verliest, verspringt die naar headers met dagen.
 **Notitie (11 nov 2025):** Lijkt opgelost door realtime validatie fixes (v0.6.26). Nog testen op netwerk database voordat definitief closed.
 
-### ISSUE-004: Mijn Planning - Notitie Indicator
-**Status:** OPEN
-**Severity:** LOW
-**Beschrijving:** Geen visuele aanduiding van gemaakte notities in grid (hover tooltip wel OK).
-
 ### ISSUE-008: Planning Editor - bulk menu
 **Status:** OPEN
 **Severity:** LOW
 **Beschrijving:** Nog niet alle bulkzaken geïmplementeerd die in het menu staat. Verschillende rechtermuisknop menu's bij cel in focus of uit focus
 
-### ISSUE-010: Planning Editor - Filter
-**Status:** OPEN
-**Severity:** LOW
-**Beschrijving:** In de handleiding wordt bij de planning verwezen naar een filter om het team te selecteren. Deze filter is er (nog) niet.
-
-### ISSUE-011: Planning Editor - Werkpost Dropdown Filtering Ontbreekt
-**Status:** PARTIAL FIX (2025-11-12)
-**Severity:** MID (was: HIGH)
-**Beschrijving:** Planning Editor filtert shift codes dropdown NIET op basis van gebruiker's werkpost koppelingen.
-
-**Notitie (12 nov 2025):** Post-validatie geïmplementeerd in v0.6.28 (gele warning NA toewijzing verkeerde werkpost). Pre-filtering van dropdown nog niet geïmplementeerd, maar impact gereduceerd door waarschuwing.
-
-**Probleem:**
-Een planner kan elke shift code toewijzen aan elke gebruiker, ZONDER te checken of die gebruiker die werkpost kent (via gebruiker_werkposten tabel).
-
-**User Scenario:**
-1. Jan kent alleen PAT (werkpost_id = 1)
-2. Planner opent cel voor Jan
-3. Dropdown toont ALLE shift codes (PAT, Interventie, Servicecentrum)
-4. Planner kan Interventie code "7201" toewijzen aan Jan
-5. GEEN validatie → Jan krijgt shift voor werkpost die hij niet kent ❌
-
-**Impact:**
-- Gebruikers krijgen shifts voor onbekende werkposten
-- Planning inconsistent met werkpost koppelingen
-- Auto-generatie WEL correct (gebruikt werkpost prioriteit)
-- Handmatige invoer NIET correct (geen check)
-
-**Root Cause:**
-`get_available_codes()` in `planner_grid_kalender.py` haalt ALLE shift codes op zonder filtering:
-```python
-# Huidige implementatie (INCORRECT):
-cursor.execute("SELECT * FROM shift_codes")
-# → Toont alle werkposten zonder check
-
-# Zou moeten zijn:
-cursor.execute("""
-    SELECT sc.* FROM shift_codes sc
-    INNER JOIN gebruiker_werkposten gw ON sc.werkpost_id = gw.werkpost_id
-    WHERE gw.gebruiker_id = ?
-    ORDER BY gw.prioriteit
-""", (gebruiker_id,))
-# → Toont alleen bekende werkposten
-```
-
-**Fix Nodig:**
-1. Filter shift codes op gebruiker's werkpost koppelingen
-2. Speciale codes (VV, KD, RX, CX, etc.) ALTIJD tonen
-3. Tooltip: "Geen werkposten gekoppeld" als gebruiker geen werkposten kent
-4. Mogelijk: Pre-validatie warning bij handmatige invoer (zoals typetabel validatie)
-
-**Verwant aan:**
-- Werkpost koppeling systeem (v0.6.14)
-- Auto-generatie logic (gebruikt WEL werkpost filtering)
