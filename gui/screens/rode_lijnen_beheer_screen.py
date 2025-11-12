@@ -288,9 +288,7 @@ class RodeLijnenBeheerScreen(QWidget):
             from services.data_ensure_service import regenereer_rode_lijnen_vanaf
             try:
                 toegevoegd = regenereer_rode_lijnen_vanaf(nieuwe_data['actief_vanaf'])
-                print(f"✓ Rode lijnen geregenereerd: {toegevoegd} periodes")
             except Exception as e:
-                print(f"✗ Fout bij regenereren rode lijnen: {e}")
                 QMessageBox.warning(
                     self,
                     "Waarschuwing",

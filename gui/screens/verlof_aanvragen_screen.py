@@ -592,8 +592,7 @@ class VerlofAanvragenScreen(QWidget):
 
             return None
 
-        except sqlite3.Error as e:
-            print(f"Error checking overlap: {e}")
+        except sqlite3.Error:
             return None
 
     def intrekken_aanvraag(self, aanvraag_id: int) -> None:

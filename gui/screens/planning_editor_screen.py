@@ -354,8 +354,7 @@ class PlanningEditorScreen(QWidget):
             else:
                 self.current_status = 'concept'
 
-        except Exception as e:
-            print(f"Fout bij laden status: {e}")
+        except Exception:
             self.current_status = 'concept'
 
     def update_status_ui(self):

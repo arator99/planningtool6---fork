@@ -68,11 +68,6 @@ class TermCodeService:
 
         # Fallback naar standaard code
         fallback = cls._FALLBACK_CODES.get(term, '')
-
-        if fallback:
-            print(f"⚠ Waarschuwing: Term '{term}' heeft geen code in database, "
-                  f"gebruik fallback '{fallback}'")
-
         return fallback
 
     @classmethod
@@ -115,8 +110,7 @@ class TermCodeService:
 
             cls._initialized = True
 
-        except sqlite3.Error as e:
-            print(f"❌ Fout bij laden term-code mapping: {e}")
+        except sqlite3.Error:
             # Bij fout: gebruik fallback codes
             cls._cache = cls._FALLBACK_CODES.copy()
             cls._initialized = True

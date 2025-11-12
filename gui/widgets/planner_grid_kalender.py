@@ -408,7 +408,6 @@ class PlannerGridKalender(GridKalenderBase):
                 user for user in self.gebruikers_data
                 if user['id'] in self.filtered_gebruiker_ids
             ]
-            print(f"[PlannerGrid] Gefilterd naar {len(self.gebruikers_data)} gebruikers (van {len(self.filtered_gebruiker_ids)} gevraagd)")
 
         # Laad feestdagen voor huidig jaar EN aangrenzende jaren (voor buffer dagen)
         self.load_feestdagen_extended()
@@ -751,11 +750,6 @@ class PlannerGridKalender(GridKalenderBase):
                 # Run batch validatie (alle 6 HR checks)
                 violations_dict = validator.validate_all()
 
-                # DEBUG: Log violations found
-                total_violations = sum(len(v) for v in violations_dict.values())
-                if total_violations > 0:
-                    print(f"[HR Load] Gebruiker {gebruiker_id}: {total_violations} violations found")
-
                 # Flatten violations en map naar datum
                 for regel_naam, violations_list in violations_dict.items():
                     for violation in violations_list:
@@ -804,11 +798,9 @@ class PlannerGridKalender(GridKalenderBase):
 
                                 huidige_datum += timedelta(days=1)
 
-            except Exception as e:
-                # Log error maar ga door met andere gebruikers
-                print(f"[HR Violations] Error validating user {gebruiker_id}: {e}")
-                import traceback
-                traceback.print_exc()
+            except Exception:
+                # Silently skip errors, continue with other users
+                pass
 
         # Update summary box na laden
         self.update_hr_summary()
@@ -1056,9 +1048,6 @@ class PlannerGridKalender(GridKalenderBase):
 
         # Check severity: errors = rood, warnings = geel
         heeft_error = any(v.severity.value == 'error' for v in violations)
-
-        # DEBUG: Print voor troubleshooting
-        print(f"[HR Overlay] {datum_str} gebruiker {gebruiker_id}: {len(violations)} violations (error={heeft_error})")
 
         if heeft_error:
             # Rood overlay (70% opacity voor betere zichtbaarheid)
@@ -1432,10 +1421,6 @@ class PlannerGridKalender(GridKalenderBase):
 
         # Prioriteit: verlof overlay eerst, dan HR overlay
         overlay = verlof_overlay if verlof_overlay else hr_overlay
-
-        # DEBUG: Log overlay status
-        if hr_overlay:
-            print(f"[Cel Create] {datum_str} user {gebruiker_id}: HR overlay={hr_overlay[:50]}...")
 
         # Check of dit een buffer dag is
         datum_obj = datetime.strptime(datum_str, '%Y-%m-%d')
@@ -2385,10 +2370,7 @@ class PlannerGridKalender(GridKalenderBase):
 
             return violations
 
-        except Exception as e:
-            print(f"[HR Violations] Error updating violations for user {gebruiker_id}: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
             return []
 
     def show_hr_violation_warning(self, violations: List[Violation]) -> None:
@@ -2972,11 +2954,61 @@ class PlannerGridKalender(GridKalenderBase):
             self.save_shift(nieuwe_datum, gebruiker_id, code)
 
     def open_filter_dialog(self) -> None:
-        """Open dialog om gebruikers te filteren"""
+        """
+        Open dialog om gebruikers te filteren
+
+        BELANGRIJK: Laadt ALLE actieve gebruikers uit database, niet alleen
+        de huidige gefilterde lijst. Dit maakt dynamische filter uitbreiding mogelijk.
+        """
         from gui.widgets.teamlid_grid_kalender import FilterDialog
-        dialog = FilterDialog(self.gebruikers_data, self.filter_gebruikers, self)
+
+        # Laad ALLE actieve gebruikers uit database (niet alleen huidige gefilterde lijst)
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, volledige_naam, gebruikersnaam, is_reserve, is_actief
+            FROM gebruikers
+            WHERE gebruikersnaam != 'admin' AND is_actief = 1
+            ORDER BY is_reserve, achternaam, voornaam
+        """)
+        alle_gebruikers = cursor.fetchall()
+        conn.close()
+
+        # Open dialog met ALLE gebruikers
+        dialog = FilterDialog(alle_gebruikers, self.filter_gebruikers, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.filter_gebruikers = dialog.get_filter()
+
+            # KRITIEK: Update filtered_gebruiker_ids met nieuwe selectie
+            # Zodat load_initial_data() de juiste gebruikers laadt
+            geselecteerde_ids = [
+                user_id for user_id, is_visible in self.filter_gebruikers.items()
+                if is_visible
+            ]
+
+            if geselecteerde_ids:
+                # Update naar nieuwe gefilterde lijst
+                self.filtered_gebruiker_ids = geselecteerde_ids
+            else:
+                # Geen gebruikers geselecteerd - toon waarschuwing
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    self,
+                    "Geen gebruikers geselecteerd",
+                    "Selecteer minstens één gebruiker om weer te geven."
+                )
+                return
+
+            # BELANGRIJK: Herlaad data met nieuwe filter
+            # Dit zorgt dat nieuwe gebruikers die nu zichtbaar zijn ook geladen worden
+            # Plus: clear ValidationCache voor nieuwe gebruikers
+            from config import ENABLE_VALIDATION_CACHE
+            if ENABLE_VALIDATION_CACHE:
+                from services.validation_cache import ValidationCache
+                cache = ValidationCache.get_instance()
+                cache.clear()  # Clear cache voor nieuwe gebruikers set
+
+            self.load_initial_data()
             self.build_grid()
 
     def vorige_maand(self) -> None:

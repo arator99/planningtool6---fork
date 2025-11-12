@@ -31,10 +31,6 @@ def ensure_application_folders():
     exports_folder = Path("exports")
     exports_folder.mkdir(exist_ok=True)
 
-    print("[OK] Application folders geverifieerd:")
-    print("     - data/ (database)")
-    print("     - exports/ (Excel exports voor HR)")
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -139,6 +135,7 @@ class MainWindow(QMainWindow):
         dashboard.planning_editor_clicked.connect(self.on_planning_editor_clicked)  # type: ignore
         dashboard.verlof_aanvragen_clicked.connect(self.on_verlof_aanvragen_clicked)  # type: ignore
         dashboard.verlof_goedkeuring_clicked.connect(self.on_verlof_goedkeuring_clicked)  # type: ignore
+        dashboard.notities_overzicht_clicked.connect(self.on_notities_overzicht_clicked)  # type: ignore
         dashboard.verlof_saldo_beheer_clicked.connect(self.on_verlof_saldo_beheer_clicked)  # type: ignore
         dashboard.werkpost_koppeling_clicked.connect(self.on_werkpost_koppeling_clicked)  # type: ignore
 
@@ -327,6 +324,16 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(scherm)
         self.stack.setCurrentWidget(scherm)
 
+    def on_notities_overzicht_clicked(self) -> None:
+        """Open notities overzicht scherm (v0.6.29)"""
+        if not self.current_user:
+            return
+
+        from gui.screens.notities_overzicht_screen import NotitiesOverzichtScreen
+        scherm = NotitiesOverzichtScreen(self.terug, dashboard_ref=self.dashboard)
+        self.stack.addWidget(scherm)
+        self.stack.setCurrentWidget(scherm)
+
     def show_handleiding(self) -> None:
         """Toon handleiding dialog (F1)"""
         from gui.dialogs.handleiding_dialog import HandleidingDialog
@@ -361,8 +368,7 @@ class MainWindow(QMainWindow):
                 # Default naar light
                 ThemeManager.set_theme('light')
 
-        except Exception as e:
-            print(f"Kon theme preference niet laden: {e}")
+        except Exception:
             ThemeManager.set_theme('light')
 
     def save_theme_preference(self, theme: str) -> None:
@@ -384,8 +390,8 @@ class MainWindow(QMainWindow):
             conn.commit()
             conn.close()
 
-        except Exception as e:
-            print(f"Kon theme preference niet opslaan: {e}")
+        except Exception:
+            pass
 
     def apply_theme(self) -> None:
         """Pas huidig thema toe op de hele applicatie (alleen bij startup en dashboard toggle)"""

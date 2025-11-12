@@ -162,8 +162,7 @@ class VerlofSaldoService:
             conn.commit()
             return True
 
-        except Exception as e:
-            print(f"Error updating saldo: {e}")
+        except Exception:
             conn.rollback()
             return False
 

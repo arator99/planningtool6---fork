@@ -499,9 +499,6 @@ class TypetabelBeheerScreen(QWidget):
             try:
                 result = self.pre_valideer_typetabel(versie)
             except Exception as e:
-                print(f"Pre-validatie fout: {e}")
-                import traceback
-                traceback.print_exc()
                 QApplication.restoreOverrideCursor()
                 QMessageBox.critical(
                     self,
@@ -553,15 +550,7 @@ class TypetabelBeheerScreen(QWidget):
             try:
                 result = self.pre_valideer_typetabel(versie)
 
-                # DEBUG: Print eerste 20 dagen van eerste gebruiker
-                print("\n" + "="*60)
-                print("DEBUG: TYPETABEL SIMULATIE (eerste 20 dagen, eerste gebruiker)")
-                print("="*60)
-
-            except Exception as e:
-                print(f"Pre-validatie fout: {e}")
-                import traceback
-                traceback.print_exc()
+            except Exception:
                 result = {'total_violations': 0}  # Fout = geen blokkering
             finally:
                 QApplication.restoreOverrideCursor()

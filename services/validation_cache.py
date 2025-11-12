@@ -160,7 +160,6 @@ class ValidationCache:
         # Stats
         self._stats['batch_loads'] += 1
         duration = time.time() - start_time
-        print(f"[ValidationCache] Preloaded {last_day} dagen in {duration:.2f}s")
 
     # ========================================================================
     # CACHE ACCESS
@@ -332,8 +331,7 @@ class ValidationCache:
                     'is_kritisch': bool(row['is_kritisch']) if has_kritisch else True
                 }
 
-        except Exception as e:
-            print(f"[ValidationCache] Fout bij laden shift codes: {e}")
+        except Exception:
             result = {}
         finally:
             conn.close()
@@ -404,8 +402,7 @@ class ValidationCache:
                 # Geen notities kolom - return empty set
                 result = set()
 
-        except Exception as e:
-            print(f"[ValidationCache] Fout bij laden notities: {e}")
+        except Exception:
             result = set()
         finally:
             conn.close()
@@ -430,8 +427,5 @@ class ValidationCache:
 
     def print_stats(self) -> None:
         """Print cache statistics (voor debugging)"""
-        stats = self.get_stats()
-        print("\n=== ValidationCache Stats ===")
-        for key, value in stats.items():
-            print(f"  {key}: {value}")
-        print("=============================\n")
+        # Removed print statements for production
+        pass

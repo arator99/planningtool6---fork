@@ -270,8 +270,7 @@ class MijnPlanningScreen(QWidget):
             else:
                 return 'concept'
 
-        except Exception as e:
-            print(f"Fout bij laden status: {e}")
+        except Exception:
             return 'concept'
 
     def update_status_indicator(self) -> None:

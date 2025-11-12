@@ -64,8 +64,8 @@ class HRRegelsService:
                 except (ValueError, IndexError):
                     pass  # Fallback naar default
 
-        except Exception as e:
-            print(f"Fout bij ophalen verlof vervaldatum: {e}")
+        except Exception:
+            pass
         finally:
             conn.close()
 
@@ -107,8 +107,8 @@ class HRRegelsService:
                     'actief_vanaf': row['actief_vanaf']
                 }
 
-        except Exception as e:
-            print(f"Fout bij ophalen HR regel '{naam}': {e}")
+        except Exception:
+            pass
         finally:
             conn.close()
 

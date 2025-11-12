@@ -135,10 +135,8 @@ class FeestdagenScherm(QWidget):
 
             # Laad feestdagen
             self.laad_feestdagen()
-        except Exception as e:
-            print(f"FOUT in laad_initieel: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
+            pass
 
     def jaar_gewijzigd(self, jaar_str: str) -> None:
         """Jaar selectie gewijzigd - genereert automatisch feestdagen indien nodig"""
@@ -158,10 +156,8 @@ class FeestdagenScherm(QWidget):
 
             # Laad feestdagen
             self.laad_feestdagen()
-        except Exception as e:
-            print(f"FOUT in jaar_gewijzigd: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
+            pass
 
     def laad_feestdagen(self) -> None:
         """Laad feestdagen voor geselecteerd jaar met visueel gecentreerde actieknoppen"""
@@ -182,10 +178,8 @@ class FeestdagenScherm(QWidget):
             """, (f"{jaar}-%",))
 
             feestdagen = cursor.fetchall()
-        except Exception as e:
-            print(f"Database fout in laad_feestdagen: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
+            pass
         finally:
             if conn:
                 conn.close()

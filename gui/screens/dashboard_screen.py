@@ -39,6 +39,7 @@ class DashboardScreen(QWidget):
     verlof_goedkeuring_clicked: pyqtSignal = pyqtSignal()  # Voor planners
     verlof_saldo_beheer_clicked: pyqtSignal = pyqtSignal()  # Voor admin - v0.6.10
     werkpost_koppeling_clicked: pyqtSignal = pyqtSignal()  # Voor admin - v0.6.14
+    notities_overzicht_clicked: pyqtSignal = pyqtSignal()  # Voor planners - v0.6.29
 
 
 
@@ -92,11 +93,34 @@ class DashboardScreen(QWidget):
             count = cursor.fetchone()[0]
             conn.close()
 
-            # U kunt deze prints nu verwijderen, maar ter controle:
-            print(f"Aantal gevonden '{pending_status_name}' aanvragen:", count)
+        except sqlite3.Error:
+            pass
 
-        except sqlite3.Error as e:
-            print(f"Databasefout bij ophalen verloftelling: {e}")
+        return count
+
+    def get_ongelezen_notitie_count(self) -> int:
+        """Haal het aantal ongelezen notities van teamleden naar planner op"""
+        count = 0
+
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # Tel notities met teamlid prefix ([Naam]:), niet van planner, en ongelezen
+            cursor.execute("""
+                SELECT COUNT(*) FROM planning
+                WHERE notitie IS NOT NULL
+                  AND notitie != ''
+                  AND notitie_gelezen = 0
+                  AND notitie LIKE '[%]:%'
+                  AND notitie NOT LIKE '[Planner]:%'
+            """)
+
+            count = cursor.fetchone()[0]
+            conn.close()
+
+        except sqlite3.Error:
+            pass
 
         return count
 
@@ -187,8 +211,115 @@ class DashboardScreen(QWidget):
 
         return widget
 
+    def create_notities_button_with_badge(self, count: int) -> QWidget:
+        """Maakt de 'Notities Overzicht' knop met rode notificatiebol voor ongelezen notities"""
+
+        widget = QWidget()
+        widget.setObjectName("NotitiesMenuItem")
+        widget.setCursor(Qt.CursorShape.PointingHandCursor)
+        widget.setMinimumHeight(80)
+
+        # Styling met hover effect
+        widget.setStyleSheet(f"""
+            #NotitiesMenuItem {{
+                background-color: {Colors.BG_WHITE};
+                border: 1px solid {Colors.BORDER_LIGHT};
+                border-radius: {Dimensions.RADIUS_LARGE}px;
+            }}
+            #NotitiesMenuItem:hover {{
+                background-color: {Colors.PRIMARY};
+                border-color: {Colors.PRIMARY};
+            }}
+        """)
+
+        # Hoofd layout (Vertical)
+        main_layout = QVBoxLayout(widget)
+        main_layout.setContentsMargins(
+            Dimensions.SPACING_MEDIUM,
+            Dimensions.SPACING_SMALL,
+            Dimensions.SPACING_MEDIUM,
+            Dimensions.SPACING_SMALL
+        )
+
+        # Bovenste rij (Horizontaal: Titel + Spacer + Badge)
+        top_layout = QHBoxLayout()
+        top_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Titel Label
+        title_label = QLabel("Notities Overzicht")
+        title_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_NORMAL, QFont.Weight.Bold))
+        title_label.setStyleSheet(f"color: {Colors.TEXT_PRIMARY}; background: transparent; border: none;")
+        top_layout.addWidget(title_label)
+
+        # Stretch dwingt de Badge naar de rechterrand
+        top_layout.addStretch()
+
+        # Notificatie Badge (Alleen tonen als count > 0)
+        if count > 0:
+            notification_label = QLabel(str(count))
+            notification_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL, QFont.Weight.Bold))
+            notification_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            notification_label.setFixedSize(50, 50)
+
+            # Styling voor de rode bol (cirkel)
+            notification_label.setStyleSheet(f"""
+                QLabel {{
+                    color: {Colors.TEXT_WHITE};
+                    background-color: {Colors.DANGER};
+                    border-radius: 25px;
+                    padding: 0px;
+                    background-clip: padding-box;
+                }}
+            """)
+
+            badge_wrapper = QWidget()
+            badge_layout = QVBoxLayout(badge_wrapper)
+            badge_layout.setContentsMargins(0, 20, 15, 0)  # Laat de bol zakken
+            badge_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+            badge_layout.addWidget(notification_label)
+            badge_wrapper.setStyleSheet("background: transparent;")
+
+            top_layout.addWidget(badge_wrapper)
+
+        main_layout.addLayout(top_layout)
+
+        # Beschrijving Label
+        description_label = QLabel("Bekijk en beheer notities van teamleden")
+        description_label.setFont(QFont(Fonts.FAMILY, Fonts.SIZE_SMALL))
+        description_label.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; background: transparent; border: none;")
+        main_layout.addWidget(description_label)
+
+        # Koppel de klikactie
+        widget.mousePressEvent = lambda event: self.handle_menu_click("Notities Overzicht")
+
+        return widget
+
     def refresh_verlof_badge(self):
         """Refresh verlof badge (na goedkeuring/weigering)"""
+        # Herlaad de hele Planning tab om de badge te updaten
+        if self.user_data['rol'] == 'planner':
+            # Vind de Planning tab index (normaal is het tab 1 voor planners)
+            planning_tab_index = 1
+
+            # Onthoud huidige tab selectie
+            current_tab_index = self.tabs.currentIndex()
+
+            # Verwijder oude Planning tab
+            old_widget = self.tabs.widget(planning_tab_index)
+            if old_widget:
+                self.tabs.removeTab(planning_tab_index)
+                old_widget.deleteLater()
+
+            # Maak nieuwe Planning tab met updated badge
+            new_planning_tab = self.create_planning_tab()
+            self.tabs.insertTab(planning_tab_index, new_planning_tab, "Planning")
+
+            # Herstel tab selectie
+            self.tabs.setCurrentIndex(current_tab_index)
+
+    def refresh_notities_badge(self):
+        """Refresh notities badge (na markeren als gelezen)"""
         # Herlaad de hele Planning tab om de badge te updaten
         if self.user_data['rol'] == 'planner':
             # Vind de Planning tab index (normaal is het tab 1 voor planners)
@@ -386,13 +517,12 @@ class DashboardScreen(QWidget):
         # --- Verlof Goedkeuring: Gebruik de nieuwe functie met badge ---
         pending_count = self.get_pending_leave_count()
         verlof_btn = self.create_verlof_button_with_badge(pending_count)
-
         scroll_layout.addWidget(verlof_btn)
 
-        #scroll_layout.addWidget(self.create_menu_button(
-        #    "Verlof Goedkeuring",
-        #    "Beheer verlofaanvragen van teamleden"
-        #))
+        # --- Notities Overzicht: Gebruik de nieuwe functie met badge ---
+        notitie_count = self.get_ongelezen_notitie_count()
+        notities_btn = self.create_notities_button_with_badge(notitie_count)
+        scroll_layout.addWidget(notities_btn)
 
         scroll_layout.addStretch()
         scroll.setWidget(scroll_widget)
@@ -644,6 +774,8 @@ class DashboardScreen(QWidget):
             self.verlof_aanvragen_clicked.emit()  # type: ignore
         elif title == "Verlof Goedkeuring":
             self.verlof_goedkeuring_clicked.emit()  # type: ignore
+        elif title == "Notities Overzicht":
+            self.notities_overzicht_clicked.emit()  # type: ignore
         elif title == "Verlof & KD Saldo":
             self.verlof_saldo_beheer_clicked.emit()  # type: ignore
 

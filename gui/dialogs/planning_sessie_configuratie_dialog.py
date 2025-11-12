@@ -12,12 +12,18 @@ PERFORMANCE VOORDEEL:
 - Session persistence (onthoud laatste keuze)
 - 100-300x sneller voor gefilterde sessies
 
+v0.6.28+ - WERKPOST FILTERING (ISSUE-011)
+- Selecteer werkposten om mee te plannen (checkboxes)
+- Filter gebruikers op werkpost kennis (via gebruiker_werkposten)
+- Meerdere werkposten tegelijk mogelijk
+
 Zie: refactor performance/PLANNING_SESSIE_CONFIGURATIE-1.md
+     bugs.md ISSUE-011
 """
 from typing import Dict, List
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QComboBox, QRadioButton, QCheckBox,
-                             QPushButton, QDialogButtonBox, QWidget)
+                             QPushButton, QDialogButtonBox, QWidget, QScrollArea)
 from PyQt6.QtCore import Qt
 from datetime import date
 from calendar import monthrange
@@ -47,6 +53,7 @@ class PlanningSessieConfiguratieDialog(QDialog):
         self.huidige_jaar: int = vandaag.year
         self.huidige_maand: int = vandaag.month
         self.gebruiker_ids: List[int] = []
+        self.werkpost_ids: List[int] = []  # NIEUW: geselecteerde werkposten
 
         # UI components (voor type hints)
         self.jaar_combo: QComboBox
@@ -55,7 +62,10 @@ class PlanningSessieConfiguratieDialog(QDialog):
         self.radio_alle: QRadioButton
         self.check_verberg_reserves: QCheckBox
         self.check_verberg_inactief: QCheckBox
+        self.check_filter_op_werkpost: QCheckBox  # NIEUW: filter op werkpost kennis
+        self.werkpost_checkboxes: Dict[int, QCheckBox] = {}  # NIEUW: werkpost checkboxes {werkpost_id: checkbox}
         self.label_selected_count: QLabel
+        self.label_selected_werkposten: QLabel  # NIEUW: werkpost count
         self.label_cellen: QLabel
         self.label_laadtijd: QLabel
         self.label_tip: QLabel
@@ -63,6 +73,7 @@ class PlanningSessieConfiguratieDialog(QDialog):
 
         self._setup_ui()
         self._load_defaults()
+        self._update_werkpost_selectie()  # NIEUW: update werkpost IDs
         self._update_gebruikers_filter()
 
     def _setup_ui(self) -> None:
@@ -73,6 +84,10 @@ class PlanningSessieConfiguratieDialog(QDialog):
         # Periode sectie
         periode_group = self._create_periode_section()
         layout.addWidget(periode_group)
+
+        # NIEUW: Werkposten sectie (ISSUE-011)
+        werkpost_group = self._create_werkpost_section()
+        layout.addWidget(werkpost_group)
 
         # Gebruikers sectie
         gebruikers_group = self._create_gebruikers_section()
@@ -141,6 +156,81 @@ class PlanningSessieConfiguratieDialog(QDialog):
         group.setLayout(layout)
         return group
 
+    def _create_werkpost_section(self) -> QGroupBox:
+        """
+        Werkpost selectie sectie (ISSUE-011)
+
+        Laat gebruiker kiezen voor welke werkposten te plannen.
+        """
+        group = QGroupBox("🏢 WERKPOST SELECTIE (Team Filter)")
+        layout = QVBoxLayout()
+
+        # Info label
+        info = QLabel(
+            "Selecteer werkposten om mee te plannen. "
+            "Meerdere selecties mogelijk."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-style: italic;")
+        layout.addWidget(info)
+
+        # Scroll area voor werkpost checkboxes
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setMaximumHeight(150)
+        scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+
+        # Container voor checkboxes
+        checkbox_container = QWidget()
+        checkbox_layout = QVBoxLayout(checkbox_container)
+        checkbox_layout.setContentsMargins(10, 5, 10, 5)
+        checkbox_layout.setSpacing(5)
+
+        # Laad werkposten uit database
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, naam, beschrijving
+            FROM werkposten
+            WHERE is_actief = 1
+            ORDER BY naam
+        """)
+        werkposten = cursor.fetchall()
+        conn.close()
+
+        # Maak checkbox per werkpost
+        for werkpost in werkposten:
+            werkpost_id = werkpost['id']
+            werkpost_naam = werkpost['naam']
+            werkpost_beschrijving = werkpost['beschrijving'] or ""
+
+            checkbox = QCheckBox(werkpost_naam)
+            checkbox.setChecked(True)  # Default: alle werkposten geselecteerd
+
+            # Tooltip met beschrijving
+            if werkpost_beschrijving:
+                checkbox.setToolTip(werkpost_beschrijving)
+
+            # Connect signal
+            checkbox.toggled.connect(self._on_werkpost_changed)  # type: ignore
+
+            # Opslaan in dictionary
+            self.werkpost_checkboxes[werkpost_id] = checkbox
+
+            checkbox_layout.addWidget(checkbox)
+
+        checkbox_layout.addStretch()
+        scroll_area.setWidget(checkbox_container)
+        layout.addWidget(scroll_area)
+
+        # Selected count label
+        self.label_selected_werkposten = QLabel("✓ 0 werkposten geselecteerd")
+        self.label_selected_werkposten.setStyleSheet(f"color: {Colors.SUCCESS}; font-weight: bold;")
+        layout.addWidget(self.label_selected_werkposten)
+
+        group.setLayout(layout)
+        return group
+
     def _create_gebruikers_section(self) -> QGroupBox:
         """Gebruikers filtering sectie"""
         group = QGroupBox("👥 GEBRUIKERS SELECTIE")
@@ -164,15 +254,20 @@ class PlanningSessieConfiguratieDialog(QDialog):
 
         self.check_verberg_reserves = QCheckBox("Verberg reserves")
         self.check_verberg_inactief = QCheckBox("Verberg inactieve gebruikers")
+        # NIEUW (ISSUE-011): Filter op werkpost kennis
+        self.check_filter_op_werkpost = QCheckBox("Alleen gebruikers die geselecteerde werkposten kennen")
 
         self.check_verberg_reserves.setChecked(True)  # Default ON
         self.check_verberg_inactief.setChecked(True)  # Default ON
+        self.check_filter_op_werkpost.setChecked(False)  # Default OFF (optioneel)
 
         self.check_verberg_reserves.toggled.connect(self._update_gebruikers_filter)  # type: ignore
         self.check_verberg_inactief.toggled.connect(self._update_gebruikers_filter)  # type: ignore
+        self.check_filter_op_werkpost.toggled.connect(self._update_gebruikers_filter)  # type: ignore
 
         filter_layout.addWidget(self.check_verberg_reserves)
         filter_layout.addWidget(self.check_verberg_inactief)
+        filter_layout.addWidget(self.check_filter_op_werkpost)
 
         layout.addWidget(filter_container)
 
@@ -220,37 +315,116 @@ class PlanningSessieConfiguratieDialog(QDialog):
         self.huidige_maand = self.maand_combo.currentIndex() + 1
         self._update_statistics()
 
+    def _on_werkpost_changed(self) -> None:
+        """
+        Handle werkpost checkbox wijziging (ISSUE-011)
+
+        Update lijst van geselecteerde werkposten en gebruikers filter
+        """
+        self._update_werkpost_selectie()
+        self._update_gebruikers_filter()
+
+    def _update_werkpost_selectie(self) -> None:
+        """
+        Update lijst van geselecteerde werkpost IDs (ISSUE-011)
+
+        Leest alle checkboxes en update self.werkpost_ids
+        """
+        self.werkpost_ids = [
+            werkpost_id
+            for werkpost_id, checkbox in self.werkpost_checkboxes.items()
+            if checkbox.isChecked()
+        ]
+
+        # Update UI label
+        count = len(self.werkpost_ids)
+        self.label_selected_werkposten.setText(
+            f"✓ {count} werkpost{'en' if count != 1 else ''} geselecteerd"
+        )
+
+        # Update kleur op basis van selectie
+        if count == 0:
+            self.label_selected_werkposten.setStyleSheet(
+                f"color: {Colors.WARNING}; font-weight: bold;"
+            )
+        else:
+            self.label_selected_werkposten.setStyleSheet(
+                f"color: {Colors.SUCCESS}; font-weight: bold;"
+            )
+
     def _update_gebruikers_filter(self) -> None:
         """
         Update gebruiker lijst op basis van filters
 
         Dit bepaalt hoeveel data we laden!
+
+        ISSUE-011: Filtert ook op werkpost kennis via gebruiker_werkposten
         """
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Base query
-        query = "SELECT id FROM gebruikers WHERE gebruikersnaam != 'admin'"
-        conditions = []
+        # NIEUW (ISSUE-011): Check of werkpost filtering actief is
+        filter_op_werkpost = (
+            self.check_filter_op_werkpost.isChecked() and
+            len(self.werkpost_ids) > 0
+        )
 
-        # Filter op actief/inactief
-        if self.check_verberg_inactief.isChecked():
-            conditions.append("is_actief = 1")
+        if filter_op_werkpost:
+            # Query met JOIN op gebruiker_werkposten (alleen gebruikers die geselecteerde werkposten kennen)
+            placeholders = ','.join(['?'] * len(self.werkpost_ids))
+            query = f"""
+                SELECT DISTINCT g.id
+                FROM gebruikers g
+                INNER JOIN gebruiker_werkposten gw ON g.id = gw.gebruiker_id
+                WHERE g.gebruikersnaam != 'admin'
+                AND gw.werkpost_id IN ({placeholders})
+            """
+            params = list(self.werkpost_ids)
+            conditions = []
 
-        # Filter op reserves
-        if self.check_verberg_reserves.isChecked():
-            conditions.append("is_reserve = 0")
+            # Filter op actief/inactief
+            if self.check_verberg_inactief.isChecked():
+                conditions.append("g.is_actief = 1")
 
-        # Radio button filter
-        if self.radio_actief.isChecked():
-            conditions.append("is_actief = 1")
+            # Filter op reserves
+            if self.check_verberg_reserves.isChecked():
+                conditions.append("g.is_reserve = 0")
 
-        # Add WHERE conditions
-        if conditions:
-            query += " AND " + " AND ".join(conditions)
+            # Radio button filter
+            if self.radio_actief.isChecked():
+                conditions.append("g.is_actief = 1")
 
-        # Execute
-        cursor.execute(query)
+            # Add WHERE conditions
+            if conditions:
+                query += " AND " + " AND ".join(conditions)
+
+            # Execute met params
+            cursor.execute(query, params)
+
+        else:
+            # Oude query zonder werkpost filtering
+            query = "SELECT id FROM gebruikers WHERE gebruikersnaam != 'admin'"
+            conditions = []
+
+            # Filter op actief/inactief
+            if self.check_verberg_inactief.isChecked():
+                conditions.append("is_actief = 1")
+
+            # Filter op reserves
+            if self.check_verberg_reserves.isChecked():
+                conditions.append("is_reserve = 0")
+
+            # Radio button filter
+            if self.radio_actief.isChecked():
+                conditions.append("is_actief = 1")
+
+            # Add WHERE conditions
+            if conditions:
+                query += " AND " + " AND ".join(conditions)
+
+            # Execute zonder params
+            cursor.execute(query)
+
         results = cursor.fetchall()
         conn.close()
 
@@ -344,6 +518,10 @@ class PlanningSessieConfiguratieDialog(QDialog):
                 self.check_verberg_inactief.setChecked(
                     config.get('verberg_inactief', True)
                 )
+                # NIEUW (ISSUE-011): Restore werkpost filter checkbox
+                self.check_filter_op_werkpost.setChecked(
+                    config.get('filter_op_werkpost', False)
+                )
 
                 # Restore radio
                 if config.get('filter_mode') == 'actief':
@@ -351,8 +529,17 @@ class PlanningSessieConfiguratieDialog(QDialog):
                 elif config.get('filter_mode') == 'alle':
                     self.radio_alle.setChecked(True)
 
-        except Exception as e:
-            print(f"[PlanningSessieConfig] Fout bij laden defaults: {e}")
+                # NIEUW (ISSUE-011): Restore werkpost selecties
+                saved_werkpost_ids = config.get('werkpost_ids', [])
+                for werkpost_id, checkbox in self.werkpost_checkboxes.items():
+                    # Zet checked state op basis van saved config
+                    # Default = alle aan als geen config, of check of in saved list
+                    if saved_werkpost_ids:
+                        checkbox.setChecked(werkpost_id in saved_werkpost_ids)
+                    # else: blijft default (alle aan)
+
+        except Exception:
+            pass
         finally:
             conn.close()
 
@@ -368,7 +555,9 @@ class PlanningSessieConfiguratieDialog(QDialog):
         config = {
             'verberg_reserves': self.check_verberg_reserves.isChecked(),
             'verberg_inactief': self.check_verberg_inactief.isChecked(),
-            'filter_mode': 'actief' if self.radio_actief.isChecked() else 'alle'
+            'filter_op_werkpost': self.check_filter_op_werkpost.isChecked(),  # NIEUW (ISSUE-011)
+            'filter_mode': 'actief' if self.radio_actief.isChecked() else 'alle',
+            'werkpost_ids': self.werkpost_ids  # NIEUW (ISSUE-011): save geselecteerde werkposten
         }
 
         conn = get_connection()
@@ -390,8 +579,8 @@ class PlanningSessieConfiguratieDialog(QDialog):
             """, (json.dumps(config),))
 
             conn.commit()
-        except Exception as e:
-            print(f"[PlanningSessieConfig] Fout bij opslaan config: {e}")
+        except Exception:
+            pass
         finally:
             conn.close()
 
@@ -404,6 +593,7 @@ class PlanningSessieConfiguratieDialog(QDialog):
                 'jaar': 2025,
                 'maand': 11,
                 'gebruiker_ids': [1, 2, 3, ...],
+                'werkpost_ids': [1, 2, ...],  # NIEUW (ISSUE-011)
                 'filters': {...}
             }
         """
@@ -411,9 +601,11 @@ class PlanningSessieConfiguratieDialog(QDialog):
             'jaar': self.huidige_jaar,
             'maand': self.huidige_maand,
             'gebruiker_ids': self.gebruiker_ids,
+            'werkpost_ids': self.werkpost_ids,  # NIEUW (ISSUE-011)
             'filters': {
                 'verberg_reserves': self.check_verberg_reserves.isChecked(),
                 'verberg_inactief': self.check_verberg_inactief.isChecked(),
+                'filter_op_werkpost': self.check_filter_op_werkpost.isChecked(),  # NIEUW (ISSUE-011)
             }
         }
 
